@@ -1,0 +1,3 @@
+# Last-resort background music (normally music comes from Freesound via audio.json) — https URLs only, one per line (royalty-free / licensed for reuse).
+# Audio files are never committed to git; `produce` picks a random line from here
+# when no track was registered with `music <ep> <file|url>`.

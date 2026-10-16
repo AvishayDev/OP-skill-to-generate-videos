@@ -1,0 +1,8 @@
+{
+  "name": "animate-in-code-studio",
+  "private": true,
+  "type": "module",
+  "description": "E.Y. AI · hand-made animation in pure JavaScript. Renders film HTML files to MP4.",
+  "dependencies": { "puppeteer-core": "^25" },
+  "engines": { "node": ">=22" }
+}

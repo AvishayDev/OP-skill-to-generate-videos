@@ -1,0 +1,14 @@
+{
+  "name": "Specimen Lab",
+  "why": "Three anatomy facts read best as a biologist's specimen sheet: labelled parts, counts and a lab stamp — one real octopus to prove it's real.",
+  "look": "Cream lab paper with a faint grid, deep navy ink, one coral accent for whatever the voice names; labels are rounded tags, verdicts are stamps. The one footage shot stays in natural colour.",
+  "palette": { "bg": "#F3EFE6", "ink": "#14213D", "accent": "#FF6B4A", "accentInk": "#FFFFFF", "muted": "#8A8F98", "paper": "#FFFFFF", "blue": "#2D6CDF" },
+  "font": "unbounded",
+  "bodyFont": "montserrat",
+  "imageTreatment": "none",
+  "ground": { "grain": 0.05, "pattern": "grid", "patternColor": "rgba(20,33,61,0.06)" },
+  "motif": { "type": "voiceline", "y": 0.69, "amp": 60, "color": "accent", "outline": "ink" },
+  "captions": { "size": 60, "bottom": 0.17, "plate": "rgba(255,255,255,0.94)" },
+  "elements": ["giant headline with a coral marker", "hearts that pop with labels", "element tiles (Cu / Fe) like a periodic table", "a lab stamp", "a drawn octopus whose brains light up", "a speech bubble"],
+  "motion": "Elements spring in on their word (snappy, one bounce for the hearts); hard cuts between shots."
+}

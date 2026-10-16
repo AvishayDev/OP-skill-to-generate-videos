@@ -1,0 +1,15 @@
+{
+  "title": "3 weird octopus facts",
+  "language": "en",
+  "aspect": "9:16",
+  "durationSeconds": 25,
+  "fps": 30,
+  "voice": {
+    "voiceName": "Puck"
+  },
+  "video": {
+    "music": {
+      "query": "playful quirky pizzicato"
+    }
+  }
+}

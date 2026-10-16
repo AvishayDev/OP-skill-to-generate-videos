@@ -1,0 +1,47 @@
+.env
+node_modules/
+tmp/
+output/
+
+# NEVER commit video or audio — anywhere in the repo. Media lives on local disk during a
+# run; git only keeps the project's text files (including the shot code in projects/*/shots/).
+# `npm test` fails if a media file is ever tracked.
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.mkv
+*.avi
+*.mp3
+*.wav
+*.m4a
+*.aac
+*.ogg
+*.oga
+*.opus
+*.flac
+
+# Generated images per project (contact sheets, element/overlay renders, downloads)
+projects/**/*.jpg
+projects/**/*.jpeg
+projects/**/*.png
+projects/**/*.webp
+projects/**/frames/
+projects/**/elements/
+projects/**/canvas/
+projects/**/clips/
+projects/**/audio/
+projects/**/overlays/
+# Reelkit project per project (media links, generated Video.tsx, renders) — rebuilt by `timeline`
+projects/**/reelkit/
+# Generated per run (timing, prepared asset paths, renders)
+projects/**/timing.json
+projects/**/assets.json
+projects/**/renders.json
+projects/**/reelkit-p*/
+projects/**/footage/
+projects/**/fonts/
+projects/**/*.ttf
+projects/**/*.otf
+# Downloaded third-party skill sources (library/fetch.sh) are re-fetchable
+.cache/

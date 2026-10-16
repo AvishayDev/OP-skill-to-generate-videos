@@ -1,0 +1,31 @@
+{
+  "_default": {
+    "whisperModel": "large-v3-turbo",
+    "font": "montserrat",
+    "voiceStyle": "A warm, upbeat, natural narrator — a smart friend telling you something exciting, never a news anchor. Brisk pace, short pauses, natural rhythm, dry humour on the punchlines. No laughing between words."
+  },
+  "en": { "name": "English", "languageCode": "en-US", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.6 },
+  "he": { "name": "Hebrew", "languageCode": "he-IL", "rtl": true, "whisperModel": "ivrit-ai/whisper-large-v3-turbo-ct2", "font": "heebo", "wordsPerSecond": 2.5,
+          "voiceStyle": "Native Israeli Hebrew. A smart, upbeat friend excitedly telling you something amazing — energetic, never a news anchor: brisk, fast pace with short pauses, natural rhythm, dry deadpan humour on the punchlines. Don't laugh or giggle between words." },
+  "ar": { "name": "Arabic", "languageCode": "ar-EG", "rtl": true, "font": { "google": "Cairo" }, "wordsPerSecond": 2.2 },
+  "fa": { "name": "Persian", "languageCode": "fa-IR", "rtl": true, "font": { "google": "Vazirmatn" }, "wordsPerSecond": 2.2 },
+  "es": { "name": "Spanish", "languageCode": "es-US", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.8 },
+  "fr": { "name": "French", "languageCode": "fr-FR", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.7 },
+  "de": { "name": "German", "languageCode": "de-DE", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.3 },
+  "it": { "name": "Italian", "languageCode": "it-IT", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.7 },
+  "pt": { "name": "Portuguese", "languageCode": "pt-BR", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.7 },
+  "nl": { "name": "Dutch", "languageCode": "nl-NL", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.5 },
+  "pl": { "name": "Polish", "languageCode": "pl-PL", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.3 },
+  "tr": { "name": "Turkish", "languageCode": "tr-TR", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.3 },
+  "ru": { "name": "Russian", "languageCode": "ru-RU", "rtl": false, "font": { "google": "Rubik" }, "wordsPerSecond": 2.3 },
+  "uk": { "name": "Ukrainian", "languageCode": "uk-UA", "rtl": false, "font": { "google": "Rubik" }, "wordsPerSecond": 2.3 },
+  "ro": { "name": "Romanian", "languageCode": "ro-RO", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.5 },
+  "hi": { "name": "Hindi", "languageCode": "hi-IN", "rtl": false, "font": { "google": "Noto Sans Devanagari" }, "wordsPerSecond": 2.5 },
+  "bn": { "name": "Bengali", "languageCode": "bn-BD", "rtl": false, "font": { "google": "Noto Sans Bengali" }, "wordsPerSecond": 2.3 },
+  "th": { "name": "Thai", "languageCode": "th-TH", "rtl": false, "font": { "google": "Noto Sans Thai" }, "noSpaces": true, "charsPerSecond": 12 },
+  "vi": { "name": "Vietnamese", "languageCode": "vi-VN", "rtl": false, "font": { "google": "Be Vietnam Pro" }, "wordsPerSecond": 3.0 },
+  "id": { "name": "Indonesian", "languageCode": "id-ID", "rtl": false, "font": "montserrat", "wordsPerSecond": 2.5 },
+  "ja": { "name": "Japanese", "languageCode": "ja-JP", "rtl": false, "font": { "google": "Noto Sans JP" }, "noSpaces": true, "charsPerSecond": 7 },
+  "ko": { "name": "Korean", "languageCode": "ko-KR", "rtl": false, "font": { "google": "Noto Sans KR" }, "wordsPerSecond": 2.2 },
+  "zh": { "name": "Chinese (Mandarin)", "languageCode": "cmn-CN", "rtl": false, "font": { "google": "Noto Sans SC" }, "noSpaces": true, "charsPerSecond": 5 }
+}

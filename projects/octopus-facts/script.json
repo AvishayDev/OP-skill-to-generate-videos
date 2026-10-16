@@ -1,0 +1,8 @@
+{
+  "title": "3 weird octopus facts",
+  "segments": [
+    { "id": "hearts", "text": "[excited] The octopus is basically an alien. Fact one: it has *three hearts*. Two pump blood through the gills, one pumps it to the body.", "sources": ["https://www.smithsonianmag.com/science-nature/ten-wild-facts-about-octopuses-they-have-three-hearts-big-brains-and-blue-blood-7625828/", "https://www.sciencefocus.com/nature/why-does-an-octopus-have-more-than-one-heart"] },
+    { "id": "blood", "text": "[curious] Fact two: its blood is *blue*. It runs on copper, not iron.", "sources": ["https://www.sciencefocus.com/nature/why-does-an-octopus-have-more-than-one-heart"] },
+    { "id": "brains", "text": "[surprised] And fact three: nine brains. One in the head, and a mini brain in every arm. [playfully] Tell me which fact got you!", "sources": ["https://mirror.triblive.com/lifestyles/more-lifestyles/9-brains-3-hearts-some-wild-facts-about-octopuses", "https://www.bristolaquarium.co.uk/blog/10-octopus-facts-you-wont-believe/"] }
+  ]
+}

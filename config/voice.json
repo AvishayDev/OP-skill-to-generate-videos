@@ -1,0 +1,46 @@
+{
+  "provider": "gemini",
+  "model": "gemini-3.8-flash-tts",
+  "voiceName": "Puck",
+  "style": "(set per language in config/languages.json → voiceStyle, or per project in project.json → voice.style)",
+  "segmentSeparator": "<short pause>",
+  "silenceThresholdDb": -35,
+  "minPauseSeconds": 0.2,
+  "voices": {
+    "male": [
+      "Puck",
+      "Charon",
+      "Fenrir",
+      "Orus",
+      "Enceladus",
+      "Iapetus",
+      "Umbriel",
+      "Algenib",
+      "Rasalgethi",
+      "Alnilam",
+      "Schedar",
+      "Achird",
+      "Zubenelgenubi",
+      "Sadachbia",
+      "Sadaltager",
+      "Algieba"
+    ],
+    "female": [
+      "Kore",
+      "Zephyr",
+      "Leda",
+      "Aoede",
+      "Callirrhoe",
+      "Autonoe",
+      "Despina",
+      "Erinome",
+      "Laomedeia",
+      "Achernar",
+      "Gacrux",
+      "Pulcherrima",
+      "Vindemiatrix",
+      "Sulafat"
+    ],
+    "notes": "Puck upbeat, Charon informative, Fenrir excitable, Orus firm, Enceladus breathy, Iapetus clear, Algieba smooth, Kore firm, Zephyr bright, Leda youthful, Aoede breezy, Callirrhoe easy-going, Despina smooth, Sulafat warm, Vindemiatrix gentle, Achernar soft, Gacrux mature, Sadachbia lively, Laomedeia upbeat"
+  }
+}

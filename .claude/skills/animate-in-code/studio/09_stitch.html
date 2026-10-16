@@ -1,0 +1,701 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>09 · רקמת איקסים</title>
+<body>
+<script src="fonts-data.js"></script>
+<script src="story.js"></script>
+<script src="audio.js"></script>
+<script src="runtime.js"></script>
+<script>
+'use strict';
+// ============================================================
+// 09 · CROSS-STITCH EMBROIDERY on Aida cloth, in a wooden hoop.
+// Every frame: the scene is drawn with flat shapes into a low-res buffer (60x107 cells, 18 px),
+// voted down to a DMC-like thread palette, then every cell is sewn as a real X stitch
+// (two 2-ply strands, twisted fibre shading, top leg last, shadow on the cloth).
+// Backstitch outlines trace the cell edges (diagonals smooth the staircases); faces, limbs and
+// the star's string are free backstitch snapped to the cloth holes. Text = petite stitches
+// on the half grid. Motion on threes (8 fps): each pose is re-stitched.
+// Opening: a printed ("stamped") pattern is already on the cloth and the scene sews itself in.
+// ============================================================
+const CELL = 18, COLS = 60, ROWS = 107, SS = 3, SUBW = CELL / SS, RW = COLS * SS, RH = ROWS * SS;
+const FCELL = 9, FCOLS = 120, FROWS = 214;
+const CS = 1.2;                                   // character is sewn a bit bigger than the story body (more cells = more face)
+const HOOP = { cx: 540, cy: 960, rx: 622, ry: 1082, band: 50 };
+const inHoop = (x, y, pad = 0) => ((x - HOOP.cx) / (HOOP.rx + pad)) ** 2 + ((y - HOOP.cy) / (HOOP.ry + pad)) ** 2 < 1;
+const QF = 8;
+const TITLE_W = 850;                                     // content frame rate (on threes)
+
+// ---------- thread palette (DMC-like) ----------
+// [name, hex, outline class, group, metallic]
+const THREADS = [
+  ['coral', '#ee7a5c', 1, 'char'], ['coralD', '#c8503e', 1, 'char'], ['coralL', '#ffab8a', 1, 'char'],
+  ['blush', '#ff5c86', 1, 'char'], ['mouth', '#7a1c34', 1, 'char'], ['tan', '#e9b98f', 1, 'char'],
+  ['eyeW', '#fbfbf6', 1, 'char'], ['ink', '#231a2d', 1, 'char'],
+  ['gold', '#e9b23a', 3, 'star', 1], ['goldD', '#b67d12', 3, 'star', 1], ['goldL', '#ffe38c', 3, 'star', 1],
+  ['sBlush', '#ff8a7a', 3, 'star'], ['sInk', '#3a2436', 3, 'star'],
+  ['lilac', '#ab92dc', 4, 'block'], ['lilacD', '#7f62bf', 4, 'block'], ['lilacL', '#cdbdf2', 4, 'block'],
+  ['teal', '#4dbda4', 5, 'block'], ['tealD', '#2a8f78', 5, 'block'], ['tealL', '#95e0cd', 5, 'block'],
+  ['bangY', '#ffd23a', 6, 'bang'], ['bangR', '#df334b', 6, 'bang'],
+  ['g1', '#acd96b', 0, 'ground'], ['g2', '#79bd4b', 0, 'ground'], ['g3', '#4f983a', 0, 'ground'], ['g4', '#387633', 0, 'ground'],
+  ['fPink', '#ff8db0', 0, 'ground'], ['fYel', '#ffd641', 0, 'ground'], ['fWhite', '#fffdf5', 0, 'ground'],
+  ['cW', '#fffefa', 0, 'cloud'], ['cB', '#b9d6ee', 0, 'cloud'],
+  ['tInk', '#2a2142', 0, 'text'], ['tBlue', '#1d4fb3', 0, 'text'], ['tRed', '#e2463c', 0, 'text'],
+];
+const hexRgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const shade = (c, k) => { const f = v => Math.round(clamp(k > 1 ? v + (255 - v) * (k - 1) : v * k, 0, 255)); return `rgb(${f(c[0])},${f(c[1])},${f(c[2])})`; };
+const TH = THREADS.map(([name, hex, cls, grp, metal]) => ({ name, hex, rgb: hexRgb(hex), cls, grp, metal: !!metal }));
+const IX = Object.fromEntries(TH.map((t, i) => [t.name, i]));
+const T = n => TH[IX[n]].hex;
+const INK = '#2b2133';
+const _thr = new Map();
+function thr(hex, metal = false) {   // cached shades for free stitches
+  const k = hex + metal; if (_thr.has(k)) return _thr.get(k);
+  const c = hexRgb(hex), o = { dark: shade(c, metal ? .45 : .56), base: shade(c, 1), light: shade(c, metal ? 1.75 : 1.38), twist: shade(c, .42) };
+  _thr.set(k, o); return o;
+}
+const hash3 = (a, b, c) => { let h = (Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) >>> 0; h = Math.imul(h ^ h >>> 13, 1274126177) >>> 0; return h; };
+
+// ============================================================
+// STITCH SPRITES (made once): X stitch = two strands, each 2 plies, twisted, shaded
+// ============================================================
+const NV = 5, SPR = [], HALF = [], PRINT = [];
+function ply(g, len, off, pw, col, metal, r, sgn) {
+  // a ply that narrows where it dives into the hole
+  const N = 14, top = [], bot = [];
+  for (let k = 0; k <= N; k++) { const u = k / N, x = u * len, s = Math.sqrt(Math.sin(Math.PI * clamp(u, .02, .98)));
+    const oc = off * (.35 + .65 * s), hw = pw / 2 * (.5 + .5 * s); top.push([x, oc - hw]); bot.push([x, oc + hw]); }
+  const p = new Path2D(); p.moveTo(top[0][0], top[0][1]); for (const q of top) p.lineTo(q[0], q[1]);
+  p.arcTo(len + pw * .35, off * .35, bot[N][0], bot[N][1], pw * .3);
+  for (let k = N; k >= 0; k--) p.lineTo(bot[k][0], bot[k][1]); p.arcTo(-pw * .35, off * .35, top[0][0], top[0][1], pw * .3); p.closePath();
+  const gr = g.createLinearGradient(0, off - pw / 2 * sgn, 0, off + pw / 2 * sgn);
+  gr.addColorStop(0, shade(col, metal ? 1.55 : 1.22)); gr.addColorStop(.28, shade(col, metal ? 1.25 : 1.06)); gr.addColorStop(.55, shade(col, 1));
+  gr.addColorStop(1, shade(col, metal ? .5 : .66));
+  g.fillStyle = gr; g.fill(p);
+  g.save(); g.clip(p);
+  // twist: slanted fibre grooves + light ridges
+  const st = pw * .78, ph = r() * st;
+  g.lineWidth = Math.max(.7, pw * .11); g.lineCap = 'round';
+  for (let x = -pw + ph; x < len + pw; x += st) {
+    g.strokeStyle = `rgba(${col.map(v => v * .4 | 0).join(',')},${metal ? .45 : .34})`;
+    g.beginPath(); g.moveTo(x - pw * .45, off - pw * .6); g.lineTo(x + pw * .45, off + pw * .6); g.stroke();
+    g.strokeStyle = metal ? 'rgba(255,255,235,.55)' : `rgba(255,255,255,${.16 + r() * .08})`;
+    g.beginPath(); g.moveTo(x - pw * .45 + st * .4, off - pw * .6); g.lineTo(x + pw * .1 + st * .4, off - pw * .05); g.stroke();
+  }
+  if (metal) { g.fillStyle = 'rgba(255,255,245,.85)'; for (let k = 0; k < 3; k++) { const x = len * (.2 + r() * .6); g.beginPath(); g.ellipse(x, off - pw * .18 * sgn, pw * .5, pw * .12, 0, 0, TAU); g.fill(); } }
+  // fuzz
+  g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = .5;
+  for (let k = 0; k < 3; k++) { const x = r() * len; g.beginPath(); g.moveTo(x, off - pw * .4); g.lineTo(x + (r() - .5) * pw, off - pw * .75); g.stroke(); }
+  g.restore();
+}
+function strand(g, p0, p1, col, w, r, metal) {
+  const dx = p1[0] - p0[0], dy = p1[1] - p0[1], len = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+  const sgn = Math.cos(a) >= 0 ? 1 : -1;      // keep the lit side facing up
+  g.save(); g.translate(p0[0], p0[1]); g.rotate(a);
+  const pw = w * .58;
+  for (const off of [-w * .21, w * .21]) ply(g, len, off, pw, col, metal, r, sgn);
+  g.restore();
+}
+function mkStitch(t, size, v, half) {
+  const m = Math.ceil(size * .5), cv2 = mkCanvas(Math.round((size + 2 * m) * S), Math.round((size + 2 * m) * S)), g = cv2.getContext('2d');
+  g.scale(S, S); g.translate(m, m);
+  const r = rng(hash3(t.rgb[0] * 7 + t.rgb[1], t.rgb[2] + 11, v * 31 + size + (half ? 5000 : 0)));
+  const tone = 1 + (r() - .5) * .07, col = t.rgb.map(c => clamp(c * tone, 0, 255));
+  const ins = size * .1, j = () => (r() - .5) * size * .09;
+  const A = [[ins + j(), size - ins + j()], [size - ins + j(), ins + j()]];   // bottom leg  /
+  const B = [[ins + j(), ins + j()], [size - ins + j(), size - ins + j()]];   // top leg    \
+  const w = size * .47 * (1 + (r() - .5) * .08);
+  g.save(); g.filter = `blur(${size * .075 * S}px)`; g.strokeStyle = 'rgba(58,36,14,.46)'; g.lineCap = 'round'; g.lineWidth = w * 1.05;
+  for (const L of half ? [A] : [A, B]) { g.beginPath(); g.moveTo(L[0][0] + size * .07, L[0][1] + size * .11); g.lineTo(L[1][0] + size * .07, L[1][1] + size * .11); g.stroke(); }
+  g.restore();
+  strand(g, A[0], A[1], col, w, r, t.metal);
+  if (!half) {
+    g.save(); g.filter = `blur(${size * .06 * S}px)`; g.strokeStyle = 'rgba(40,20,8,.38)'; g.lineWidth = w * .95; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(B[0][0] + size * .05, B[0][1] + size * .08); g.lineTo(B[1][0] + size * .05, B[1][1] + size * .08); g.stroke(); g.restore();
+    strand(g, B[0], B[1], col, w, r, t.metal);
+  }
+  return { c: cv2, m, size };
+}
+function mkPrint(t) {   // stamped-pattern print on the cloth: faded colour square + thin X
+  const cv2 = mkCanvas(Math.round(CELL * S), Math.round(CELL * S)), g = cv2.getContext('2d'); g.scale(S, S);
+  g.fillStyle = `rgba(${t.rgb.join(',')},.38)`; g.fillRect(2.5, 2.5, CELL - 5, CELL - 5);
+  g.strokeStyle = `rgba(${t.rgb.map(v => v * .55 | 0).join(',')},.55)`; g.lineWidth = 1.3; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(4, 4); g.lineTo(CELL - 4, CELL - 4); g.moveTo(CELL - 4, 4); g.lineTo(4, CELL - 4); g.stroke();
+  return cv2;
+}
+function buildSprites() {
+  TH.forEach((t, i) => {
+    SPR[i] = [0, 1].map(s => Array.from({ length: NV }, (_, v) => mkStitch(t, s ? FCELL : CELL, v, false)));
+    HALF[i] = [0, 1].map(s => mkStitch(t, s ? FCELL : CELL, 0, true));
+    PRINT[i] = mkPrint(t);
+  });
+}
+const putSpr = (c, sp, x, y) => c.drawImage(sp.c, x - sp.m, y - sp.m, sp.size + 2 * sp.m, sp.size + 2 * sp.m);
+
+// ============================================================
+// FREE STITCHES: backstitch, straight stitches, star stitches, french knots, loose thread
+// ============================================================
+function threadSeg(c, x0, y0, x1, y1, hex, w = 5, metal = false) {
+  const len = Math.hypot(x1 - x0, y1 - y0); if (len < 2) return;
+  const ux = (x1 - x0) / len, uy = (y1 - y0) / len, g0 = Math.min(1.8, len * .12);
+  x0 += ux * g0; y0 += uy * g0; x1 -= ux * g0; y1 -= uy * g0;
+  const th = thr(hex, metal), nx = -uy, ny = ux, up = ny > 0 ? -1 : 1;
+  c.lineCap = 'round';
+  c.strokeStyle = 'rgba(52,32,12,.36)'; c.lineWidth = w * 1.15; c.beginPath(); c.moveTo(x0 + 1.4, y0 + 2.2); c.lineTo(x1 + 1.4, y1 + 2.2); c.stroke();
+  c.strokeStyle = th.dark; c.lineWidth = w; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+  c.strokeStyle = th.base; c.lineWidth = w * .66; c.beginPath(); c.moveTo(x0 - nx * up * w * .06, y0 - ny * up * w * .06); c.lineTo(x1 - nx * up * w * .06, y1 - ny * up * w * .06); c.stroke();
+  const ho = w * .17 * up; c.strokeStyle = th.light; c.lineWidth = w * .24; c.globalAlpha = metal ? .95 : .75;
+  c.beginPath(); c.moveTo(x0 + nx * ho + ux * w * .3, y0 + ny * ho + uy * w * .3); c.lineTo(x1 + nx * ho - ux * w * .3, y1 + ny * ho - uy * w * .3); c.stroke(); c.globalAlpha = 1;
+  // twist grooves
+  c.strokeStyle = th.twist; c.globalAlpha = .45; c.lineWidth = Math.max(.8, w * .14); c.beginPath();
+  for (let d = w * .6; d < len - w * .4; d += w * .85) { const px = x0 + ux * d, py = y0 + uy * d; c.moveTo(px + nx * w * .42 - ux * w * .25, py + ny * w * .42 - uy * w * .25); c.lineTo(px - nx * w * .42 + ux * w * .25, py - ny * w * .42 + uy * w * .25); }
+  c.stroke(); c.globalAlpha = 1;
+}
+// resample a polyline and snap to the cloth holes (grid g). Each hop = one backstitch.
+function snapPts(pts, g = FCELL, step = 18) {
+  const out = []; const push = (x, y) => { const q = [Math.round(x / g) * g, Math.round(y / g) * g]; const l = out[out.length - 1]; if (!l || l[0] !== q[0] || l[1] !== q[1]) out.push(q); };
+  push(pts[0][0], pts[0][1]);
+  for (let k = 1; k < pts.length; k++) {
+    const [ax, ay] = pts[k - 1], [bx, by] = pts[k], L = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.round(L / step));
+    for (let s = 1; s <= n; s++) push(lerp(ax, bx, s / n), lerp(ay, by, s / n));
+  }
+  return out;
+}
+function backstitch(c, pts, hex, w = 5, g = FCELL, step = 18, metal = false) {
+  const p = snapPts(pts, g, step); for (let k = 1; k < p.length; k++) threadSeg(c, p[k - 1][0], p[k - 1][1], p[k][0], p[k][1], hex, w, metal);
+}
+function starStitch(c, x, y, r, hex, rot = 0, metal = true) {
+  x = Math.round(x / FCELL) * FCELL; y = Math.round(y / FCELL) * FCELL;
+  for (let k = 0; k < 4; k++) { const a = rot + k * Math.PI / 4, dx = Math.cos(a) * r, dy = Math.sin(a) * r; threadSeg(c, x - dx, y - dy, x + dx, y + dy, hex, 4.6, metal); }
+}
+function knot(c, x, y, hex, r = 6.5, metal = false) {
+  const th = thr(hex, metal);
+  c.fillStyle = 'rgba(50,30,10,.4)'; c.beginPath(); c.arc(x + 1.6, y + 2.4, r * 1.05, 0, TAU); c.fill();
+  const g = c.createRadialGradient(x - r * .35, y - r * .4, r * .1, x, y, r); g.addColorStop(0, th.light); g.addColorStop(.45, th.base); g.addColorStop(1, th.dark);
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+  c.strokeStyle = th.twist; c.globalAlpha = .5; c.lineWidth = Math.max(.8, r * .18);
+  for (let k = 0; k < 3; k++) { c.beginPath(); c.arc(x, y, r * (.45 + k * .17), k * 2.1, k * 2.1 + 2.2); c.stroke(); }
+  c.globalAlpha = 1; c.fillStyle = metal ? '#fffbe6' : 'rgba(255,255,255,.6)'; c.beginPath(); c.arc(x - r * .35, y - r * .4, r * .22, 0, TAU); c.fill();
+}
+// a loose thread lying on the cloth (smooth curve)
+function looseThread(c, pts, hex, w = 5, metal = false) {
+  const th = thr(hex, metal), p = new Path2D();
+  p.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) p.quadraticCurveTo(pts[i][0], pts[i][1], (pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2);
+  const L = pts[pts.length - 1]; p.lineTo(L[0], L[1]);
+  c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+  c.save(); c.translate(2, 3.5); c.filter = `blur(${2 * S}px)`; c.strokeStyle = 'rgba(40,24,8,.4)'; c.lineWidth = w * 1.2; c.stroke(p); c.restore();
+  c.strokeStyle = th.dark; c.lineWidth = w; c.stroke(p);
+  c.strokeStyle = th.base; c.lineWidth = w * .66; c.stroke(p);
+  c.save(); c.translate(-w * .12, -w * .14); c.strokeStyle = th.light; c.globalAlpha = .7; c.lineWidth = w * .22; c.stroke(p); c.restore();
+  c.strokeStyle = th.twist; c.globalAlpha = .5; c.lineWidth = w * .9; c.setLineDash([1.1, w * .75]); c.stroke(p);
+  c.restore();
+}
+function needle(c, tx, ty, ang, hex, tail) {
+  c.save(); c.translate(tx, ty); c.rotate(ang);
+  const body = new Path2D(); body.moveTo(0, 0); body.lineTo(34, -3.2); body.lineTo(150, -4.2); body.arc(152, 0, 4.2, -Math.PI / 2, Math.PI / 2); body.lineTo(34, 3.2); body.closePath();
+  c.save(); c.translate(3, 7); c.filter = `blur(${3 * S}px)`; c.fillStyle = 'rgba(30,20,10,.45)'; c.fill(body); c.restore();
+  const g = c.createLinearGradient(0, -4.5, 0, 4.5); g.addColorStop(0, '#6d737c'); g.addColorStop(.3, '#f7f9fb'); g.addColorStop(.55, '#aeb4bc'); g.addColorStop(1, '#4f535a');
+  c.fillStyle = g; c.fill(body);
+  c.fillStyle = '#2a2622'; c.beginPath(); c.ellipse(140, 0, 7, 1.5, 0, 0, TAU); c.fill();
+  c.restore();
+  if (tail) {   // thread from the eye back to the last stitch
+    const ex = tx + Math.cos(ang) * 140, ey = ty + Math.sin(ang) * 140;
+    looseThread(c, [[ex, ey], [ex + 30, ey + 40], [lerp(ex, tail[0], .6) + 20, lerp(ey, tail[1], .6) + 30], [tail[0], tail[1]]], hex, 5);
+  }
+}
+
+// ============================================================
+// RASTER: flat shapes -> thread cells (3x3 votes per cell, blends ignored)
+// ============================================================
+let RC, R, FC, F;
+const QCACHE = new Map();
+function raster(cands, fn, over) {
+  R.setTransform(1, 0, 0, 1, 0, 0); R.clearRect(0, 0, RW, RH); R.setTransform(1 / SUBW, 0, 0, 1 / SUBW, 0, 0);
+  fn(R);
+  const d = R.getImageData(0, 0, RW, RH).data, g = new Int16Array(COLS * ROWS).fill(-1);
+  const key = cands.join(','); if (!QCACHE.has(key)) QCACHE.set(key, new Map()); const qc = QCACHE.get(key);
+  const q = (r, gg, b) => { const k = r << 16 | gg << 8 | b; let v = qc.get(k); if (v !== undefined) return v; let best = -2, bd = 46 * 46;
+    for (const ci of cands) { const c = TH[ci].rgb, dd = (c[0] - r) ** 2 + (c[1] - gg) ** 2 + (c[2] - b) ** 2; if (dd < bd) { bd = dd; best = ci; } } qc.set(k, best); return best; };
+  const vi = new Int16Array(9), vn = new Int8Array(9);
+  for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) {
+    let empty = 0, nv = 0;
+    for (let b = 0; b < SS; b++) for (let a = 0; a < SS; a++) {
+      const o = ((j * SS + b) * RW + i * SS + a) * 4, al = d[o + 3];
+      if (al < 60) { empty++; continue; } if (al < 200) continue;
+      const e = q(d[o], d[o + 1], d[o + 2]); if (e < 0) continue;
+      let f = -1; for (let k = 0; k < nv; k++) if (vi[k] === e) { f = k; break; }
+      if (f < 0) { vi[nv] = e; vn[nv++] = 1; } else vn[f]++;
+    }
+    let bi = -1, bc = 0; for (let k = 0; k < nv; k++) if (vn[k] > bc) { bc = vn[k]; bi = vi[k]; }
+    if (bc > empty) g[j * COLS + i] = bi;
+  }
+  if (over) for (const [x, y, e, only] of over) { const i = Math.floor(x / CELL), j = Math.floor(y / CELL); if (i < 0 || j < 0 || i >= COLS || j >= ROWS) continue; const k = j * COLS + i; if (only === undefined || g[k] === only) g[k] = e; }
+  return g;
+}
+const TXT = [IX.tInk, IX.tBlue, IX.tRed];
+function fineRaster(fn) {
+  F.setTransform(1, 0, 0, 1, 0, 0); F.clearRect(0, 0, FCOLS, FROWS); F.setTransform(1 / FCELL, 0, 0, 1 / FCELL, 0, 0);
+  fn(F);
+  const d = F.getImageData(0, 0, FCOLS, FROWS).data, g = new Int16Array(FCOLS * FROWS).fill(-1);
+  for (let k = 0; k < FCOLS * FROWS; k++) { const o = k * 4; if (d[o + 3] < 118) continue;
+    let best = -1, bd = 1e9; for (const ci of TXT) { const c = TH[ci].rgb, dd = (c[0] - d[o]) ** 2 + (c[1] - d[o + 1]) ** 2 + (c[2] - d[o + 2]) ** 2; if (dd < bd) { bd = dd; best = ci; } } g[k] = best; }
+  return g;
+}
+const CAND_A = TH.map((t, i) => i).filter(i => TH[i].grp === 'star' || TH[i].grp === 'block');
+const CAND_B = TH.map((t, i) => i).filter(i => TH[i].grp === 'char' || TH[i].grp === 'bang');
+const CAND_G = TH.map((t, i) => i).filter(i => TH[i].grp === 'ground');
+const CAND_C = TH.map((t, i) => i).filter(i => TH[i].grp === 'cloud');
+
+// ============================================================
+// SCENE SHAPES (drawn into the raster, world units)
+// ============================================================
+const fillE = (c, x, y, rx, ry, col, rot = 0) => { c.fillStyle = col; c.beginPath(); c.ellipse(x, y, rx, ry, rot, 0, TAU); c.fill(); };
+function starPath(R0, r0) { const p = new Path2D(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU, rr = i % 2 ? r0 : R0; i ? p.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : p.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); } p.closePath(); return p; }
+const STARP = starPath(STAR_R, STAR_R * .5);
+const SSC = 1.18;
+const HANG_X = 58;   // hang a little lower than the story so the sewn face stays clear of the (bigger) star   // star is sewn a little bigger too
+function starNow(t) {
+  if (t >= .6) return starState(t);
+  const a = starAng(t), L = SLEN;           // the star is SEWN in place instead of dropping (it is on the cloth from frame 0)
+  return { visible: true, x: PIV[0] + L * Math.sin(a), y: PIV[1] + L * Math.cos(a), ang: a, pivot: PIV, lit: 0, grabbed: false, dodge: false };
+}
+function toWorld(c) { const m = c.getTransform(), k = SUBW * (c === F ? FCELL / SUBW : 1); return (px, py) => [(m.a * px + m.c * py + m.e) * k, (m.b * px + m.d * py + m.f) * k]; }
+
+function starShape(c, st, t, fx) {
+  const { x, y, ang: a, lit } = st;
+  const pulse = 1 + .03 * Math.sin(t * 5) + .1 * lit * Math.exp(-(t - LEAP.t1) * 3);
+  c.save(); c.translate(x, y); c.rotate(-a); c.scale(SSC * pulse, SSC * pulse);
+  const W2 = toWorld(c);
+  c.fillStyle = T('goldD'); c.fill(STARP);
+  c.save(); c.clip(STARP); c.translate(-9, -11); c.fillStyle = T('gold'); c.fill(STARP); c.restore();
+  fillE(c, -30, -30, 17, 10, T('goldL'), -.6); fillE(c, 0, -62, 8, 14, T('goldL'));
+  fillE(c, -36, 18, 11, 8, T('sBlush')); fillE(c, 36, 18, 11, 8, T('sBlush'));
+  const face = [];
+  if (lit > 0) {
+    fillE(c, -22, -6, 10, 10, T('sInk')); fillE(c, 22, -6, 10, 10, T('sInk'));
+    face.push([[-18, 12], [-8, 22], [0, 24], [8, 22], [18, 12]]);
+    fx.over.push([...W2(-19, -9), IX.goldL, IX.sInk], [...W2(25, -9), IX.goldL, IX.sInk]);
+  } else if (st.dodge) {
+    fillE(c, -10, -6, 9, 9, T('sInk')); fillE(c, 32, -6, 9, 9, T('sInk'));
+    face.push([[-4, 18], [14, 12]]);
+  } else {
+    face.push([[-34, -6], [-24, 2], [-14, -6]], [[14, -6], [24, 2], [34, -6]], [[-10, 14], [0, 20], [10, 14]]);
+  }
+  for (const f of face) fx.bs.push({ pts: f.map(p => W2(p[0], p[1])), hex: T('sInk'), w: 4.6 });
+  fx.starTop = W2(0, -STAR_R + 4);
+  c.restore();
+}
+const BCOL = [['lilac', 'lilacD', 'lilacL'], ['teal', 'tealD', 'tealL']];
+function blockXf(c, b) { c.translate(b.x, b.bottom); c.rotate(b.rot); c.scale(1 + b.sq * .6, 1 - b.sq); c.translate(0, -b.h / 2); }
+function blockShape(c, i, b) {
+  const [m, d, l] = BCOL[i].map(T), w = b.w / 2, h = b.h / 2;
+  c.save(); blockXf(c, b);
+  c.fillStyle = d; c.fillRect(-w, -h, b.w, b.h);
+  c.fillStyle = l; c.fillRect(-w, -h, b.w - 30, b.h - 34);
+  c.fillStyle = m; c.fillRect(-w + 22, -h + 22, b.w - 52, b.h - 56);
+  c.restore();
+}
+let LABEL_SIZE = 80;
+function blockText(c, i, b) {
+  c.save(); blockXf(c, b);
+  c.direction = 'rtl'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = T('tInk');
+  c.font = `800 ${LABEL_SIZE}px Heebo`; c.fillText(b.label, -4, -40);
+  c.font = `900 132px Heebo`; c.fillText(b.n, -4, 60);
+  if (b.n === '1') c.fillRect(-38, 96, 68, 22);
+  c.restore();
+}
+function bangShape(c, s, t) {
+  if (t < IDEA.t0 || t > IDEA.t1) return;
+  const k = eBack(prog(t, IDEA.t0, IDEA.t0 + .2)), out = 1 - prog(t, IDEA.t1 - .15, IDEA.t1);
+  c.save(); c.translate(s.x + 40, s.y - 360 * s.sy); c.rotate(.1); c.scale(k * out, k * out);
+  c.fillStyle = T('bangY'); c.beginPath(); c.roundRect(-58, -76, 116, 152, 26); c.fill();
+  c.fillStyle = T('bangR'); c.beginPath(); c.roundRect(-19, -56, 38, 76, 10); c.fill(); c.fillRect(-19, 32, 38, 30);
+  c.restore();
+}
+
+// ---------- פיצי (raster + free-stitch details) ----------
+function pitzShape(c, s, t, fx) {
+  const { x, y, sx = 1, sy = 1, rot = 0, sc = 1, eyes = 'norm', mouth = 'smile', brow = null, look = [0, 0], armL = .35, armR = .35, band = 0, jig = 0, legs = 0 } = s;
+  if (sc <= .05) return;
+  c.save(); c.translate(x, y); c.rotate(rot); c.scale(sx * sc * CS, sy * sc * CS);
+  const W2 = toWorld(c), bs = (pts, hex = INK, w = 6.2) => fx.bs.push({ pts: pts.map(p => W2(p[0], p[1])), hex, w });
+  const inBody = (px, py) => (px / 104) ** 2 + ((py + 128) / 97) ** 2 < 1;
+  // arms: backstitch from the body edge + round coral hands
+  [[-1, armL], [1, armR]].forEach(([sd, a]) => {
+    const al = 100 / Math.max(1, sx), sh = [sd * 72, -118], hd = [sh[0] + sd * Math.sin(a) * al, sh[1] + Math.cos(a) * 100], el = [lerp(sh[0], hd[0], .5) + sd * 8, lerp(sh[1], hd[1], .5) + 6];
+    const pts = []; for (let k = 0; k <= 16; k++) { const u = k / 16, p = u < .5 ? [lerp(sh[0], el[0], u * 2), lerp(sh[1], el[1], u * 2)] : [lerp(el[0], hd[0], u * 2 - 1), lerp(el[1], hd[1], u * 2 - 1)]; if (!inBody(p[0], p[1]) || pts.length) pts.push(p); }
+    if (pts.length > 1) bs(pts);
+    fillE(c, hd[0], hd[1], 19, 18, T('coral'));
+  });
+  // legs + feet
+  [[-1, 0], [1, 1]].forEach(([sd, n]) => {
+    const sw = Math.sin(legs + n * Math.PI) * 18 * (legs ? 1 : 0), hip = [sd * 34, -36], ft = [sd * 42 + sw, -4];
+    bs([hip, ft]);
+    fillE(c, ft[0] + sd * 10, ft[1] - 4, 30, 15, T('coralD'));
+  });
+  // body: coral with sewn shading
+  c.save(); c.beginPath(); c.ellipse(0, -128, 104, 97, 0, 0, TAU); c.clip();
+  c.fillStyle = T('coralD'); c.fillRect(-120, -240, 240, 230);
+  fillE(c, -12, -140, 100, 88, T('coral'));
+  fillE(c, -50, -186, 26, 15, T('coralL'), -.5);
+  c.restore();
+  if (band > 0) { c.save(); c.translate(50, -214); c.rotate(.4); c.scale(eBack(band), eBack(band)); c.fillStyle = T('tan'); c.fillRect(-46, -15, 92, 30); c.restore(); }
+  fillE(c, -72, -106, 19, 11, T('blush')); fillE(c, 72, -106, 19, 11, T('blush'));
+  // eyes
+  const jx = Math.sin(t * 37) * jig * 7, jy = Math.cos(t * 29) * jig * 6;
+  [-1, 1].forEach(sd => {
+    const ex = sd * 45, ey = -152;
+    if (eyes === 'x') { bs([[ex - 17, ey - 17], [ex + 17, ey + 17]]); bs([[ex + 17, ey - 17], [ex - 17, ey + 17]]); return; }
+    if (eyes === 'happy') { bs([[ex - 20, ey + 8], [ex, ey - 12], [ex + 20, ey + 8]]); return; }
+    const Rr = eyes === 'big' || eyes === 'spark' ? 40 : 37;
+    fillE(c, ex, ey, Rr, Rr * 1.06, T('eyeW'));
+    const ring = []; for (let k = 0; k <= 18; k++) { const a = k / 18 * TAU; ring.push([ex + Math.cos(a) * (Rr + 3), ey + Math.sin(a) * (Rr * 1.06 + 3)]); } bs(ring, INK, 5.4);
+    const pr = eyes === 'spark' ? 21 : eyes === 'big' ? 15 : 18;
+    const px = ex + clamp(look[0] * 11 + jx, -12, 12), py = ey + clamp(look[1] * 11 + jy, -12, 12);
+    fillE(c, px, py, pr, pr, T('ink'));
+    fx.knots.push([...W2(px + pr * .42, py - pr * .45), '#ffffff', eyes === 'spark' ? 7 : 6]);   // french-knot eye shine
+    if (eyes === 'spark') fx.knots.push([...W2(px - pr * .45, py + pr * .4), '#ffffff', 4.5]);
+  });
+  if (brow === 'det') { bs([[-76, -206], [-26, -194]]); bs([[76, -206], [26, -194]]); }
+  const my = -98;
+  if (mouth === 'smile') bs([[-26, my - 6], [-12, my + 6], [0, my + 9], [12, my + 6], [26, my - 6]], T('mouth'));
+  else if (mouth === 'flat') bs([[-18, my + 2], [18, my]], T('mouth'));
+  else if (mouth === 'ouch') bs([[-28, my], [-14, my - 9], [0, my + 3], [14, my - 9], [28, my]], T('mouth'));
+  else if (mouth === 'tiny') fillE(c, 0, my + 2, 11, 12, T('mouth'));
+  else if (mouth === 'open') fillE(c, 0, my + 4, 17, 20, T('mouth'));
+  else if (mouth === 'wow') { c.fillStyle = T('mouth'); c.beginPath(); c.moveTo(-32, my - 8); c.quadraticCurveTo(0, my + 50, 32, my - 8); c.closePath(); c.fill(); fillE(c, 0, my + 18, 16, 9, T('blush')); }
+  fx.head = W2(0, -236);
+  c.restore();
+}
+
+// ============================================================
+// STATIC CLOTH LAYERS
+// ============================================================
+let L_FABRIC, L_HOOP, L_LIGHT, GROUND, CLOUD, TITLE_F, TITLE_CELLS, CV, CX;
+const DECO = [[150, 330, 13, 'gold', .1], [940, 470, 11, 'goldL', .2], [300, 780, 10, 'cW', .3], [990, 760, 12, 'gold', .4], [110, 1250, 11, 'goldL', .5], [640, 1180, 9, 'cW', .55], [460, 400, 9, 'goldL', .35]];
+function buildFabric() {
+  const tl = mkCanvas(Math.round(144 * S), Math.round(144 * S)), g = tl.getContext('2d'), r = rng(5);
+  g.scale(S, S); g.fillStyle = '#ddd0b3'; g.fillRect(0, 0, 144, 144);
+  for (let cj = 0; cj < 8; cj++) for (let ci = 0; ci < 8; ci++) {
+    const x = ci * 18, y = cj * 18, tn = (r() - .5) * 10;
+    g.fillStyle = `rgb(${238 + tn | 0},${229 + tn | 0},${209 + tn | 0})`; g.beginPath(); g.roundRect(x + 2.2, y + 2.2, 13.6, 13.6, 3.5); g.fill();
+    for (let k = 0; k < 3; k++) for (let l = 0; l < 3; l++) {
+      const bx = x + 3 + k * 4.2, by = y + 3 + l * 4.2, hz = (k + l) % 2 === 0;
+      g.fillStyle = `rgba(255,252,240,${.45 + r() * .25})`; hz ? g.fillRect(bx, by + .5, 3.8, 1.3) : g.fillRect(bx + .5, by, 1.3, 3.8);
+      g.fillStyle = `rgba(140,118,82,${.22 + r() * .12})`; hz ? g.fillRect(bx, by + 2.9, 3.8, .9) : g.fillRect(bx + 2.9, by, .9, 3.8);
+    }
+  }
+  for (let cj = 0; cj <= 8; cj++) for (let ci = 0; ci <= 8; ci++) {
+    g.fillStyle = 'rgba(110,90,62,.55)'; g.beginPath(); g.arc(ci * 18, cj * 18, 3, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(60,46,30,.8)'; g.beginPath(); g.arc(ci * 18 + .3, cj * 18 + .4, 1.6, 0, TAU); g.fill();
+  }
+  L_FABRIC = layer(g2 => {
+    const pat = g2.createPattern(tl, 'repeat'); pat.setTransform(new DOMMatrix().scale(1 / S, 1 / S));
+    g2.fillStyle = pat; g2.fillRect(0, 0, W, H);
+    const q = rng(17);
+    for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) { const v = q(); if (v < .5) continue; g2.fillStyle = v > .8 ? `rgba(255,250,235,${(v - .8) * .5})` : `rgba(120,95,60,${(v - .5) * .12})`; g2.fillRect(i * 18 + 2, j * 18 + 2, 14, 14); }
+    for (let k = 0; k < 22000; k++) { g2.fillStyle = q() < .5 ? `rgba(90,70,40,${.06 + q() * .1})` : `rgba(255,250,236,${.08 + q() * .12})`; g2.fillRect(q() * W, q() * H, 1 + q() * 1.5, 1 + q() * 1.5); }
+    g2.lineWidth = .7; for (let k = 0; k < 900; k++) { const x = q() * W, y = q() * H, a = q() * TAU, l = 5 + q() * 16; g2.strokeStyle = q() < .6 ? `rgba(255,250,236,${.15 + q() * .2})` : `rgba(110,85,50,${.1 + q() * .15})`; g2.beginPath(); g2.moveTo(x, y); g2.quadraticCurveTo(x + Math.cos(a + .6) * l * .5, y + Math.sin(a + .6) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g2.stroke(); }
+    // slubs: a few slightly thicker weft rows / warp columns
+    for (let k = 0; k < 7; k++) { const j = Math.floor(q() * ROWS); g2.fillStyle = 'rgba(120,95,60,.05)'; g2.fillRect(0, j * 18 + 5, W, 8); }
+    for (let k = 0; k < 5; k++) { const i = Math.floor(q() * COLS); g2.fillStyle = 'rgba(255,250,236,.07)'; g2.fillRect(i * 18 + 5, 0, 8, H); }
+  });
+}
+function buildHoop() {
+  const { cx, cy, rx, ry, band: bw } = HOOP;
+  const ell = (g, a, b, dx = 0, dy = 0) => { g.beginPath(); g.ellipse(cx + dx, cy + dy, a, b, 0, 0, TAU); };
+  L_HOOP = layer(g => {
+    // cloth outside the hoop: slack, in shade, with folds
+    g.save(); g.beginPath(); g.rect(-60, -60, W + 120, H + 120); g.ellipse(cx, cy, rx, ry, 0, 0, TAU); g.clip('evenodd');
+    g.fillStyle = 'rgba(70,46,22,.30)'; g.fillRect(-60, -60, W + 120, H + 120);
+    const r = rng(31); g.filter = `blur(${9 * S}px)`; g.lineCap = 'round';
+    for (let k = 0; k < 26; k++) {
+      const a = r() * TAU, px = cx + Math.cos(a) * (rx + 20), py = cy + Math.sin(a) * (ry + 20), l = 120 + r() * 260, da = (r() - .5) * .9;
+      g.strokeStyle = k % 2 ? 'rgba(255,244,222,.22)' : 'rgba(40,24,8,.28)'; g.lineWidth = 10 + r() * 22;
+      g.beginPath(); g.moveTo(px, py); g.quadraticCurveTo(px + Math.cos(a + da) * l * .5, py + Math.sin(a + da) * l * .5, px + Math.cos(a) * l, py + Math.sin(a) * l); g.stroke();
+    }
+    g.filter = 'none'; g.restore();
+    // ring shadow onto the taut cloth + onto the outside cloth
+    g.save(); ell(g, rx - 6, ry - 6); g.clip(); g.filter = `blur(${13 * S}px)`; g.strokeStyle = 'rgba(52,30,10,.42)'; g.lineWidth = 46; ell(g, rx - 22, ry - 22, 7, 12); g.stroke(); g.restore();
+    g.save(); g.filter = `blur(${12 * S}px)`; g.strokeStyle = 'rgba(28,16,6,.5)'; g.lineWidth = 40; ell(g, rx + 16, ry + 16, 10, 18); g.stroke(); g.restore();
+    // inner ring bump under the cloth
+    g.save(); g.filter = `blur(${2 * S}px)`; g.strokeStyle = 'rgba(255,250,236,.35)'; g.lineWidth = 6; ell(g, rx - bw * .62, ry - bw * .62); g.stroke(); g.restore();
+    // outer wooden ring
+    g.lineWidth = bw; g.strokeStyle = '#c28a4e'; ell(g, rx, ry); g.stroke();
+    const q = rng(61);
+    for (let k = 0; k < 90; k++) {
+      const off = (q() - .5) * bw * .92; g.lineWidth = .6 + q() * 2.2;
+      g.strokeStyle = q() < .75 ? `rgba(${100 + q() * 40 | 0},${56 + q() * 22 | 0},${22 + q() * 10 | 0},${.14 + q() * .3})` : `rgba(240,200,140,${.15 + q() * .2})`;
+      g.setLineDash([60 + q() * 420, 10 + q() * 90]); g.lineDashOffset = q() * 2000; ell(g, rx + off, ry + off); g.stroke();
+    }
+    g.setLineDash([]);
+    for (let k = 0; k < 14; k++) { const a = q() * TAU, off = (q() - .5) * bw * .6; g.fillStyle = 'rgba(90,50,20,.35)'; g.beginPath(); g.ellipse(cx + Math.cos(a) * (rx + off), cy + Math.sin(a) * (ry + off), 9 + q() * 8, 2.5, a + Math.PI / 2, 0, TAU); g.fill(); }
+    g.lineWidth = 6; g.strokeStyle = 'rgba(255,226,172,.55)'; ell(g, rx - bw * .3, ry - bw * .3); g.stroke();
+    g.lineWidth = 2.5; g.strokeStyle = 'rgba(80,42,14,.7)'; ell(g, rx - bw * .5, ry - bw * .5); g.stroke();
+    g.lineWidth = 3; g.strokeStyle = 'rgba(70,36,12,.6)'; ell(g, rx + bw * .48, ry + bw * .48); g.stroke();
+    // loose thread tails + a parked needle in the corners
+    looseThread(g, [[70, 250], [40, 170], [95, 120], [60, 60], [120, 20]], T('coral'), 5);
+    looseThread(g, [[1030, 240], [1000, 150], [1060, 90], [990, 40]], T('lilac'), 5);
+    looseThread(g, [[80, 1720], [40, 1790], [110, 1840], [60, 1905]], T('g2'), 5);
+    looseThread(g, [[1000, 1770], [1050, 1830], [980, 1880], [940, 1850], [900, 1915]], T('gold'), 4.5, true);
+    needle(g, 900, 1905, -1.05, T('gold'), null);
+  });
+  L_LIGHT = layer(g => {
+    const gr = g.createRadialGradient(380, 560, 60, 540, 900, 1350); gr.addColorStop(0, 'rgba(255,246,222,.10)'); gr.addColorStop(.5, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(38,22,8,.34)');
+    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  });
+}
+function buildGround() {
+  GROUND = raster(CAND_G, c => {
+    const r = rng(900), top = [];
+    for (let x = -40; x <= W + 40; x += 18) top.push([x, GY - 4 - (Math.floor(x / 18) % 3 === 0 ? 22 + r() * 16 : r() * 8)]);
+    const poly = (dy, col) => { c.fillStyle = col; c.beginPath(); top.forEach(([x, y], k) => k ? c.lineTo(x, y + dy) : c.moveTo(x, y + dy)); c.lineTo(W + 40, H + 40); c.lineTo(-40, H + 40); c.closePath(); c.fill(); };
+    poly(0, T('g1')); poly(30, T('g2')); poly(180, T('g3')); poly(290, T('g4'));
+    for (let k = 0; k < 26; k++) { const x = r() * W, y = GY + 60 + r() * 110; fillE(c, x, y, 16 + r() * 18, 7, T('g3')); }
+    for (let k = 0; k < 16; k++) { const x = r() * W, y = GY + 210 + r() * 80; fillE(c, x, y, 16 + r() * 18, 7, T('g2')); }
+  });
+  // flowers: little cross motifs sewn cell by cell
+  [[4, 91, 'fPink'], [15, 94, 'fWhite'], [27, 90, 'fYel'], [44, 95, 'fPink'], [53, 91, 'fWhite'], [9, 99, 'fYel'], [34, 100, 'fPink'], [22, 103, 'fWhite'], [48, 102, 'fYel']].forEach(([i, j, col]) => {
+    const set = (a, b, e) => { if (a >= 0 && a < COLS && b < ROWS) GROUND[b * COLS + a] = e; };
+    set(i, j - 1, IX[col]); set(i - 1, j, IX[col]); set(i + 1, j, IX[col]); set(i, j + 1, IX[col]); set(i, j, col === 'fYel' ? IX.fPink : IX.fYel);
+  });
+  CLOUD = raster(CAND_C, c => {
+    [[230, 1000, 1], [890, 900, .75], [190, 560, .62]].forEach(([x, y, s]) => {
+      c.save(); c.translate(x, y); c.scale(s, s);
+      const puffs = [[-80, 12, 52], [-20, -22, 70], [55, -6, 58], [100, 22, 42], [10, 22, 60]];
+      c.fillStyle = T('cW'); for (const [px, py, pr] of puffs) { c.beginPath(); c.arc(px, py, pr, 0, TAU); c.fill(); }
+      c.save(); c.beginPath(); for (const [px, py, pr] of puffs) { c.moveTo(px + pr, py); c.arc(px, py, pr, 0, TAU); } c.clip();
+      c.fillStyle = T('cB'); c.fillRect(-160, 40, 320, 60); c.restore();
+      c.restore();
+    });
+  });
+}
+function buildTitle() {
+  ctx.save(); ctx.font = '800 100px Heebo'; ctx.direction = 'rtl';
+  const [w1, w2] = TITLE.words; const m1 = ctx.measureText(w1).width, m2 = ctx.measureText(w2).width, sp = ctx.measureText(' ').width;
+  const size = Math.min(170, 100 * 930 / (m1 + m2 + sp * 1.4));
+  ctx.font = '800 100px Heebo'; const lab = ctx.measureText('נפילה').width; LABEL_SIZE = Math.min(84, 100 * 206 / lab);
+  ctx.restore();
+  const mk = size => { const k = size / 100, tot = (m1 + m2 + sp * 1.4) * k; return fineRaster(c => {
+    c.font = `800 ${size}px Heebo`; c.direction = 'rtl'; c.textAlign = 'right'; c.textBaseline = 'middle';
+    c.fillStyle = T('tBlue'); c.fillText(w1, 540 + tot / 2, TITLE.y);
+    c.fillStyle = T('tRed'); const w2b = w2.replace('.', ''), x2 = 540 + tot / 2 - m1 * k - sp * 1.4 * k; c.fillText(w2b, x2, TITLE.y);
+    if (w2b !== w2) { const ww = c.measureText(w2b).width; const dd = size * .2; c.fillRect(x2 - ww - size * .08 - dd, TITLE.y + size * .11 - dd / 2, dd, dd); }
+  }); };
+  const extent = g => { let a = 1e9, b = -1; for (let k2 = 0; k2 < g.length; k2++) if (g[k2] >= 0) { a = Math.min(a, k2 % FCOLS); b = Math.max(b, k2 % FCOLS); } return [a, b]; };
+  let sz = size; TITLE_F = mk(sz);
+  for (let it = 0; it < 4; it++) { const [a, b] = extent(TITLE_F), wpx = (b - a + 1) * FCELL; if (Math.abs(wpx - TITLE_W) < 12) break; sz *= TITLE_W / wpx; TITLE_F = mk(sz); }
+  const [ea, eb] = extent(TITLE_F), dx = Math.round((COLS * 2 - 1 - eb - ea) / 2);     // centre it on the fine grid
+  if (dx) { const g2 = new Int16Array(TITLE_F.length).fill(-1); for (let k2 = 0; k2 < g2.length; k2++) { const fi = k2 % FCOLS; if (TITLE_F[k2] >= 0 && fi + dx >= 0 && fi + dx < FCOLS) g2[k2 + dx] = TITLE_F[k2]; } TITLE_F = g2; }
+  TITLE_CELLS = []; let fmin = 1e9, fmax = -1;
+  for (let k2 = 0; k2 < TITLE_F.length; k2++) if (TITLE_F[k2] >= 0) { const fi = k2 % FCOLS; fmin = Math.min(fmin, fi); fmax = Math.max(fmax, fi); }
+  for (let k2 = 0; k2 < TITLE_F.length; k2++) if (TITLE_F[k2] >= 0) { const fi = k2 % FCOLS, fj = (k2 / FCOLS) | 0;
+    TITLE_CELLS.push({ fi, fj, e: TITLE_F[k2], rt: TITLE.t0 + (1 - (fi - fmin) / (fmax - fmin)) * .55 + (fj % 2) * .004 }); }
+}
+
+// ============================================================
+// EFFECTS (free stitches)
+// ============================================================
+const CONF = (() => { const r = rng(77), a = [], cols = ['coral', 'fPink', 'gold', 'teal', 'lilac', 'tBlue', 'fWhite', 'fYel']; for (let i = 0; i < 46; i++) { const an = -Math.PI / 2 + (r() - .5) * 3.4, sp = 450 + r() * 900;
+  a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, col: T(cols[i % cols.length]), knot: r() < .55, ang: r() * TAU, spin: (r() - .5) * 10 }); } return a; })();
+function effects(c, t, s, st, fx) {
+  // sky decoration: star stitches (sewn in during the opening)
+  for (const [x, y, r, col, t0] of DECO) if (t >= t0 - .3) starStitch(c, x, y, r, T(col), 0, col !== 'cW');
+  // dust puffs: seed stitches
+  const puff = (x, y, t0, n = 8) => { const d = t - t0; if (d < 0 || d > .55) return; const k = d / .55, r = rng(Math.round(t0 * 100));
+    for (let i = 0; i < n; i++) { const sd = i % 2 ? 1 : -1, px = x + sd * (50 + i * 18) * eOut(k) + (r() - .5) * 20, py = y - 30 * Math.sin(k * Math.PI) - r() * 30, a = r() * TAU;
+      if (i / n > 1 - k * .8 || ON_CHAR(px, py)) continue; const X = Math.round(px / 9) * 9, Y = Math.round(py / 9) * 9; threadSeg(c, X - Math.cos(a) * 9, Y - Math.sin(a) * 9, X + Math.cos(a) * 9, Y + Math.sin(a) * 9, i % 3 ? '#f4ead2' : T('tan'), 5); } };
+  SPLATS.forEach(te => puff(HX, GY - 10, te, 10));
+  puff(TOWER.x, GY - 10, BLOCKS[0].land, 10); puff(TOWER.x, blockTop(0) - 6, BLOCKS[1].land, 10);
+  HOPS.forEach(h => puff(h.to[0], h.to[1] - 6, h.t1, 6));
+  // dizzy: gold star stitches orbiting the head
+  if (s.dizzy > 0 && fx.head) for (let i = 0; i < 3; i++) { const a = t * 5 + i / 3 * TAU, px = s.x + Math.cos(a) * 130, py = fx.head[1] - 10 + Math.sin(a) * 26; starStitch(c, px, py, 14 * s.dizzy * (Math.sin(a) > 0 ? 1.15 : .85), T('gold'), a); }
+  // lit star: stitched rays + french knots + metallic glints
+  if (st.lit > 0) {
+    const { x, y, ang } = st, L = st.lit;
+    for (let i = 0; i < 14; i++) { const a = i / 14 * TAU - ang + .11, r0 = 150, r1 = r0 + (i % 2 ? 60 : 95) * L;
+      if (ON_CHAR(x + Math.cos(a) * (r0 + 30), y + Math.sin(a) * (r0 + 30)) || ON_CHAR(x + Math.cos(a) * r1, y + Math.sin(a) * r1)) continue;
+      const p0 = [Math.round((x + Math.cos(a) * r0) / 9) * 9, Math.round((y + Math.sin(a) * r0) / 9) * 9], p1 = [Math.round((x + Math.cos(a) * r1) / 9) * 9, Math.round((y + Math.sin(a) * r1) / 9) * 9];
+      threadSeg(c, p0[0], p0[1], p1[0], p1[1], i % 2 ? T('goldL') : T('gold'), 6, true);
+      knot(c, x + Math.cos(a) * (r1 + 22), y + Math.sin(a) * (r1 + 22), i % 3 ? T('goldL') : T('fWhite'), 7, i % 3 !== 0); }
+    const rq = rng(Math.floor(t * QF) * 13 + 5);
+    for (let i = 0; i < 9; i++) { const a = rq() * TAU, rr = 280 + rq() * 90 * L; if (!ON_CHAR(x + Math.cos(a) * rr, y + Math.sin(a) * rr)) knot(c, x + Math.cos(a) * rr, y + Math.sin(a) * rr, [T('fPink'), T('goldL'), T('tealL'), T('fWhite')][i % 4], 6); }
+  }
+  // grab confetti: french knots + seed stitches bursting from the star
+  const d = t - LEAP.t1;
+  if (d >= 0 && d < 2) { const { x: x0, y: y0 } = starState(LEAP.t1);
+    for (const p of CONF) { const px = x0 + p.vx * d * Math.exp(-d * .9), py = y0 + p.vy * d * Math.exp(-d * .9) + 650 * d * d; if (py > GY - 20 || !inHoop(px, py, -40)) continue;
+      const X = Math.round(px / 9) * 9, Y = Math.round(py / 9) * 9; if (ON_CHAR(X, Y)) continue;
+      if (p.knot) knot(c, X, Y, p.col, 7.5); else { const a = p.ang + p.spin * d; threadSeg(c, X - Math.cos(a) * 11, Y - Math.sin(a) * 11, X + Math.cos(a) * 11, Y + Math.sin(a) * 11, p.col, 6); } } }
+}
+function glints(c, t, grid, st) {
+  if (!st.visible) return;
+  const L = st.lit, r = rng(Math.floor(t * QF) * 7 + 3), n = L > 0 ? 7 : 2, cells = [];
+  for (let k = 0; k < grid.length; k++) if (grid[k] >= 0 && TH[grid[k]].metal) cells.push(k);
+  if (!cells.length) return;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (let q = 0; q < n; q++) { const k = cells[Math.floor(r() * cells.length)], x = (k % COLS) * CELL + 9, y = Math.floor(k / COLS) * CELL + 9, s = (L > 0 ? 26 : 14) * (.6 + r() * .6);
+    const g = c.createRadialGradient(x, y, 0, x, y, s * .45); g.addColorStop(0, 'rgba(255,250,220,.95)'); g.addColorStop(1, 'rgba(255,230,150,0)'); c.fillStyle = g; c.beginPath(); c.arc(x, y, s * .45, 0, TAU); c.fill();
+    c.strokeStyle = 'rgba(255,248,220,.8)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(x - s, y); c.lineTo(x + s, y); c.moveTo(x, y - s); c.lineTo(x, y + s); c.stroke(); }
+  c.restore();
+}
+
+// ============================================================
+// ONE CLOTH FRAME (content on threes)
+// ============================================================
+const OPEN_END = .75;
+let ON_CHAR = () => false;
+function renderCloth(t) {
+  const c = CX; c.setTransform(S, 0, 0, S, 0, 0);
+  c.drawImage(L_FABRIC, 0, 0, W, H);
+  const s = pose(t); if (t < TRIES[0].T0) s.sc = 1;
+  if (t >= LEAP.t0) { const k0 = prog(t, LEAP.t0, LEAP.t1), k = t >= LEAP.t1 ? 1 : k0, a = t >= LEAP.t1 ? starState(t).ang : 0;
+    s.x += HANG_X * k * Math.sin(a); s.y += HANG_X * k * Math.cos(a) + (t < LEAP.t1 ? 125 * Math.sin(k0 * Math.PI) : 0); }   // approach the star from below                       // פיצי is sewn in rather than popped
+  const st = starNow(t), fx = { bs: [], over: [], knots: [], head: null, starTop: null };
+  const A = raster(CAND_A, g => { starShape(g, st, t, fx); for (let i = 0; i < 2; i++) { const b = blockState(i, t); if (b.visible) blockShape(g, i, b); } }, fx.over.splice(0));
+  // (star overrides are collected during the call above; re-apply them now)
+  for (const [x, y, e, only] of fx.over) { const i = Math.floor(x / CELL), j = Math.floor(y / CELL), k = j * COLS + i; if (k >= 0 && k < A.length && A[k] === only) A[k] = e; }
+  fx.over.length = 0;
+  const B = raster(CAND_B, g => { pitzShape(g, s, t, fx); bangShape(g, s, t); });
+  for (const [x, y, e, only] of fx.over) { const i = Math.floor(x / CELL), j = Math.floor(y / CELL), k = j * COLS + i; if (k >= 0 && k < B.length && B[k] === only) B[k] = e; }
+  const blocks = [0, 1].map(i => blockState(i, t)).map((b, i) => ({ b, i })).filter(o => o.b.visible);
+  const FL = blocks.length ? fineRaster(g => blocks.forEach(o => blockText(g, o.i, o.b))) : null;
+  // compose: פיצי > ground > star/blocks > clouds ; only inside the hoop
+  const N = COLS * ROWS, grid = new Int16Array(N), vis = new Uint8Array(N), rt = new Float32Array(N);
+  const span = {}; const note = (grp, j) => { const o = span[grp] || (span[grp] = [1e9, -1]); o[0] = Math.min(o[0], j); o[1] = Math.max(o[1], j); };
+  for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) {
+    const k = j * COLS + i, starOn = t >= LEAP.t0 + .12 && A[k] >= 0 && TH[A[k]].grp === 'star';
+    let e = starOn ? A[k] : B[k] >= 0 ? B[k] : GROUND[k] >= 0 ? GROUND[k] : A[k] >= 0 ? A[k] : CLOUD[k];
+    if (e >= 0 && !inHoop(i * CELL + 9, j * CELL + 9, -8)) e = -1;
+    grid[k] = e; if (e >= 0 && t < OPEN_END) note(TH[e].grp, j);
+  }
+  let front = null, frontT = -9;
+  for (let k = 0; k < N; k++) {
+    const e = grid[k]; if (e < 0) continue;
+    if (t >= OPEN_END) { vis[k] = 2; continue; }
+    const i = k % COLS, j = (k / COLS) | 0, grp = TH[e].grp, sp = span[grp], serp = (j % 2 ? COLS - 1 - i : i) / COLS, rows = sp[1] - sp[0] + 1;
+    const [a, dur] = grp === 'ground' ? [-.45, 1.0] : grp === 'cloud' ? [-.15, .8] : grp === 'star' ? [-.8, 1.1] : grp === 'char' ? [-.62, 1.0] : [-9, 0];
+    const r = a + (j - sp[0] + serp) / rows * dur; rt[k] = r;
+    vis[k] = r <= t - .045 ? 2 : r <= t ? 1 : 0;
+    if (grp === 'ground' && r <= t && r > frontT) { frontT = r; front = [i, j]; }
+  }
+  // printed pattern (only during the opening), then stitches row by row
+  if (t < OPEN_END) for (let k = 0; k < N; k++) if (grid[k] >= 0 && vis[k] === 0) c.drawImage(PRINT[grid[k]], (k % COLS) * CELL, ((k / COLS) | 0) * CELL, CELL, CELL);
+  for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) {
+    const k = j * COLS + i, e = grid[k], x = i * CELL, y = j * CELL;
+    const split = FL && e >= 0 && TH[e].grp === 'block' && (FL[(2 * j) * FCOLS + 2 * i] >= 0 || FL[(2 * j) * FCOLS + 2 * i + 1] >= 0 || FL[(2 * j + 1) * FCOLS + 2 * i] >= 0 || FL[(2 * j + 1) * FCOLS + 2 * i + 1] >= 0);
+    if (split) {
+      for (let b = 0; b < 2; b++) for (let a = 0; a < 2; a++) { const f = FL[(2 * j + b) * FCOLS + 2 * i + a], ee = f >= 0 ? f : e;
+        putSpr(c, SPR[ee][1][hash3(2 * i + a, 2 * j + b, ee) % NV], x + a * FCELL, y + b * FCELL); }
+    } else if (e >= 0 && vis[k]) putSpr(c, vis[k] === 2 ? SPR[e][0][hash3(i, j, e) % NV] : HALF[e][0], x, y);
+  }
+  // backstitch outlines along the cell edges (diagonals round off the staircases)
+  const C = new Int8Array(N); for (let k = 0; k < N; k++) C[k] = grid[k] >= 0 ? TH[grid[k]].cls : 0;
+  const cut = new Set(), segs = [];
+  const shown = k => vis[k] === 2;
+  for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) {
+    const k = j * COLS + i; if (C[k] !== 0) continue;
+    const Lc = i > 0 ? C[k - 1] : 0, Rc = i < COLS - 1 ? C[k + 1] : 0, U = j > 0 ? C[k - COLS] : 0, D = j < ROWS - 1 ? C[k + COLS] : 0;
+    const P = [[Lc, U, Rc, D, 'v' + i + ',' + j, 'h' + i + ',' + j, [i, j + 1, i + 1, j], k - 1],
+      [U, Rc, Lc, D, 'h' + i + ',' + j, 'v' + (i + 1) + ',' + j, [i, j, i + 1, j + 1], k + 1],
+      [Rc, D, Lc, U, 'v' + (i + 1) + ',' + j, 'h' + i + ',' + (j + 1), [i + 1, j, i, j + 1], k + 1],
+      [D, Lc, Rc, U, 'h' + i + ',' + (j + 1), 'v' + i + ',' + j, [i + 1, j + 1, i, j], k - 1]];
+    for (const [p1, p2, o1, o2, e1, e2, dg, nb] of P) if (p1 > 0 && p1 === p2 && o1 !== p1 && o2 !== p1) {
+      cut.add(e1); cut.add(e2); if (shown(nb)) segs.push([dg[0] * CELL, dg[1] * CELL, dg[2] * CELL, dg[3] * CELL]); break; }
+  }
+  for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) {
+    const k = j * COLS + i, a = C[k];
+    if (i < COLS - 1) { const b = C[k + 1]; if (a !== b && (a > 0 || b > 0) && !cut.has('v' + (i + 1) + ',' + j) && (a > 0 ? shown(k) : shown(k + 1))) segs.push([(i + 1) * CELL, j * CELL, (i + 1) * CELL, (j + 1) * CELL]); }
+    if (j < ROWS - 1) { const b = C[k + COLS]; if (a !== b && (a > 0 || b > 0) && !cut.has('h' + i + ',' + (j + 1)) && (a > 0 ? shown(k) : shown(k + COLS))) segs.push([i * CELL, (j + 1) * CELL, (i + 1) * CELL, (j + 1) * CELL]); }
+  }
+  for (const [x0, y0, x1, y1] of segs) threadSeg(c, x0, y0, x1, y1, INK, 5.2);
+  // the star's string (backstitch from the top), face + limb backstitch
+  if (fx.starTop) { const k = t < OPEN_END ? clamp((t + .35) / .7) : 1, top = [PIV[0], PIV[1]], bot = fx.starTop;
+    backstitch(c, [top, [lerp(top[0], bot[0], k), lerp(top[1], bot[1], k)]], '#6b4a34', 4.6, FCELL, 34); }
+  const charShown = true;   // face backstitch is on from frame 0 (the thumbnail needs the face)
+  for (const b of fx.bs) if (charShown || b.hex === T('sInk')) backstitch(c, b.pts, b.hex, b.w);
+  if (charShown) for (const [x, y, hex, r] of fx.knots) if (!(st.grabbed || t >= LEAP.t0 + .12) || grid[Math.floor(y / CELL) * COLS + Math.floor(x / CELL)] >= 0 && TH[grid[Math.floor(y / CELL) * COLS + Math.floor(x / CELL)]].grp === 'char') knot(c, x, y, hex, r);
+  ON_CHAR = (x, y) => { const i = Math.floor(x / CELL), j = Math.floor(y / CELL); if (i < 0 || j < 0 || i >= COLS || j >= ROWS) return false; const e = grid[j * COLS + i]; return e >= 0 && (TH[e].grp === 'char' || (st.grabbed && TH[e].grp === 'star')); };
+  effects(c, t, s, st, fx);
+  glints(c, t, grid, st);
+  // title: petite stitches, sewn right to left
+  let tfront = null;
+  if (t >= TITLE.t0) for (const tc of TITLE_CELLS) {
+    if (tc.rt > t) continue; const x = tc.fi * FCELL, y = tc.fj * FCELL;
+    putSpr(c, tc.rt <= t - .03 ? SPR[tc.e][1][hash3(tc.fi, tc.fj, tc.e) % NV] : HALF[tc.e][1], x, y);
+    if (!tfront || tc.fi < tfront[0]) tfront = [tc.fi, tc.fj, tc.e];
+  }
+  c.drawImage(L_HOOP, 0, 0, W, H);
+  // the needle, at the sewing front
+  if (front && t < .6) { const x = front[0] * CELL + CELL, y = front[1] * CELL; needle(c, x + 6, y - 4, -.62, T('g2'), [x, y + CELL]); }
+  if (tfront && t < TITLE.t0 + .6) { const x = tfront[0] * FCELL, y = TITLE.y + 64; needle(c, x - 4, y + 6, -2.3, T('tRed'), [x, y - 20]); }
+  c.drawImage(L_LIGHT, 0, 0, W, H);
+}
+
+film({
+  setup() {
+    RC = mkCanvas(RW, RH); R = RC.getContext('2d', { willReadFrequently: true });
+    FC = mkCanvas(FCOLS, FROWS); F = FC.getContext('2d', { willReadFrequently: true });
+    CV = mkCanvas(OUT_W, OUT_H); CX = CV.getContext('2d');
+    buildSprites(); buildFabric(); buildHoop(); buildGround(); buildTitle();
+  },
+  draw(c, tf) {
+    const q = Math.floor(tf * QF + 1e-6), t = q / QF;
+    if (CV._q !== q) { renderCloth(t); CV._q = q; }
+    const z = zoom(tf) * 1.015, sh = shake(tf);
+    c.fillStyle = '#3a281c'; c.fillRect(0, 0, W, H);
+    c.save(); c.translate(540 + sh * .6, 760 + sh); c.scale(z, z); c.translate(-540, -760);
+    c.drawImage(CV, 0, 0, W, H); c.restore();
+  },
+  kit: { reverb: .36, revSec: 2.4, musicGain: .5, sfxGain: .85 },
+  voice: K => {
+    const { osc, noise, nm, mf, music, sfx } = K;
+    // music box: sine tine + detuned twin + high inharmonic partials, crisp click, long ring
+    const mb = (t, m, v = .09, d = 2.2, out = music) => {
+      const f = mf(m);
+      osc('sine', f, t, d, out, v, .0015);
+      osc('sine', f * 1.0045, t, d * .7, out, v * .32, .0015);
+      osc('sine', f * 2.0, t, d * .22, out, v * .1, .0015);
+      if (f * 5.4 < 19000) osc('sine', f * 5.4, t, d * .07, out, v * .15, .001);
+      if (f * 8.93 < 19000) osc('sine', f * 8.93, t, d * .035, out, v * .07, .001);
+      noise(t, .008, out, v * .4, 'highpass', 6500, .7, .0006);
+    };
+    const felt = (t, m, v = .2) => { osc('sine', mf(m), t, .6, music, v, .02); osc('triangle', mf(m) * 2, t, .16, music, v * .1, .014, .16, 700); noise(t, .05, music, v * .1, 'lowpass', 240, .7, .008); };
+    const tick = (t, v = .06, f = 5200) => { noise(t, .01, sfx, v, 'highpass', f, .8, .0006); osc('sine', 3000 + (t * 997 % 500), t, .018, sfx, v * .22, .0008); };
+    const pull = (t, d = .3, v = .1, f0 = 700, f1 = 3800) => { const b = noise(t, d, sfx, v, 'bandpass', f0, 2.4, d * .55); b.frequency.exponentialRampToValueAtTime(f1, K.at(t + d)); };
+    const fwump = (t, v = .5, f0 = 150) => { const o = osc('sine', f0, t, .32, sfx, v, .012); o.frequency.exponentialRampToValueAtTime(40, K.at(t + .25)); noise(t, .28, sfx, v * .5, 'lowpass', 300, .7, .014); noise(t, .08, sfx, v * .12, 'bandpass', 650, 1, .012); };
+    const run = (t, notes, step, v) => notes.forEach((m, k) => mb(t + k * step, m, v, 1.5, sfx));
+    return {
+      groove(a, b, root, tri) {
+        const arp = [tri[0] + 12, tri[1] + 12, tri[2] + 12, tri[1] + 12];
+        for (let t = a, beat = 0; t < b - .01; t += .5, beat++) {
+          if (beat % 2 === 0) felt(t, root, .2); else felt(t, root + 7, .12);
+          mb(t, arp[(beat * 2) % 4], .042, 1.7); mb(t + .25, arp[(beat * 2 + 1) % 4], .032, 1.5);
+          tick(t + .25, .01, 7200);
+        }
+      },
+      motif(t) { [[0, 'E6'], [.25, 'G6'], [.5, 'C7'], [1.0, 'B6'], [1.25, 'G6'], [1.5, 'C7']].forEach(([d, n]) => mb(t + d, nm(n), .065, 2.4)); },
+      ending(t) { felt(t, 36, .22); felt(t + .5, 43, .12); felt(t + 1, 36, .16); [60, 64, 67, 72, 76, 79, 84].forEach((m, k) => mb(t + k * .07, m, .045, 2.6)); mb(t + .75, nm('C7'), .06, 2.8); },
+      cues: {
+        reveal: t => { for (let k = 0; k < 14; k++) tick(t + k * .042, .05 + (k % 3 === 0) * .03); for (let k = 0; k < 4; k++) pull(t + k * .16, .14, .05, 900, 3000); },
+        star: t => { pull(t, .3, .06, 3000, 1100); mb(t + .3, 96, .05, 1.4, sfx); },
+        pop: t => { tick(t, .08); mb(t, 91, .06, .9, sfx); },
+        jump: (t, n) => { pull(t, .34, .13, 500, n ? 4200 : 3400); K.slide(t, 380, n ? 900 : 760, .3, .035); },
+        fall: (t, n) => pull(t, .24, .08, n ? 3600 : 3000, 450),
+        splat: t => fwump(t, .62),
+        dizzy: t => { mb(t, 88, .035, .7, sfx); mb(t + .12, 91, .03, .7, sfx); mb(t + .24, 87, .03, .7, sfx); },
+        getup: t => { mb(t, 79, .045, .8, sfx); mb(t + .08, 84, .045, .9, sfx); pull(t, .2, .05, 900, 2600); },
+        drop: t => pull(t, .24, .07, 3200, 700),
+        thud: (t, n) => fwump(t, .7 + n * .1, 125),
+        idea: t => run(t, [84, 88, 91, 96, 100], .045, .055),
+        hop: (t, n) => { tick(t, .07); pull(t, .2, .07, 800, 2600); mb(t, 86 + n * 3, .04, .6, sfx); },
+        land: t => { fwump(t, .22, 190); tick(t, .05); },
+        leap: t => { pull(t, .45, .13, 500, 4400); K.slide(t, 420, 1500, .45, .035); },
+        grab: t => { fwump(t, .32, 170); run(t + .03, [84, 88, 91, 96, 100, 103, 108, 103, 100, 96, 100, 108], .042, .055); noise(t, 1.3, sfx, .04, 'highpass', 7500, .5, .01); },
+        title: t => { for (let k = 0; k < 13; k++) tick(t + k * .046, .045); for (let k = 0; k < 3; k++) pull(t + .05 + k * .19, .15, .045, 1000, 3200); },
+      },
+    };
+  },
+});
+</script>

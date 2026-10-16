@@ -1,0 +1,17 @@
+{
+  "plan": {
+    "approved": true,
+    "at": "2026-10-16T10:05:52.463Z",
+    "note": "one-shot request: demo test video while setting up the studio: build the repo so it can generate any video and send it here"
+  },
+  "preview": {
+    "approved": true,
+    "at": "2026-10-16T10:05:52.463Z",
+    "note": "one-shot request: demo test video while setting up the studio: build the repo so it can generate any video and send it here"
+  },
+  "auto": {
+    "approved": true,
+    "at": "2026-10-16T10:05:52.463Z",
+    "note": "one-shot request: demo test video while setting up the studio: build the repo so it can generate any video and send it here"
+  }
+}
