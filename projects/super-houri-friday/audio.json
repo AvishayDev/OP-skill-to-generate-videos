@@ -1,0 +1,60 @@
+{
+  "music": {
+    "id": 682159,
+    "name": "HappyTapsRev.mp3",
+    "page": "https://freesound.org/people/Bigvegie/sounds/682159/",
+    "license": "CC0",
+    "credit": "\"HappyTapsRev.mp3\" by Bigvegie / Freesound",
+    "level": "-29 LUFS, ducked under the voice"
+  },
+  "sfx": [
+    {
+      "name": "snap",
+      "id": 388958,
+      "page": "https://freesound.org/people/jackieAZ/sounds/388958/",
+      "license": "CC0",
+      "at": [
+        2.0,
+        3.02,
+        3.66,
+        6.13,
+        6.81,
+        7.43,
+        7.75,
+        8.73,
+        9.11,
+        10.01,
+        10.49,
+        26.0,
+        28.3
+      ],
+      "credit": "\"Soft Two-Finger Snap\" by jackieAZ / Freesound"
+    },
+    {
+      "name": "VS_Short Whoosh 8",
+      "id": 460473,
+      "page": "https://freesound.org/people/Vilkas_Sound/sounds/460473/",
+      "license": "CC BY 4.0",
+      "credit": "\"VS_Short Whoosh 8.mp3\" by Vilkas_Sound / Freesound",
+      "at": [
+        0.05,
+        4.2,
+        14.24,
+        19.0,
+        21.82,
+        27.94
+      ]
+    },
+    {
+      "name": "Old-fashioned cash register",
+      "id": 810738,
+      "page": "https://freesound.org/people/mokasza/sounds/810738/",
+      "license": "CC BY 4.0",
+      "at": [
+        16.9,
+        23.85
+      ],
+      "credit": "\"Old-fashioned cash register\" by mokasza / Freesound"
+    }
+  ]
+}
