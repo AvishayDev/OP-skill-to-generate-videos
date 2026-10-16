@@ -1,0 +1,460 @@
+{
+  "images": [],
+  "videos": [],
+  "shots": [
+    {
+      "id": "hook-a",
+      "segment": "hook",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "beep": {
+          "word": "Beep"
+        },
+        "title": {
+          "word": "Rainbow"
+        }
+      },
+      "images": [],
+      "intent": "The Rainbow Bus rolls in, title pops",
+      "description": "The Rainbow Bus rolls in, title pops"
+    },
+    {
+      "id": "hook-b",
+      "segment": "hook",
+      "words": "Little",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "milo": {
+          "word": "Milo"
+        },
+        "drive": {
+          "word": "driving"
+        }
+      },
+      "images": [],
+      "intent": "Milo close-up at the wheel, singing",
+      "description": "Milo close-up at the wheel, singing"
+    },
+    {
+      "id": "hook-c",
+      "segment": "hook",
+      "words": "Hop",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "hop": {
+          "word": "Hop"
+        },
+        "ride": {
+          "word": "ride"
+        }
+      },
+      "images": [],
+      "intent": "Bus rolls by, Milo waves, notes float",
+      "description": "Bus rolls by, Milo waves, notes float"
+    },
+    {
+      "id": "red-a",
+      "segment": "red",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "stop": {
+          "word": "red"
+        }
+      },
+      "images": [],
+      "intent": "Bus stops at the red stop sign",
+      "description": "Bus stops at the red stop sign"
+    },
+    {
+      "id": "red-b",
+      "segment": "red",
+      "words": "Bella",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "name": {
+          "word": "Bella"
+        },
+        "balloon": {
+          "word": "balloon"
+        }
+      },
+      "images": [],
+      "intent": "Bella Bunny arrives with a red balloon",
+      "description": "Bella Bunny arrives with a red balloon"
+    },
+    {
+      "id": "red-c",
+      "segment": "red",
+      "words": "Bounce bounce bounce",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "bounce": {
+          "word": "Bounce bounce bounce"
+        },
+        "up": {
+          "word": "up"
+        }
+      },
+      "images": [],
+      "intent": "Bella bounces up",
+      "description": "Bella bounces up"
+    },
+    {
+      "id": "red-d",
+      "segment": "red",
+      "words": "Red red red",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "red": {
+          "word": "Red red red"
+        },
+        "hello": {
+          "word": "hello"
+        }
+      },
+      "images": [],
+      "intent": "Bella hops aboard, RED",
+      "description": "Bella hops aboard, RED"
+    },
+    {
+      "id": "yellow-a",
+      "segment": "yellow",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "stop": {
+          "word": "yellow"
+        }
+      },
+      "images": [],
+      "intent": "Bus stops at the yellow stop",
+      "description": "Bus stops at the yellow stop"
+    },
+    {
+      "id": "yellow-b",
+      "segment": "yellow",
+      "words": "Duckie",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "name": {
+          "word": "Duckie"
+        },
+        "splash": {
+          "word": "splashing"
+        }
+      },
+      "images": [],
+      "intent": "Duckie splashes in the puddle",
+      "description": "Duckie splashes in the puddle"
+    },
+    {
+      "id": "yellow-c",
+      "segment": "yellow",
+      "words": "Quack quack quack",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "quack": {
+          "word": "Quack quack quack"
+        },
+        "hop": {
+          "word": "hop"
+        }
+      },
+      "images": [],
+      "intent": "Quack quack quack",
+      "description": "Quack quack quack"
+    },
+    {
+      "id": "yellow-d",
+      "segment": "yellow",
+      "words": "Yellow yellow yellow",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "yellow": {
+          "word": "Yellow yellow yellow"
+        },
+        "happy": {
+          "word": "happy"
+        }
+      },
+      "images": [],
+      "intent": "Duckie hops aboard, YELLOW",
+      "description": "Duckie hops aboard, YELLOW"
+    },
+    {
+      "id": "green-a",
+      "segment": "green",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "stop": {
+          "word": "green"
+        }
+      },
+      "images": [],
+      "intent": "Bus stops at the green stop",
+      "description": "Bus stops at the green stop"
+    },
+    {
+      "id": "green-b",
+      "segment": "green",
+      "words": "Froggy",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "name": {
+          "word": "Froggy"
+        },
+        "wave": {
+          "word": "waving"
+        },
+        "ribbit": {
+          "word": "Ribbit ribbit jump"
+        }
+      },
+      "images": [],
+      "intent": "Froggy Fred waves",
+      "description": "Froggy Fred waves"
+    },
+    {
+      "id": "green-c",
+      "segment": "green",
+      "words": "jump jump jump",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "jump": {
+          "word": "jump jump jump"
+        }
+      },
+      "images": [],
+      "intent": "Fred jumps",
+      "description": "Fred jumps"
+    },
+    {
+      "id": "green-d",
+      "segment": "green",
+      "words": "Green green green",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "green": {
+          "word": "Green green green"
+        },
+        "bump": {
+          "word": "wheels"
+        }
+      },
+      "images": [],
+      "intent": "Fred hops aboard, GREEN",
+      "description": "Fred hops aboard, GREEN"
+    },
+    {
+      "id": "blue-a",
+      "segment": "blue",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "stop": {
+          "word": "blue"
+        }
+      },
+      "images": [],
+      "intent": "Bus stops by the sea, blue stop",
+      "description": "Bus stops by the sea, blue stop"
+    },
+    {
+      "id": "blue-b",
+      "segment": "blue",
+      "words": "Little Bear",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "name": {
+          "word": "Bear"
+        },
+        "shells": {
+          "word": "shells"
+        }
+      },
+      "images": [],
+      "intent": "Little Bear with a bucket of shells",
+      "description": "Little Bear with a bucket of shells"
+    },
+    {
+      "id": "blue-c",
+      "segment": "blue",
+      "words": "Splash splash splash",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "splash": {
+          "word": "Splash splash splash"
+        },
+        "blue": {
+          "word": "Blue blue blue"
+        },
+        "sit": {
+          "word": "sit"
+        }
+      },
+      "images": [],
+      "intent": "Splash! Bear hops aboard, BLUE",
+      "description": "Splash! Bear hops aboard, BLUE"
+    },
+    {
+      "id": "count-a",
+      "segment": "count",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "one": {
+          "word": "One"
+        },
+        "two": {
+          "word": "two"
+        }
+      },
+      "images": [],
+      "intent": "Counting: one Milo, two Bella",
+      "description": "Counting: one Milo, two Bella"
+    },
+    {
+      "id": "count-b",
+      "segment": "count",
+      "words": "three",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "three": {
+          "word": "three"
+        },
+        "four": {
+          "word": "four"
+        },
+        "five": {
+          "word": "five"
+        }
+      },
+      "images": [],
+      "intent": "Counting: three, four, five",
+      "description": "Counting: three, four, five"
+    },
+    {
+      "id": "count-c",
+      "segment": "count",
+      "words": "Five happy friends",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "rainbow": {
+          "word": "Rainbow"
+        }
+      },
+      "images": [],
+      "intent": "Five happy friends, Rainbow Bus",
+      "description": "Five happy friends, Rainbow Bus"
+    },
+    {
+      "id": "rainbow-a",
+      "segment": "rainbow",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "look": {
+          "word": "rainbow"
+        }
+      },
+      "images": [],
+      "intent": "A rainbow draws across the sky",
+      "description": "A rainbow draws across the sky"
+    },
+    {
+      "id": "rainbow-b",
+      "segment": "rainbow",
+      "words": "Red",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "red": {
+          "word": "Red and yellow"
+        },
+        "yellow": {
+          "word": "yellow green"
+        },
+        "green": {
+          "word": "green and blue"
+        },
+        "blue": {
+          "word": "blue shining"
+        }
+      },
+      "images": [],
+      "intent": "The bands name their colours",
+      "description": "The bands name their colours"
+    },
+    {
+      "id": "rainbow-c",
+      "segment": "rainbow",
+      "words": "shining",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "shine": {
+          "word": "shining"
+        },
+        "you": {
+          "word": "you"
+        }
+      },
+      "images": [],
+      "intent": "Sparkles, bus passes under the rainbow",
+      "description": "Sparkles, bus passes under the rainbow"
+    },
+    {
+      "id": "end-a",
+      "segment": "end",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "sun": {
+          "word": "sun"
+        },
+        "star": {
+          "word": "going"
+        }
+      },
+      "images": [],
+      "intent": "Sunset, the sun goes down, stars appear",
+      "description": "Sunset, the sun goes down, stars appear"
+    },
+    {
+      "id": "end-b",
+      "segment": "end",
+      "words": "Wave",
+      "skill": "canvas",
+      "file": "shots/scene.js",
+      "cues": {
+        "wave": {
+          "word": "Wave"
+        },
+        "night": {
+          "word": "goodnight"
+        }
+      },
+      "images": [],
+      "intent": "Night, everyone waves goodnight",
+      "description": "Night, everyone waves goodnight"
+    }
+  ]
+}

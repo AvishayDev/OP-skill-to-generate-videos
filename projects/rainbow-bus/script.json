@@ -1,0 +1,13 @@
+{
+  "title": "The Rainbow Bus",
+  "segments": [
+    { "id": "hook", "text": "[cheerful] Beep beep! Here comes the *Rainbow Bus*! Little Milo is driving on a sunny day. Hop on, hop on, come ride with us!", "sources": [] },
+    { "id": "red", "text": "[excited] First stop, the *red* stop! Bella Bunny has a big red balloon! Bounce, bounce, bounce, up she goes! Red, red, red, hello, hello!", "sources": [] },
+    { "id": "yellow", "text": "[playfully] Next stop, the *yellow* stop! Duckie is splashing in the puddle! Quack, quack, quack, hop on with me! Yellow, yellow, yellow, happy as can be!", "sources": [] },
+    { "id": "green", "text": "[cheerful] Then the *green* stop, up the hill! Froggy Fred is waving! Ribbit, ribbit, jump, jump, jump! Green, green, green, the wheels go bump, bump, bump!", "sources": [] },
+    { "id": "blue", "text": "[warm] Now the *blue* stop, by the sea. Little Bear has a bucket full of shells! Splash, splash, splash! Blue, blue, blue, come sit by me!", "sources": [] },
+    { "id": "count", "text": "[excited] Let's count our friends! One Milo, two Bella, three Duckie, four Fred, five Little Bear! Five happy friends on the *Rainbow Bus*!", "sources": [] },
+    { "id": "rainbow", "text": "[amazed] Look up high, a *rainbow*! Red and yellow, green and blue, shining just for you!", "sources": [] },
+    { "id": "end", "text": "[gentle] The sun is going down, down, down. Wave goodbye, goodbye, goodbye! Beep beep, *goodnight*!", "sources": [] }
+  ]
+}

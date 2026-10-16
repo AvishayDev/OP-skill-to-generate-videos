@@ -1,0 +1,69 @@
+{
+  "music": {
+    "query": "playful xylophone",
+    "source": {
+      "type": "freesound",
+      "id": 213092,
+      "url": "https://cdn.freesound.org/previews/213/213092_3279490-hq.mp3"
+    },
+    "name": "Dreamy Kid's Show Melody",
+    "duration": 79.51,
+    "license": "CC0",
+    "credit": "\"Dreamy Kid's Show Melody\" by SoundsExciting / Freesound",
+    "page": "https://freesound.org/people/SoundsExciting/sounds/213092/"
+  },
+  "sfx": {
+    "logo": {
+      "query": "pop ui notification",
+      "source": {
+        "type": "freesound",
+        "id": 810191,
+        "url": "https://cdn.freesound.org/previews/810/810191_17437502-hq.mp3"
+      },
+      "name": "notification chime",
+      "duration": 2.08,
+      "license": "CC BY 4.0",
+      "credit": "\"notification chime\" by mokasza / Freesound",
+      "page": "https://freesound.org/people/mokasza/sounds/810191/"
+    },
+    "image": {
+      "query": "whoosh swoosh short",
+      "source": {
+        "type": "freesound",
+        "id": 449992,
+        "url": "https://cdn.freesound.org/previews/449/449992_3217484-hq.mp3"
+      },
+      "name": "whoosh_short_low.wav",
+      "duration": 2.68,
+      "license": "CC0",
+      "credit": "\"whoosh_short_low.wav\" by DJT4NN3R / Freesound",
+      "page": "https://freesound.org/people/DJT4NN3R/sounds/449992/"
+    },
+    "stat": {
+      "query": "counter ticks",
+      "source": {
+        "type": "freesound",
+        "id": 349655,
+        "url": "https://cdn.freesound.org/previews/349/349655_464940-hq.mp3"
+      },
+      "name": "c4_beep1.ogg",
+      "duration": 0.75,
+      "license": "CC0",
+      "credit": "\"c4_beep1.ogg\" by insanity54 / Freesound",
+      "page": "https://freesound.org/people/insanity54/sounds/349655/"
+    },
+    "title": {
+      "query": "cinematic whoosh short",
+      "source": {
+        "type": "freesound",
+        "id": 179779,
+        "url": "https://cdn.freesound.org/previews/179/179779_985466-hq.mp3"
+      },
+      "name": "wipe2.wav",
+      "duration": 1,
+      "license": "CC0",
+      "credit": "\"wipe2.wav\" by Sclolex / Freesound",
+      "page": "https://freesound.org/people/Sclolex/sounds/179779/"
+    }
+  }
+}
