@@ -116,6 +116,20 @@ export function sceneChunks(shots, { fps, max = MAX_SCENE_SECONDS } = {}) {
   return scenes.map((s, i) => ({ id: `${s.segment ?? 'end'}-${i + 1}`.toLowerCase().replace(/[^a-z0-9-]/g, '-'), ...s }));
 }
 
+// Reelkit's plan wants at least `n` scenes: a very short film splits its longest scene in halves until it has them.
+// (Scenes only label time ranges in plan.json; Video.tsx draws every shot by its own frames.)
+export function minScenes(scenes, n = 3) {
+  const out = scenes.map((s) => ({ ...s }));
+  while (out.length < n) {
+    const i = out.reduce((best, s, k) => (s.frames > out[best].frames ? k : best), 0);
+    const s = out[i];
+    if (s.frames < 20) break;
+    const half = Math.floor(s.frames / 2);
+    out.splice(i, 1, { ...s, frames: half }, { ...s, id: `${s.id}-b`, from: s.from + half, frames: s.frames - half });
+  }
+  return out;
+}
+
 // Script words with their spoken times, as the kit's <Captions> wants them:
 // [{ word, startSec, endSec }]. Tags and *markup* never reach the screen; when a segment
 // has `captionText` (e.g. an English name spelled out in the voice), its words take the
@@ -258,7 +272,7 @@ export function buildEpisodeData({ brand, video, script, plan, timing, assets, o
   const totalFrames = shots.at(-1).from + shots.at(-1).frames;
 
   // Reelkit's plan wants scenes of ≤ 15 s: the shot list cut at story changes and between shots.
-  const scenes = sceneChunks(shots.map((s) => ({ ...s, segment: resolved.find((r) => r.id === s.id).segment })), { fps });
+  const scenes = minScenes(sceneChunks(shots.map((s) => ({ ...s, segment: resolved.find((r) => r.id === s.id).segment })), { fps }));
 
   // Overlays (optional): same placement, zones, lengths and conflict fixes as before.
   const ov = video.overlays;

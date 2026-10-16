@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { frameSize, deepMerge, language, languages } from './lib.mjs';
 import { computeSlots } from './video/slots.mjs';
-import { partRanges, sliceEpisodeData, sceneChunks } from './render/reelkit.mjs';
+import { partRanges, sliceEpisodeData, sceneChunks, minScenes } from './render/reelkit.mjs';
 import { conformArgs, videoTreatment } from './render/clips.mjs';
 import { whisperPrompt } from './audio/tts.mjs';
 
@@ -97,4 +97,12 @@ test('Whisper prompt: names only for Latin-script languages, every Latin run oth
   assert.doesNotMatch(en, /nobody/);
   const he = whisperPrompt({ segments: [{ text: 'אתמול OpenAI השיקה את gpt-5 החדש' }] });
   assert.match(he, /gpt-5/);
+});
+
+test('a very short film still gets the 3 scenes Reelkit requires', () => {
+  const out = minScenes([{ id: 'a-1', segment: 'a', from: 0, frames: 90 }, { id: 'b-2', segment: 'b', from: 90, frames: 90 }]);
+  assert.equal(out.length, 3);
+  assert.equal(out.reduce((n, s) => n + s.frames, 0), 180);
+  assert.deepEqual(out.map((s) => s.from), [0, 45, 90]);
+  assert.equal(new Set(out.map((s) => s.id)).size, 3);
 });
