@@ -1,0 +1,527 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>02 · קולאז' זין עיתונאי</title>
+<body>
+<script src="fonts-data.js"></script>
+<script src="story.js"></script>
+<script src="audio.js"></script>
+<script src="runtime.js"></script>
+<script>
+'use strict';
+// ============================================================
+// 02 · EDITORIAL ZINE COLLAGE
+// Newsprint page, scissor-cut straight-edged pieces, coarse B/W halftone "photo" shading,
+// one loud red + fluorescent yellow, hard offset shadows, googly eyes, ransom-note title.
+// Stop-motion on THREES (8 drawings/s) with per-drawing paper jitter; camera shake on ones.
+// Voice: lo-fi zine punk (detuned toy piano, square bass, cardboard drums, tape hiss,
+// scissor snips, paper rustle, typewriter clacks + bell, kazoo slides).
+// ============================================================
+const C = {
+  paper: '#e8e2d2', paperL: '#f1ede2', ink: '#161412', red: '#e63024', redD: '#a91c13',
+  yel: '#f5e82c', white: '#fbfaf4', grey: '#8b857a', table: '#2a2622',
+};
+const PM = 48;                  // page margin so camera shake never shows an edge
+let DRAW = 0;                   // stop-motion drawing index (8 per second)
+
+// ---------- geometry ----------
+const _cache = new Map();
+const memo = (k, f) => { if (!_cache.has(k)) _cache.set(k, f()); return _cache.get(k); };
+function poly(pts) { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); return p; }
+function bbox(pts) { let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (const [x, y] of pts) { a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); d = Math.max(d, y); } return [a, b, c, d]; }
+const offs = (pts, dx, dy) => pts.map(p => [p[0] + dx, p[1] + dy]);
+// scissor-cut round shape: a handful of straight cuts around an ellipse
+function cutPoly(rx, ry, n, seed, jit = .05) {
+  return memo(`p${rx}|${ry}|${n}|${seed}|${jit}`, () => {
+    const r = rng(seed), pts = [];
+    for (let i = 0; i < n; i++) { const a = (i + (r() - .5) * .55) / n * TAU, m = 1 + (r() - .5) * 2 * jit; pts.push([Math.cos(a) * rx * m, Math.sin(a) * ry * m]); }
+    return pts;
+  });
+}
+// scissor-cut rectangle: corners off by a few px, sometimes a second cut angle on an edge
+function cutRect(w, h, seed, amt = 6) {
+  return memo(`r${w}|${h}|${seed}|${amt}`, () => {
+    const r = rng(seed), j = () => (r() - .5) * 2 * amt, pts = [];
+    const cs = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
+    for (let i = 0; i < 4; i++) {
+      pts.push([cs[i][0] + j(), cs[i][1] + j()]);
+      if (r() < .45) { const nx = cs[(i + 1) % 4], u = .3 + r() * .4; pts.push([lerp(cs[i][0], nx[0], u) + j() * .6, lerp(cs[i][1], nx[1], u) + j() * .6]); }
+    }
+    return pts;
+  });
+}
+function starPts(R, r, seed) {
+  return memo(`s${R}|${r}|${seed}`, () => { const q = rng(seed), pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU + (q() - .5) * .05, rr = (i % 2 ? r : R) * (1 + (q() - .5) * .1); pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); } return pts; });
+}
+function burstPts(R, r, n, seed) {
+  return memo(`u${R}|${r}|${n}|${seed}`, () => { const q = rng(seed), pts = []; for (let i = 0; i < n * 2; i++) { const a = i / (n * 2) * TAU + (q() - .5) * .08, rr = (i % 2 ? r : R) * (1 + (q() - .5) * .18); pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); } return pts; });
+}
+
+// ---------- textures ----------
+let GRAINP = null;
+const GRAIN = (() => {
+  const c = mkCanvas(320, 320), g = c.getContext('2d'), r = rng(42);
+  g.fillStyle = '#fff'; g.fillRect(0, 0, 320, 320);
+  for (let i = 0; i < 4200; i++) { const v = 150 + r() * 80 | 0; g.fillStyle = `rgba(${v},${v - 6},${v - 18},${.08 + r() * .14})`; g.fillRect(r() * 320, r() * 320, .8 + r() * 1.6, .8 + r() * 1.6); }
+  g.lineWidth = .8; for (let i = 0; i < 220; i++) { g.strokeStyle = `rgba(120,110,90,${.06 + r() * .1})`; const x = r() * 320, y = r() * 320, a = r() * TAU, l = 3 + r() * 11; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); }
+  return c;
+})();
+// coarse halftone: dot radius follows dark(x,y) in [0,1]; rotated screen like a printed photo
+function halftone(g, bb, { dark, step = 10, ang = .785, col = C.ink, jitter = 0, seed = 1 }) {
+  const [x0, y0, x1, y1] = bb, r = rng(seed), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = Math.hypot(x1 - x0, y1 - y0) / 2 + step, ca = Math.cos(ang), sa = Math.sin(ang);
+  g.fillStyle = col; g.beginPath();
+  for (let u = -R; u <= R; u += step) for (let v = -R; v <= R; v += step) {
+    const x = cx + u * ca - v * sa, y = cy + u * sa + v * ca;
+    if (x < x0 - step || x > x1 + step || y < y0 - step || y > y1 + step) continue;
+    let d = dark(x, y); if (jitter) d += (r() - .5) * jitter; if (d <= .03) continue; d = Math.min(d, 1);
+    const rad = step * .62 * Math.sqrt(d); g.moveTo(x + rad, y); g.arc(x, y, rad, 0, TAU);
+  }
+  g.fill();
+}
+// the collage primitive: hard shadow, white scissor border, paper, halftone, grain
+function piece(g, pts, o = {}) {
+  const { fill = C.paper, border = 0, bcol = C.white, shadow = null, ht = null, grain = .5, edge = null } = o;
+  const p = poly(pts), bb = bbox(pts);
+  g.save(); g.lineJoin = 'miter'; g.miterLimit = 5;
+  if (shadow) { g.save(); g.translate(shadow[0], shadow[1]); g.fillStyle = `rgba(20,15,10,${shadow[2]})`; g.strokeStyle = g.fillStyle; if (border) { g.lineWidth = border * 2; g.stroke(p); } g.fill(p); g.restore(); }
+  if (border) { g.lineWidth = border * 2; g.strokeStyle = bcol; g.stroke(p); }
+  g.fillStyle = fill; g.fill(p);
+  if (ht || grain) {
+    g.save(); g.clip(p);
+    if (ht) halftone(g, bb, ht);
+    if (grain) { g.globalAlpha = grain; g.globalCompositeOperation = 'multiply'; g.fillStyle = GRAINP; g.fillRect(bb[0] - 2, bb[1] - 2, bb[2] - bb[0] + 4, bb[3] - bb[1] + 4); }
+    g.restore();
+  }
+  if (edge) { g.strokeStyle = edge; g.lineWidth = 1.2; g.stroke(p); }
+  g.restore();
+}
+// a straight strip of cut paper from a to b (arms, legs, brows, speed lines)
+function strip(c, a, b, w, seed, col = C.ink, border = 3, shadow = true) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, nx = -uy * w / 2, ny = ux * w / 2, r = rng(seed), e = () => (r() - .5) * w * .9;
+  const e1 = e(), e2 = e(), e3 = e(), e4 = e();
+  const pts = [[a[0] + nx + ux * e1, a[1] + ny + uy * e1], [b[0] + nx + ux * e2, b[1] + ny + uy * e2], [b[0] - nx + ux * e3, b[1] - ny + uy * e3], [a[0] - nx + ux * e4, a[1] - ny + uy * e4]];
+  piece(c, pts, { fill: col, border, shadow: shadow ? [4, 5, .35] : null, grain: 0 });
+}
+function tapeP(g, x, y, w, h, rot, seed) {
+  g.save(); g.translate(x, y); g.rotate(rot);
+  const r = rng(seed), pts = [];
+  for (let i = 0; i <= 5; i++) pts.push([w / 2 + (i % 2 ? 4 : -2) + r() * 2, -h / 2 + i / 5 * h]);
+  for (let i = 5; i >= 0; i--) pts.push([-w / 2 + (i % 2 ? -4 : 2) - r() * 2, -h / 2 + i / 5 * h]);
+  const p = poly(pts); g.fillStyle = 'rgba(236,233,214,.62)'; g.fill(p);
+  g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1; g.stroke(p);
+  g.restore();
+}
+// fake newspaper body text: rows of grey word-bars, right aligned (Hebrew)
+function textBars(g, x0, y0, x1, y1, seed, o = {}) {
+  const { lh = 15, bh = 6, col = 'rgba(55,50,44,.32)', para = .14 } = o, r = rng(seed);
+  g.fillStyle = col;
+  for (let y = y0; y < y1 - bh;) {
+    const last = r() < para, end = last ? x0 + (x1 - x0) * (.25 + r() * .5) : x0;
+    for (let x = x1; x > end + 4;) { const w = 8 + r() * 40, xs = Math.max(end, x - w); g.fillRect(xs, y, x - xs, bh); x = xs - 5 - r() * 3; }
+    y += lh; if (last) y += lh * .5;
+  }
+}
+// per-drawing hand-placement jitter
+function jit(c, seed, a = 1.8, rr = .014) { const q = rng(seed * 7919 + DRAW * 104729 + 13); c.translate((q() - .5) * 2 * a, (q() - .5) * 2 * a); c.rotate((q() - .5) * 2 * rr); }
+// sprites
+function sprite(w, h, ax, ay, fn) { const cvs = mkCanvas(Math.ceil(w * S), Math.ceil(h * S)), g = cvs.getContext('2d'); g.setTransform(S, 0, 0, S, 0, 0); g.translate(ax, ay); fn(g); return { cv: cvs, w, h, ax, ay }; }
+function blit(c, sp) { c.drawImage(sp.cv, -sp.ax, -sp.ay, sp.w, sp.h); }
+function txt(g, str, x, y, font, col, align = 'center') { g.save(); g.font = font; g.direction = 'rtl'; g.textAlign = align; g.textBaseline = 'alphabetic'; const m = g.measureText(str); g.fillStyle = col; g.fillText(str, x, y + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2); g.restore(); return m.width; }
+
+// ============================================================
+// SPRITES built once
+// ============================================================
+let L_PAGE, SP_PANEL, SP_BODY, SP_STAR, SP_BURST_R, SP_BURST_Y, SP_BLK = [], SP_SPLAT, SP_BOOM, SP_BANG, TITLE_CHIPS = [];
+const BODYP = cutPoly(BODY.rx, BODY.ry, 15, 7, .045);
+function buildPage() {
+  L_PAGE = layer(g => {
+    g.translate(PM, PM);
+    g.fillStyle = C.paper; g.fillRect(-PM, -PM, W + PM * 2, H + PM * 2);
+    // uneven newsprint: yellowing + grain
+    const r = rng(5);
+    for (let i = 0; i < 7; i++) { const x = r() * W, y = r() * H, rad = 250 + r() * 500, gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, `rgba(190,170,120,${.05 + r() * .06})`); gr.addColorStop(1, 'rgba(190,170,120,0)'); g.fillStyle = gr; g.fillRect(-PM, -PM, W + PM * 2, H + PM * 2); }
+    g.save(); g.globalAlpha = .7; g.globalCompositeOperation = 'multiply'; g.fillStyle = GRAINP; g.fillRect(-PM, -PM, W + PM * 2, H + PM * 2); g.restore();
+    // masthead
+    txt(g, 'גיליון 02 · יום ראשון', 1032, 60, '600 27px Heebo', C.ink, 'right');
+    txt(g, 'המחיר: עוד ניסיון אחד', 48, 60, '600 27px Heebo', C.ink, 'left');
+    g.fillStyle = C.ink; g.fillRect(48, 84, 984, 3);
+    g.save(); g.font = '900 170px Heebo'; const mw = g.measureText('יומן נפילות').width; g.restore();
+    const ms = Math.min(1, 960 / mw);
+    g.save(); g.translate(540, 172); g.scale(ms, 1); txt(g, 'יומן נפילות', 0, 0, '900 170px Heebo', C.ink); g.restore();
+    g.fillRect(48, 256, 984, 6); g.fillRect(48, 268, 984, 2);
+    txt(g, 'הכל על הנפילה הבאה · מדור ספורט · מזג אוויר: כוכבים', 540, 292, '500 25px Heebo', '#3a352e');
+    g.fillRect(48, 312, 984, 2);
+    // four columns of body text, headlines and photo boxes
+    const colW = (984 - 3 * 26) / 4;
+    for (let k = 0; k < 4; k++) {
+      const x1 = 1032 - k * (colW + 26), x0 = x1 - colW, q = rng(100 + k);
+      if (k) { g.fillStyle = 'rgba(40,36,30,.35)'; g.fillRect(x1 + 12, 334, 1.5, GY - 360); }
+      let y = 336 + q() * 20;
+      while (y < GY - 60) {
+        const roll = q();
+        if (roll < .22) { g.fillStyle = 'rgba(25,22,18,.62)'; for (let l = 0; l < 2; l++) { let x = x1; while (x > x0 + (l ? 60 + q() * 60 : 0)) { const w = 30 + q() * 60, xs = Math.max(x0, x - w); g.fillRect(xs, y, x - xs, 20); x = xs - 10; } y += 30; } y += 10; }
+        else if (roll < .42) { const h = 120 + q() * 150, hy = y, sd = 200 + k * 10 + (y | 0);
+          g.save(); g.beginPath(); g.rect(x0, hy, colW, h); g.clip(); g.fillStyle = 'rgba(200,192,175,.5)'; g.fillRect(x0, hy, colW, h);
+          halftone(g, [x0, hy, x1, hy + h], { dark: (x, yy) => .28 + .22 * Math.sin(x * .03 + sd) * Math.cos(yy * .025 + sd * .7) + .25 * ((yy - hy) / h), step: 8, col: 'rgba(38,34,30,.55)', seed: sd }); g.restore();
+          g.strokeStyle = 'rgba(30,26,22,.4)'; g.lineWidth = 1.2; g.strokeRect(x0, hy, colW, h); y += h + 8; textBars(g, x0 + colW * .3, y, x1, y + 12, sd, { lh: 12, bh: 4, col: 'rgba(55,50,44,.45)', para: 0 }); y += 22; }
+        else { const h = 120 + q() * 220; textBars(g, x0, y, x1, Math.min(y + h, GY - 40), 300 + k * 50 + (y | 0)); y += h + 16; }
+      }
+    }
+    // fold crease
+    const fg = g.createLinearGradient(530, 0, 552, 0); fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(.5, 'rgba(60,45,20,.13)'); fg.addColorStop(.52, 'rgba(255,255,255,.25)'); fg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = fg; g.fillRect(530, -PM, 22, H + PM * 2);
+    // the big red poster sheet behind the star
+    const sheet = [[176, 380], [640, 366], [906, 352], [930, 700], [912, 992], [420, 1000], [160, 1012], [150, 690]];
+    piece(g, sheet, { fill: C.red, shadow: [14, 16, .42], grain: .45,
+      ht: { step: 13, ang: .26, col: 'rgba(22,14,10,.85)', seed: 31, jitter: .06,
+        dark: (x, y) => clamp((y - 560) / 440) * .72 + .1 * Math.sin(x * .012) - .35 * Math.exp(-((x - 540) ** 2 + (y - 640) ** 2) / 50000) } });
+    // cut halftone "moon" photo top-right of the sheet
+    g.save(); g.translate(790, 470);
+    piece(g, cutPoly(62, 62, 11, 44, .04), { fill: C.paperL, border: 5, shadow: [7, 8, .45], ht: { step: 7, col: C.ink, seed: 45, dark: (x, y) => clamp(.1 + (x + y) / 200 + .12 * Math.sin(x * .2) * Math.cos(y * .17)) } });
+    g.restore();
+    tapeP(g, 190, 385, 120, 36, -.7, 51); tapeP(g, 895, 362, 120, 36, .68, 52);
+    // "exclusive!" snipe
+    g.save(); g.translate(250, 395); g.rotate(-.2);
+    piece(g, cutRect(190, 64, 61, 4), { fill: C.yel, shadow: [6, 7, .45], grain: .35 });
+    txt(g, 'בלעדי!', 0, 2, '900 46px Heebo', C.ink); g.restore();
+    // red dots stickers + black arrow scraps on the page
+    [[96, 1180], [990, 1120], [1010, 1390]].forEach(([x, y], i) => { g.save(); g.translate(x, y); piece(g, cutPoly(22, 22, 8, 70 + i), { fill: i === 1 ? C.yel : C.red, shadow: [4, 5, .4], grain: .3 }); g.restore(); });
+    // ground: black cut paper with a light halftone "floor photo"
+    const gpts = [[-PM - 10, GY - 4], [260, GY + 5], [600, GY - 5], [W + PM + 10, GY + 7], [W + PM + 10, H + PM + 10], [-PM - 10, H + PM + 10]];
+    piece(g, gpts, { fill: '#1c1a17', border: 6, grain: .15,
+      ht: { step: 12, ang: .785, col: '#77726a', seed: 91, jitter: .1, dark: (x, y) => clamp(.62 - (y - GY) / 380 + .08 * Math.sin(x * .02)) } });
+    // continued on page 2 (ransom caption)
+    const cap = [['המשך', C.paperL, C.ink, '800 44px Heebo', -.05], ['בעמוד', C.red, C.white, '900 44px Heebo', .06], ['2', C.yel, C.ink, '900 52px Heebo', -.08]];
+    let cx = 1010;
+    cap.forEach(([w, bg, fg2, font, rot], i) => {
+      g.save(); g.font = font; const tw = g.measureText(w).width + 36; g.restore();
+      g.save(); g.translate(cx - tw / 2, 1810 + (i % 2) * 8); g.rotate(rot);
+      piece(g, cutRect(Math.round(tw), 70, 80 + i, 4), { fill: bg, shadow: [5, 6, .5], grain: .3 });
+      txt(g, w, 0, 0, font, fg2); g.restore(); cx -= tw + 6;
+    });
+    tapeP(g, 960, 1784, 70, 26, .5, 88);
+  }, W + PM * 2, H + PM * 2);
+}
+function buildSprites() {
+  // פיצי's body: a ball cut from a B/W halftone photo
+  SP_BODY = sprite(300, 280, 150, 140, g => {
+    const rx = BODY.rx, ry = BODY.ry;
+    piece(g, BODYP, { fill: C.paperL, border: 7, shadow: [9, 11, .5], grain: .35,
+      ht: { step: 10, ang: .785, col: C.ink, seed: 7, jitter: .08, dark: (x, y) => {
+        const nx = x / rx, ny = y / ry, z = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny)), di = Math.max(0, -nx * .5 - ny * .62 + z * .6);
+        return clamp(Math.pow(1 - di, 2.2) * .8 - .04 + .05 * Math.sin(x * .09) * Math.cos(y * .11)); } } });
+  });
+  SP_STAR = sprite(280, 280, 140, 140, g => {
+    piece(g, starPts(STAR_R, STAR_R * .5, 11), { fill: C.yel, border: 8, shadow: [9, 11, .5], grain: .3,
+      ht: { step: 9, ang: .4, col: 'rgba(22,18,12,.9)', seed: 12, dark: (x, y) => clamp((x + y + 40) / 190 * .55) } });
+  });
+  SP_BURST_R = sprite(820, 820, 410, 410, g => piece(g, burstPts(300, 200, 18, 21), { fill: C.red, border: 8, shadow: [12, 14, .4], grain: .4,
+    ht: { step: 14, col: 'rgba(20,12,8,.8)', seed: 22, dark: (x, y) => clamp((Math.hypot(x, y) - 150) / 200) } }));
+  SP_BURST_Y = sprite(560, 560, 280, 280, g => piece(g, burstPts(200, 140, 13, 23), { fill: C.yel, border: 5, shadow: [8, 10, .35], grain: .3 }));
+  // failure blocks: newspaper clippings with ransom labels
+  for (let i = 0; i < 2; i++) SP_BLK[i] = sprite(TOWER.w + 80, TOWER.h + 80, (TOWER.w + 80) / 2, (TOWER.h + 80) / 2, g => {
+    const w = TOWER.w, h = TOWER.h, base = i ? C.yel : C.paperL, pts = cutRect(w, h, 301 + i, 5);
+    piece(g, pts, { fill: base, border: 6, shadow: [10, 12, .5], grain: .45 });
+    g.save(); g.clip(poly(pts));
+    g.fillStyle = C.ink; g.fillRect(-w / 2, -h / 2 + 14, w, 3);
+    textBars(g, -w / 2 + 14, -h / 2 + 100, w / 2 - 14, h / 2 - 12, 330 + i, { lh: 13, bh: 5, col: 'rgba(30,26,22,.42)' });
+    g.restore();
+    // halftone snapshot in the clipping
+    g.save(); g.translate(62, 58); g.rotate(.04);
+    piece(g, cutRect(96, 84, 340 + i, 3), { fill: C.paperL, border: 3, shadow: [4, 5, .4], ht: { step: 6, seed: 341 + i, col: C.ink, dark: (x, y) => clamp(.35 + .3 * Math.sin(x * .09 + i) * Math.cos(y * .12) + y / 120) } });
+    g.restore();
+    // ransom label "נפילה"
+    const L = ['נ', 'פ', 'י', 'ל', 'ה'], fonts = ['900 52px Heebo', '54px OHRonShemer', '300 56px Heebo', '56px OHRonShemer', '800 52px Heebo'],
+      cols = i ? [[C.red, C.white], [C.ink, C.yel], [C.white, C.ink], [C.red, C.white], [C.ink, C.white]] : [[C.ink, C.white], [C.red, C.white], [C.white, C.ink], [C.yel, C.ink], [C.ink, C.yel]];
+    let x = 104; const q = rng(350 + i);
+    L.forEach((ch, k) => {
+      const [bg, fg] = cols[k], font = fonts[k];
+      g.save(); g.translate(x - 22, -h / 2 + 58 + (q() - .5) * 8); g.rotate((q() - .5) * .22);
+      piece(g, cutRect(46, 60, 360 + k + i * 10, 3), { fill: bg, shadow: [3, 4, .45], grain: .25 });
+      txt(g, ch, 0, 0, font, fg); g.restore(); x -= 45;
+    });
+    // the number: big red chip, digit in Heebo
+    g.save(); g.translate(-62, 52); g.rotate(-.07 + i * .1);
+    piece(g, cutRect(104, 116, 370 + i, 4), { fill: i ? C.ink : C.red, border: 5, shadow: [6, 7, .5], grain: .3 });
+    txt(g, BLOCKS[i].n, 0, 2, '900 112px Heebo', i ? C.yel : C.white); g.restore();
+  });
+  // onomatopoeia chips
+  SP_SPLAT = sprite(360, 260, 180, 130, g => { piece(g, burstPts(150, 92, 11, 81), { fill: C.red, border: 6, shadow: [8, 9, .5], grain: .35 }); g.save(); g.rotate(-.12); txt(g, 'פלאף!', 0, 0, '900 70px Heebo', C.white); g.restore(); });
+  SP_BOOM = sprite(260, 140, 130, 70, g => { piece(g, cutRect(200, 88, 82, 5), { fill: C.ink, border: 5, shadow: [7, 8, .45], grain: .15 }); txt(g, 'בום!', 0, 0, '900 64px Heebo', C.yel); });
+  SP_BANG = sprite(180, 220, 90, 110, g => { piece(g, cutRect(104, 150, 700, 5), { fill: C.red, border: 7, shadow: [8, 10, .5], grain: .3 }); txt(g, '!', 0, 2, '900 130px Heebo', C.white); });
+  // fresh headline panel pasted over the masthead, the title chips go on it
+  SP_PANEL = sprite(1100, 560, 550, 280, g => {
+    const pts = cutRect(1010, 440, 950, 7);
+    piece(g, pts, { fill: C.paperL, shadow: [14, 16, .5], grain: .5 });
+    g.save(); g.clip(poly(pts)); g.fillStyle = C.ink; g.fillRect(-505, -200, 1010, 5); g.fillRect(-505, 192, 1010, 3);
+    txt(g, 'מהדורה מיוחדת · עדכון אחרון', 480, -178, '700 26px Heebo', C.red, 'right'); g.restore();
+  });
+  // ransom-note title: every letter on its own chip
+  const ST = [
+    { bg: C.ink, fg: C.white, font: '900 {}px Heebo' }, { bg: C.paperL, fg: C.ink, font: '{}px OHRonShemer', border: 5, ht: 1 },
+    { bg: C.red, fg: C.white, font: '800 {}px Heebo', border: 5 }, { bg: C.white, fg: C.ink, font: '300 {}px Heebo' },
+    { bg: C.yel, fg: C.ink, font: '900 {}px Heebo' }, { bg: C.ink, fg: C.yel, font: '{}px OHRonShemer', border: 5 },
+    { bg: C.white, fg: C.red, font: '900 {}px Heebo' }, { bg: C.red, fg: C.ink, font: '600 {}px Heebo' },
+  ];
+  const lines = [[['מ', 0, 160], ['מ', 6, 154], ['ש', 2, 158], ['י', 4, 164], ['כ', 5, 176], ['י', 3, 160], ['ם', 7, 156]],
+                 [['ל', 7, 166], ['ק', 1, 176], ['ו', 0, 166], ['ם', 4, 164], ['.', 6, 160]]];
+  const q = rng(900); let idx = 0;
+  lines.forEach((ln, li) => {
+    const items = ln.map(([ch, s, size]) => {
+      const st = ST[s], font = st.font.replace('{}', size), m = (() => { ctx.save(); ctx.font = font; const w = ctx.measureText(ch).width; ctx.restore(); return w; })();
+      const w = Math.round(Math.max(m + 34, 84)), h = Math.round(size * 1.12 + 10);
+      const sp = sprite(w + 60, h + 60, (w + 60) / 2, (h + 60) / 2, g => {
+        piece(g, cutRect(w, h, 1000 + idx, 5), { fill: st.bg, border: st.border || 0, shadow: [9, 11, .55], grain: .3,
+          ht: st.ht ? { step: 9, seed: 1100 + idx, col: 'rgba(30,26,22,.35)', dark: (x, y) => clamp(.15 + (y + h / 2) / h * .45) } : null });
+        txt(g, ch, 0, size * .02, font, st.fg);
+      });
+      return { sp, w, idx: idx++ };
+    });
+    const tot = items.reduce((a, b) => a + b.w, 0) - 8 * (items.length - 1);
+    let x = W / 2 + tot / 2;
+    items.forEach(it => { TITLE_CHIPS.push({ ...it, x: x - it.w / 2, y: (li ? 378 : 176) + (q() - .5) * 20, rot: (q() - .5) * .18 }); x -= it.w - 8; });
+  });
+}
+
+// ============================================================
+// DYNAMIC PIECES
+// ============================================================
+function cutp(c, pts, fill, border = 3, sh = true) { piece(c, pts, { fill, border, shadow: sh ? [4, 5, .4] : null, grain: 0 }); }
+function googly(c, R, px, py) {   // glued-on googly eye; px,py = pupil offset
+  c.fillStyle = 'rgba(20,15,10,.4)'; c.beginPath(); c.arc(4, 5, R + 2, 0, TAU); c.fill();
+  c.fillStyle = C.white; c.beginPath(); c.arc(0, 0, R, 0, TAU); c.fill();
+  c.strokeStyle = '#5c574e'; c.lineWidth = 2.2; c.stroke();
+  c.fillStyle = C.ink; c.beginPath(); c.arc(px, py, R * .52, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.85)'; c.beginPath(); c.ellipse(-R * .38, -R * .42, R * .26, R * .15, -.6, 0, TAU); c.fill();
+}
+function pitz(c, s, t, prev) {
+  const { x, y, sx = 1, sy = 1, rot = 0, sc = 1, eyes = 'norm', mouth = 'smile', brow = null, look = [0, 0], armL = .35, armR = .35, band = 0, jig = 0, legs = 0 } = s;
+  if (sc <= .01) return;
+  c.save(); c.translate(x, y); c.rotate(rot); c.scale(sx * sc, sy * sc); jit(c, 1, 2.2, .02);
+  // arms: cut black strips with red mitten hands
+  [[-1, armL], [1, armR]].forEach(([sd, a], n) => {
+    const sh = [sd * 70, -120], hd = [sh[0] + sd * Math.sin(a) * 98, sh[1] + Math.cos(a) * 98], el = [lerp(sh[0], hd[0], .5) + sd * 9, lerp(sh[1], hd[1], .5) + 7];
+    strip(c, sh, el, 15, 20 + n + DRAW % 3); strip(c, el, hd, 14, 22 + n + DRAW % 2);
+    cutp(c, offs(cutPoly(19, 18, 7, 24 + n, .08), hd[0], hd[1]), C.red, 3);
+  });
+  // legs + shoes
+  [[-1, 0], [1, 1]].forEach(([sd, n]) => {
+    const sw = Math.sin(legs * 1.0 + n * Math.PI) * 18 * (legs ? 1 : 0), hip = [sd * 34, -40], ft = [sd * 44 + sw, -12 + Math.abs(sw) * .2];
+    strip(c, hip, ft, 15, 30 + n);
+    cutp(c, offs(cutRect(58, 26, 32 + n, 4), ft[0] + sd * 12, ft[1] + 2), C.ink, 3);
+  });
+  // body (pre-cut halftone photo)
+  c.save(); c.translate(0, BODY.cy); blit(c, SP_BODY); c.restore();
+  // band-aid: two crossed strips of tape (repaired!)
+  if (band > 0) { c.save(); c.translate(-44, -200); const bs = eBack(band); c.scale(bs, bs); tapeP(c, 0, 0, 96, 30, -.6, 91); tapeP(c, 0, 0, 96, 30, .6, 92); c.restore(); }
+  // cheeks: red paper dots
+  [-1, 1].forEach((sd, n) => cutp(c, offs(cutPoly(17, 11, 7, 40 + n, .06), sd * 70, -110), C.red, 0, false));
+  // eyes: googly (never squashed: they're plastic)
+  const vx = s.x - prev.x, vy = s.y - prev.y, spd = Math.hypot(vx, vy), gx = Math.sin(rot), gy = Math.cos(rot);
+  [-1, 1].forEach((sd, n) => {
+    const ex = sd * 40, ey = -160;
+    c.save(); c.translate(ex, ey); c.scale(1 / sx, 1 / sy);
+    if (eyes === 'happy') { strip(c, [-20, 8], [0, -12], 9, 44 + n); strip(c, [0, -12], [20, 8], 9, 46 + n); c.restore(); return; }
+    const R = eyes === 'big' || eyes === 'spark' ? 37 : 34, maxO = R - R * .52 - 3, q = rng(n * 31 + DRAW * 977 + 5);
+    const A = clamp(spd / 70) * maxO * .9 + jig * maxO * .7;
+    let px = look[0] * maxO * .75 + gx * maxO * .35 - clamp(vx / 60, -1, 1) * maxO * .4 + (q() - .5) * 2 * A;
+    let py = look[1] * maxO * .75 + gy * maxO * .35 - clamp(vy / 60, -1, 1) * maxO * .4 + (q() - .5) * 2 * A;
+    const L = Math.hypot(px, py); if (L > maxO) { px *= maxO / L; py *= maxO / L; }
+    googly(c, R, px, py);
+    if (eyes === 'spark') { c.fillStyle = C.white; c.beginPath(); c.arc(px + 5, py - 6, 5, 0, TAU); c.fill(); }
+    if (eyes === 'x') { strip(c, [-18, -18], [18, 18], 9, 48 + n, C.ink, 2, false); strip(c, [18, -18], [-18, 18], 9, 50 + n, C.ink, 2, false); }
+    c.restore();
+  });
+  if (brow === 'det') { strip(c, [-66, -206], [-18, -190], 11, 60); strip(c, [66, -206], [18, -190], 11, 61); }
+  // mouth: cut from red + black paper
+  const my = -100;
+  if (mouth === 'smile') cutp(c, [[-30, my - 6], [-16, my + 10], [0, my + 15], [16, my + 10], [30, my - 6], [15, my + 2], [0, my + 5], [-15, my + 2]], C.red, 3);
+  else if (mouth === 'flat') strip(c, [-20, my + 2], [20, my], 9, 71);
+  else if (mouth === 'tiny') cutp(c, offs(cutPoly(10, 12, 6, 72), 0, my + 2), C.ink, 3);
+  else if (mouth === 'ouch') { const zz = [[-28, my], [-14, my - 9], [0, my + 2], [14, my - 9], [28, my]]; for (let k = 0; k < 4; k++) strip(c, zz[k], zz[k + 1], 8, 73 + k, C.ink, 2, false); }
+  else if (mouth === 'open' || mouth === 'wow') {
+    const w = mouth === 'wow' ? 32 : 18, h = mouth === 'wow' ? 34 : 22;
+    const pts = mouth === 'wow' ? [[-w, my - 8], [w, my - 8], [w * .7, my + h * .6], [0, my + h], [-w * .7, my + h * .6]] : offs(cutPoly(w, h, 8, 74), 0, my + 4);
+    cutp(c, pts, C.ink, 3);
+    cutp(c, offs(cutPoly(w * .55, h * .28, 6, 75), 0, my + (mouth === 'wow' ? h * .62 : h * .5)), C.red, 0, false);
+  }
+  c.restore();
+}
+function speedLines(c, s, prev) {
+  const vx = s.x - prev.x, vy = s.y - prev.y, L = Math.hypot(vx, vy);
+  if (L < 45 || s.sc < .9) return;
+  const ux = vx / L, uy = vy / L, nx = -uy, ny = ux, cx = s.x, cy = s.y + BODY.cy * s.sy;
+  for (let k = 0; k < 3; k++) { const o = (k - 1) * 62, l0 = 120 + (k % 2) * 30, l1 = l0 + 70 + ((DRAW + k) % 3) * 30;
+    strip(c, [cx - ux * l0 + nx * o, cy - uy * l0 + ny * o], [cx - ux * l1 + nx * o, cy - uy * l1 + ny * o], 12, 500 + k + DRAW, k === 1 ? C.red : C.ink, 3); }
+}
+function dizzy(c, x, y, t, k) {
+  if (k <= 0) return;
+  for (let i = 0; i < 3; i++) { const a = DRAW * .9 + i / 3 * TAU, px = x + Math.cos(a) * 115, py = y + Math.sin(a) * 28;
+    c.save(); c.translate(px, py); c.rotate(a); const s = .3 * k * (Math.sin(a) > 0 ? 1.1 : .8); c.scale(s, s);
+    cutp(c, starPts(60, 28, 200 + i), [C.yel, C.red, C.white][i], 6); c.restore(); }
+}
+function scraps(c, x, y, t, t0, seed, n = 9, spread = 1) {
+  const d = t - t0; if (d < 0 || d > .7) return;
+  const k = d / .7, r = rng(seed);
+  for (let i = 0; i < n; i++) { const sd = i % 2 ? 1 : -1, sp = (90 + r() * 170) * spread, up = 60 + r() * 140, px = x + sd * sp * eOut(k) + (r() - .5) * 40, py = y - up * Math.sin(Math.min(1, k * 1.3) * Math.PI) * (1 - k * .3) - 6;
+    c.save(); c.translate(px, py); c.rotate((r() - .5) * 6 * k + r() * 3); const s = 1 - k * .5, sz = 12 + r() * 16;
+    const col = [C.paperL, C.ink, C.red, C.paperL][i % 4];
+    c.scale(s, s); cutp(c, [[-sz, -sz * .5], [sz, -sz * .7 * r()], [sz * .2 * r(), sz]], col, 0, true); c.restore(); }
+}
+function chipPop(c, sp, x, y, t, t0, dur, rot = 0, sc = 1) {
+  const d = t - t0; if (d < 0 || d > dur) return;
+  const k = d < .13 ? 1.25 : 1;                 // first drawing slapped down bigger
+  c.save(); c.translate(x, y); c.rotate(rot + (d < .13 ? .12 : 0)); c.scale(k * sc, k * sc); jit(c, 77 + (t0 * 10 | 0), 2, .02); blit(c, sp); c.restore();
+}
+
+// ---------- star ----------
+function starNow(t) {
+  if (t >= .6) return starState(t);
+  const a = starAng(t) + .2 * Math.sin(t / .6 * Math.PI * 2.5) * (1 - t / .6);   // hung by hand at frame 0, settles
+  return { visible: true, x: PIV[0] + SLEN * Math.sin(a), y: PIV[1] + SLEN * Math.cos(a), ang: a, lit: 0, grabbed: false, dodge: false };
+}
+function drawStar(c, t) {
+  const st = starNow(t), { x, y, ang: a, lit } = st;
+  // thread
+  const ex = x - Math.sin(a) * 92, ey = y - Math.cos(a) * 92;
+  c.save(); c.strokeStyle = C.ink; c.lineWidth = 3.4; c.beginPath(); c.moveTo(PIV[0], PIV[1]); c.lineTo(lerp(PIV[0], ex, .55) + (DRAW % 2 ? 2 : -2), lerp(PIV[1], ey, .55)); c.lineTo(ex, ey); c.stroke(); c.restore();
+  c.save(); c.translate(x, y);
+  if (lit > 0) {
+    const k = eBack(lit), p = 1 + .04 * Math.sin(DRAW * 1.7);
+    c.save(); c.rotate(DRAW * .05); c.scale(k * p, k * p); blit(c, SP_BURST_R); c.restore();
+    c.save(); c.rotate(-DRAW * .07 + .2); c.scale(k, k); blit(c, SP_BURST_Y); c.restore();
+  }
+  c.rotate(-a); jit(c, 3, 2, .025);
+  const pulse = 1 + .12 * lit * Math.exp(-(t - LEAP.t1) * 3); c.scale(pulse, pulse);
+  blit(c, SP_STAR);
+  [-1, 1].forEach((sd, n) => cutp(c, offs(cutPoly(11, 7, 6, 15 + n), sd * 32, 16), C.red, 0, false));
+  if (lit > 0) {
+    [-1, 1].forEach((sd, n) => { c.save(); c.translate(sd * 22, -6); const q = rng(DRAW * 3 + n); googly(c, 15, (q() - .5) * 6, 2 + q() * 3); c.restore(); });
+    cutp(c, [[-16, 10], [16, 10], [10, 26], [0, 30], [-10, 26]], C.ink, 2); cutp(c, [[-7, 22], [7, 22], [0, 28]], C.red, 0, false);
+  } else if (st.dodge) {        // cheeky: googly eyes rolled away, tongue out
+    [-1, 1].forEach((sd, n) => { c.save(); c.translate(sd * 22, -6); googly(c, 14, 6, -5); c.restore(); });
+    cutp(c, [[-4, 14], [12, 12], [10, 28], [0, 30]], C.red, 2);
+  } else {                      // smug, eyes shut
+    strip(c, [-32, -6], [-12, -4], 7, 13, C.ink, 2, false); strip(c, [12, -4], [32, -6], 7, 14, C.ink, 2, false);
+    strip(c, [-9, 16], [9, 14], 6, 16, C.ink, 2, false);
+  }
+  c.restore();
+}
+function drawBlock(c, i, t) {
+  const b = blockState(i, t); if (!b.visible) return;
+  c.save(); c.translate(b.x, b.bottom); c.rotate(b.rot); c.scale(1 + b.sq * .6, 1 - b.sq); c.translate(0, -b.h / 2); jit(c, 40 + i, 1.8, .012);
+  blit(c, SP_BLK[i]); c.restore();
+}
+// confetti: paper scraps (triangles/quads of red, black, yellow, newsprint)
+const CONF = (() => { const r = rng(77), a = []; for (let i = 0; i < 56; i++) { const an = -Math.PI / 2 + (r() - .5) * 3.4, sp = 500 + r() * 950;
+  a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, spin: (r() - .5) * 12, sz: 12 + r() * 18, col: [C.red, C.ink, C.yel, C.paperL, C.red][i % 5], tri: r() < .5, seed: 600 + i }); } return a; })();
+function drawConfetti(c, t) {
+  const d = t - LEAP.t1; if (d < 0 || d > 3) return;
+  const { x: x0, y: y0 } = starState(LEAP.t1);
+  for (const p of CONF) { const px = x0 + p.vx * d * Math.exp(-d * .9), py = y0 + p.vy * d * Math.exp(-d * .9) + 700 * d * d;
+    if (py > GY + 30) continue;
+    c.save(); c.translate(px, py); c.rotate(p.spin * d); c.scale(1, Math.max(.25, Math.abs(Math.cos(p.spin * d * 1.3))));
+    const s = p.sz; cutp(c, p.tri ? [[-s, -s * .6], [s, -s * .3], [0, s]] : cutRect(Math.round(s * 1.6), Math.round(s), p.seed, 2), p.col, p.col === C.ink ? 2 : 0, false); c.restore(); }
+}
+
+// ============================================================
+// FILM
+// ============================================================
+const T0Q = Math.ceil(TITLE.t0 * 8 - 1e-6) / 8;      // first title drawing on the 8 fps grid
+film({
+  setup() { GRAINP = ctx.createPattern(GRAIN, 'repeat'); buildPage(); buildSprites(); },
+  draw(c, tf) {
+    const t = Math.floor(tf * 8 + 1e-6) / 8;           // stop-motion on threes
+    DRAW = Math.round(t * 8);
+    const z = zoom(tf), sh = shake(tf);
+    c.fillStyle = C.table; c.fillRect(0, 0, W, H);
+    c.save(); c.translate(540 + sh * .6, 760 + sh); c.scale(z, z); c.translate(-540, -760);
+    c.drawImage(L_PAGE, -PM, -PM, W + PM * 2, H + PM * 2);
+    drawStar(c, t);
+    drawBlock(c, 0, t); drawBlock(c, 1, t);
+    BLOCKS.forEach((b, i) => { scraps(c, TOWER.x, blockTop(i) + TOWER.h, t, b.land, 400 + i, 10, 1.2); chipPop(c, SP_BOOM, TOWER.x - 40 + i * 30, blockTop(i) - 70, t, Math.ceil(b.land * 8) / 8, .5, -.12 + i * .2); });
+    SPLATS.forEach((te, i) => { scraps(c, HX, GY, t, te, 420 + i, 9); chipPop(c, SP_SPLAT, 200 + i * 20, GY - 300 - i * 20, t, Math.ceil(te * 8) / 8, .6, -.1 + i * .16, .9); });
+    const s = pose(t), prev = pose(Math.max(0, t - .125));
+    speedLines(c, s, prev);
+    pitz(c, s, t, prev);
+    dizzy(c, s.x, s.y - 250 * s.sy * s.sc, t, s.dizzy);
+    if (t >= IDEA.t0 && t <= IDEA.t1) { c.save(); c.translate(s.x + 40, s.y - 330 * s.sy); c.rotate(.14); const k = t - IDEA.t0 < .13 ? 1.25 : 1; c.scale(k, k); jit(c, 9, 2, .03); blit(c, SP_BANG);
+      for (let i = 0; i < 5; i++) { const a = -Math.PI * .92 + i * .46; strip(c, [Math.cos(a) * 100, Math.sin(a) * 100], [Math.cos(a) * 140, Math.sin(a) * 140], 11, 710 + i + DRAW); } c.restore(); }
+    drawConfetti(c, t);
+    c.restore();
+    // ransom-note title (screen space): a fresh panel, then two letters slapped down per drawing
+    if (t >= T0Q) { const fresh = t - T0Q < .1; c.save(); c.translate(540, 272); c.rotate(-.018 + (fresh ? .05 : 0)); const k = fresh ? 1.06 : 1; c.scale(k, k); jit(c, 790, 1.4, .006); blit(c, SP_PANEL); c.restore(); }
+    for (const ch of TITLE_CHIPS) {
+      const tl = T0Q + .125 + Math.floor(ch.idx / 2) * .125; if (t < tl) continue;
+      const fresh = t - tl < .1;
+      c.save(); c.translate(ch.x, ch.y); c.rotate(ch.rot + (fresh ? (ch.idx % 2 ? -.14 : .14) : 0)); const k = fresh ? 1.22 : 1; c.scale(k, k); jit(c, 800 + ch.idx, 1.6, .012); blit(c, ch.sp); c.restore();
+    }
+  },
+  kit: { reverb: .16, musicGain: .5, sfxGain: .85, revSec: 1.0 },
+  voice: K => {
+    const { osc, noise, mf, nm, at, ac } = K, r = rng(202);
+    // detuned toy piano: sine + metallic partials, each note a little out of tune
+    const toy = (t, m, v = .07, d = .9, out = K.music) => { const f = mf(m) * (1 + (r() - .5) * .02 + .007);
+      osc('sine', f, t, d, out, v, .002); osc('triangle', f * 1.006, t, d * .45, out, v * .3, .002, d * .45, 2800);
+      osc('sine', f * 3.93, t, .12, out, v * .22, .001); osc('square', f * 2.01, t, .05, out, v * .05, .001, .05, 3200); };
+    const snip = (t, v = .12) => { for (let k = 0; k < 2; k++) { const tt = t + k * .07, f = noise(tt, .055, K.sfx, v, 'bandpass', 2600, 3, .012); f.frequency.exponentialRampToValueAtTime(7500, at(tt + .06)); noise(tt + .06, .01, K.sfx, v * 1.2, 'highpass', 5000, .7, .0006); } };
+    const rustle = (t, d = .35, v = .08) => { for (let k = 0; k < 8; k++) noise(t + k * d / 8 + r() * .02, .03 + r() * .04, K.sfx, v * (.5 + r() * .6), 'bandpass', 1500 + r() * 3800, 1.4, .004); noise(t, d, K.sfx, v * .3, 'highpass', 2500, .7, d * .4); };
+    const clack = (t, v = .16) => { noise(t, .016, K.sfx, v, 'bandpass', 2600, 1.1, .0008); const o = osc('sine', 200, t, .04, K.sfx, v * .7, .001); o.frequency.exponentialRampToValueAtTime(85, at(t + .04)); noise(t + .007, .012, K.sfx, v * .45, 'highpass', 6000, .7, .0005); };
+    const bell = (t, v = .07) => { osc('sine', 2093, t, 1.2, K.sfx, v, .001); osc('sine', 2093 * 2.76, t, .45, K.sfx, v * .3, .001); osc('sine', 2093 * 5.4, t, .15, K.sfx, v * .12, .001); };
+    const cardboard = (t, v = .6) => { const o = osc('sine', 98, t, .32, K.sfx, v, .002); o.frequency.exponentialRampToValueAtTime(40, at(t + .28)); noise(t, .2, K.sfx, v * .7, 'bandpass', 230, 3, .002); noise(t, .08, K.sfx, v * .4, 'lowpass', 900, .7, .001); noise(t + .01, .05, K.sfx, v * .15, 'bandpass', 1400, 2); };
+    const kazoo = (t, f0, f1, d, v = .07) => {
+      const o = ac.createOscillator(), l = ac.createOscillator(), lg = ac.createGain(), g = ac.createGain(), b1 = ac.createBiquadFilter(), b2 = ac.createBiquadFilter();
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, at(t)); o.frequency.exponentialRampToValueAtTime(f1, at(t + d));
+      l.frequency.value = 7.5; lg.gain.value = (f0 + f1) * .018; l.connect(lg); lg.connect(o.frequency);
+      b1.type = 'bandpass'; b1.frequency.value = 850; b1.Q.value = 3.5; b2.type = 'bandpass'; b2.frequency.value = 2300; b2.Q.value = 4;
+      o.connect(b1); o.connect(b2); b1.connect(g); b2.connect(g); g.connect(K.sfx);
+      g.gain.setValueAtTime(0, at(t)); g.gain.linearRampToValueAtTime(v, at(t + .03)); g.gain.setValueAtTime(v, at(t + d * .8)); g.gain.linearRampToValueAtTime(0, at(t + d));
+      o.start(at(t)); l.start(at(t)); o.stop(at(t + d + .05)); l.stop(at(t + d + .05));
+    };
+    const sq = (t, f0, f1, d, v = .06) => { const o = osc('square', f0, t, d, K.sfx, v, .003, d, 1900); o.frequency.exponentialRampToValueAtTime(f1, at(t + d * .8)); };
+    const snare = (t, v = .06) => { noise(t, .1, K.music, v, 'bandpass', 1900, .8, .001); noise(t, .05, K.music, v * .8, 'lowpass', 500, .7, .001); };
+    return {
+      setup() {   // tape hiss + low hum bed, not ducked
+        const sr = ac.sampleRate, buf = ac.createBuffer(1, sr * 2, sr), d = buf.getChannelData(0), q = rng(606); for (let k = 0; k < d.length; k++) d[k] = q() * 2 - 1;
+        const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+        const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3800; const g = ac.createGain(); g.gain.setValueAtTime(0, at(0)); g.gain.linearRampToValueAtTime(.022, at(.05)); g.gain.setValueAtTime(.022, at(7.8)); g.gain.linearRampToValueAtTime(0, at(8));
+        src.connect(hp); hp.connect(g); g.connect(K.master); src.start(at(0)); src.stop(at(8.1));
+        const hum = osc('sine', 60, 0, 8, K.master, .012, .1, 8);
+      },
+      groove(a, b, root, tri) {
+        for (let t = Math.ceil(a / .25 - 1e-6) * .25; t < b - .01; t += .25) {
+          const j = Math.round(t / .25);
+          osc('square', mf(root + (j % 4 === 2 ? 12 : 0)), t, .17, K.music, .045, .004, .17, 620);
+          if (j % 4 === 0) K.kick(t, .26); if (j % 4 === 2) snare(t, .07);
+          if (j % 2) K.hat(t, .012);
+          if (j % 4 === 3 || j % 8 === 1) tri.forEach((m, k) => toy(t + k * .008, m + 12, .022, .3));
+        }
+      },
+      motif(t) { [[0, 'E5'], [.25, 'G5'], [.5, 'C6'], [1.0, 'B5'], [1.25, 'G5'], [1.5, 'C6']].forEach(([d, n]) => toy(t + d, nm(n), .075, 1.1)); },
+      ending(t, root, tri) {
+        K.pad(t, 1.6, [48, 60, 64, 67], .016, 'square', 1100);
+        [0, 4, 7, 12, 16, 19, 24].forEach((m, k) => toy(t + k * .07, 72 + m, .06, 1.2));
+        for (let tt = t; tt < 7.9; tt += .25) { const j = Math.round(tt / .25); if (j % 4 === 0) K.kick(tt, .22); if (j % 4 === 2) snare(tt, .06); osc('square', mf(root + (j % 2 ? 12 : 0)), tt, .15, K.music, .035, .004, .15, 600); }
+        toy(7.62, nm('C6'), .07, 1.2); toy(7.62, nm('E6'), .05, 1.2); toy(7.62, nm('G6'), .045, 1.2);
+      },
+      cues: {
+        reveal: t => rustle(t, .5, .1),
+        star: t => { snip(t + .02, .1); toy(t + .3, 96, .05, 1); },
+        pop: t => { snip(t, .09); toy(t + .1, 84, .05, .5); },
+        jump: (t, n) => sq(t, 180, n ? 820 : 640, .32, .07),
+        fall: (t, n) => kazoo(t - .05, n ? 820 : 700, 190, .32, .075),
+        splat: t => { cardboard(t, .55); rustle(t + .02, .22, .1); },
+        dizzy: t => [0, 1, 2, 3].forEach(k => toy(t + k * .09, 88 - k * 3 + (k % 2) * 7, .04, .4)),
+        getup: t => { rustle(t, .25, .06); sq(t + .05, 260, 520, .2, .045); },
+        drop: t => rustle(t, .28, .09),
+        thud: (t, n) => { cardboard(t, .65 + n * .1); rustle(t + .03, .2, .07); },
+        idea: t => { bell(t, .09); [0, 4, 7, 12].forEach((m, k) => toy(t + .06 + k * .05, 84 + m, .05, .7)); },
+        hop: (t, n) => { sq(t, 300 + n * 80, 700 + n * 160, .24, .055); noise(t, .03, K.sfx, .05, 'highpass', 4000); },
+        land: t => cardboard(t, .3),
+        leap: t => { kazoo(t, 300, 1300, .42, .06); rustle(t, .4, .07); },
+        grab: t => { snip(t - .05, .12); K.kick(t, .4, K.sfx); cardboard(t, .3); [0, 4, 7, 12, 16].forEach((m, k) => toy(t + .04 + k * .05, 84 + m, .06, 1)); noise(t, 1.2, K.sfx, .07, 'highpass', 6000, .5, .01); },
+        title: () => { rustle(T0Q - .06, .12, .1); snip(T0Q - .04, .08); for (let k = 0; k < 12; k++) clack(T0Q + .125 + Math.floor(k / 2) * .125 + (k % 2) * .045, .15); bell(7.64, .07); },
+      },
+    };
+  },
+});
+</script>

@@ -1,0 +1,373 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>07 · מדבקות נייר צבעוניות</title>
+<body>
+<script src="fonts-data.js"></script>
+<script src="story.js"></script>
+<script src="audio.js"></script>
+<script src="runtime.js"></script>
+<script>
+'use strict';
+// ============================================================
+// 07 · COLOURFUL PAPER STICKERS - the reference film of the style pack.
+// Torn paper cutouts with white sticker edges + drop shadows, masking tape, halftone,
+// boiling crayon outlines, ransom-note word chips. Motion on twos. Default "cute" voice.
+// ============================================================
+// ---------- palette ----------
+const C = {
+  kraft: '#e8d8bb', ink: '#211b30', coral: '#ff7a5c', coralD: '#e0573c', pink: '#ffa3b5', blush: '#ff5f86',
+  sky: '#94cbef', skyD: '#5f9fd4', blue: '#004AAD', yellow: '#FFC93C', yellowD: '#f0a018', green: '#72c46e',
+  greenD: '#3f9950', cream: '#fff8ea', lilac: '#bba8ee', teal: '#5cc6b2', cloud: '#a3b2c9', rain: '#4a86c9',
+};
+
+
+let BF = 0, SHZ = 1;
+
+// ---------- shapes (cached, stable per seed) ----------
+const _cache = new Map();
+const memo = (k, f) => { if (!_cache.has(k)) _cache.set(k, f()); return _cache.get(k); };
+function tornRect(w, h, seed, amp = 5) {
+  return memo(`t${w}|${h}|${seed}|${amp}`, () => {
+    const r = rng(seed), pts = [], st = 13;
+    const edge = (x0, y0, x1, y1, nx, ny) => {
+      const k = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) / st));
+      for (let i = 0; i < k; i++) { const u = i / k, j = (r() - .5) * 2 * amp + (r() < .07 ? -amp * 1.8 : 0); pts.push([x0 + (x1 - x0) * u + nx * j, y0 + (y1 - y0) * u + ny * j]); }
+    };
+    edge(-w / 2, -h / 2, w / 2, -h / 2, 0, -1); edge(w / 2, -h / 2, w / 2, h / 2, 1, 0);
+    edge(w / 2, h / 2, -w / 2, h / 2, 0, 1); edge(-w / 2, h / 2, -w / 2, -h / 2, -1, 0);
+    return pts;
+  });
+}
+function blob(rx, ry, seed, n = 34, amp = .06) {
+  return memo(`b${rx}|${ry}|${seed}|${n}|${amp}`, () => {
+    const r = rng(seed), ph = [r() * TAU, r() * TAU, r() * TAU], pts = [];
+    for (let i = 0; i < n; i++) { const a = i / n * TAU, m = 1 + amp * (Math.sin(a * 2 + ph[0]) * .5 + Math.sin(a * 3 + ph[1]) * .35 + Math.sin(a * 5 + ph[2]) * .15);
+      pts.push([Math.cos(a) * rx * m, Math.sin(a) * ry * m]); }
+    return pts;
+  });
+}
+function bumpy(rx, ry, bumps, seed) {   // cloud: ellipse with round bumps on top
+  return memo(`c${rx}|${ry}|${bumps}|${seed}`, () => {
+    const r = rng(seed), pts = [], n = 90;
+    for (let i = 0; i < n; i++) { const a = i / n * TAU; let m = 1; if (Math.sin(a) < .3) m += .16 * Math.abs(Math.sin(a * bumps / 2 + r() * .05)); pts.push([Math.cos(a) * rx * m, Math.sin(a) * ry * m * (Math.sin(a) > 0 ? .7 : 1)]); }
+    return pts;
+  });
+}
+function starPts(R, r, seed) {
+  return memo(`s${R}|${r}|${seed}`, () => { const q = rng(seed), pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU, rr = (i % 2 ? r : R) * (1 + (q() - .5) * .08); pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); } return pts; });
+}
+function heartPath(s) { const p = new Path2D(); p.moveTo(0, s * .35); p.bezierCurveTo(-s * 1.1, -s * .35, -s * .45, -s * 1.05, 0, -s * .45); p.bezierCurveTo(s * .45, -s * 1.05, s * 1.1, -s * .35, 0, s * .35); return p; }
+function boil(pts, seed, amp = 1.6) { const r = rng(seed * 7919 + BF * 131); return pts.map(p => [p[0] + (r() - .5) * 2 * amp, p[1] + (r() - .5) * 2 * amp]); }
+function pathOf(pts, smooth) {
+  const p = new Path2D(), n = pts.length;
+  if (!smooth) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < n; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); return p; }
+  const m = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], s0 = m(pts[n - 1], pts[0]);
+  p.moveTo(s0[0], s0[1]);
+  for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; p.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); }
+  p.closePath(); return p;
+}
+const offs = (pts, dx, dy) => pts.map(p => [p[0] + dx, p[1] + dy]);
+
+// ---------- textures (made once) ----------
+const TEX = (() => {
+  const c = mkCanvas(384, 384), g = c.getContext('2d'), r = rng(42);
+  g.fillStyle = '#fff'; g.fillRect(0, 0, 384, 384);
+  for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(90,60,30,${.03 + r() * .09})`; g.fillRect(r() * 384, r() * 384, 1 + r() * 2, 1 + r() * 2); }
+  g.lineWidth = 1; for (let i = 0; i < 160; i++) { g.strokeStyle = `rgba(110,80,40,${.05 + r() * .08})`; const x = r() * 384, y = r() * 384, a = r() * TAU, l = 4 + r() * 14; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); }
+  return c;
+})();
+let TEXP = null;
+const _ht = new Map();
+function halftonePat(g, color, step = 18, rad = 4) {
+  const k = color + step + rad; if (!_ht.has(k)) { const c = mkCanvas(step, step), q = c.getContext('2d'); q.fillStyle = color; q.beginPath(); q.arc(step / 2, step / 2, rad, 0, TAU); q.fill(); _ht.set(k, c); }
+  return g.createPattern(_ht.get(k), 'repeat');
+}
+
+// ---------- the collage primitive ----------
+// A cutout: shadow, white sticker edge, colour, paper fibre, optional halftone and a boiling crayon outline.
+function cutout(c, pts, fill, o = {}) {
+  const { smooth = false, border = 9, shadow = true, tex = .55, outline = false, seed = 1, ht = null, htA = .35, lw = 3.6, edge = C.cream } = o;
+  const p = pathOf(pts, smooth);
+  c.save();
+  if (shadow) { c.shadowColor = 'rgba(70,40,15,.30)'; c.shadowBlur = 9 * S * SHZ; c.shadowOffsetX = 5 * S * SHZ; c.shadowOffsetY = 8 * S * SHZ; }
+  if (border) { c.lineJoin = 'round'; c.strokeStyle = edge; c.lineWidth = border * 2; c.stroke(p); c.fillStyle = edge; c.fill(p); c.shadowColor = 'transparent'; }
+  c.fillStyle = fill; c.fill(p); c.shadowColor = 'transparent';
+  c.clip(p);
+  if (ht) { c.globalAlpha = htA; c.fillStyle = halftonePat(c, ht); c.fillRect(-1400, -1400, 2800, 2800); }
+  if (tex) { c.globalAlpha = tex; c.globalCompositeOperation = 'multiply'; c.fillStyle = TEXP; c.fillRect(-1400, -1400, 2800, 2800); }
+  c.restore();
+  if (outline) { c.save(); c.strokeStyle = C.ink; c.lineJoin = 'round'; c.lineWidth = lw; c.globalAlpha = .88; c.stroke(pathOf(boil(pts, seed), smooth)); c.lineWidth = lw * .45; c.globalAlpha = .35; c.stroke(pathOf(boil(pts, seed + 5, 2.4), smooth)); c.restore(); }
+}
+// crayon line through points (open)
+function crayon(c, pts, w, color = C.ink, seed = 1, amp = 1.4) {
+  c.save(); c.strokeStyle = color; c.lineCap = 'round'; c.lineJoin = 'round';
+  for (let pass = 0; pass < 2; pass++) {
+    const q = boil(pts, seed + pass * 17, amp * (pass ? 1.8 : 1));
+    c.lineWidth = pass ? w * .45 : w; c.globalAlpha = pass ? .4 : .92;
+    c.beginPath(); c.moveTo(q[0][0], q[0][1]);
+    for (let i = 1; i < q.length - 1; i++) c.quadraticCurveTo(q[i][0], q[i][1], (q[i][0] + q[i + 1][0]) / 2, (q[i][1] + q[i + 1][1]) / 2);
+    const L = q[q.length - 1]; c.lineTo(L[0], L[1]); c.stroke();
+  }
+  c.restore();
+}
+function tape(c, x, y, w, h, rot, seed) {
+  c.save(); c.translate(x, y); c.rotate(rot);
+  const r = rng(seed), pts = [];
+  for (let i = 0; i <= 6; i++) pts.push([-w / 2 + i / 6 * w, -h / 2]);
+  for (let i = 0; i <= 5; i++) pts.push([w / 2 + (i % 2 ? 5 : -2) + r() * 3, -h / 2 + i / 5 * h]);
+  for (let i = 6; i >= 0; i--) pts.push([-w / 2 + i / 6 * w, h / 2]);
+  for (let i = 5; i >= 0; i--) pts.push([-w / 2 + (i % 2 ? -5 : 2) - r() * 3, -h / 2 + i / 5 * h]);
+  const p = pathOf(pts, false);
+  c.fillStyle = 'rgba(246,234,180,.78)'; c.fill(p);
+  c.globalAlpha = .25; c.globalCompositeOperation = 'multiply'; c.fillStyle = TEXP; c.fill(p);
+  c.restore();
+}
+function doodleStar(c, x, y, s, color, seed) {
+  const pts = []; for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + i * 4 * Math.PI / 5; pts.push([x + Math.cos(a) * s, y + Math.sin(a) * s]); }
+  crayon(c, pts, 4, color, seed, 1.2);
+}
+
+
+// ---------- text ----------
+const FONT = 'OHRonShemer';
+function hand(c, str, x, y, size, color, k = 1) {
+  c.save(); c.font = `${size}px ${FONT}`; c.direction = 'rtl'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const w = c.measureText(str).width;
+  if (k < 1) { c.beginPath(); c.rect(x + w / 2 + 20 - (w + 40) * k, y - size, (w + 40) * k + 10, size * 2); c.clip(); }   // writes right to left
+  c.fillStyle = color; c.fillText(str, x, y); c.restore();
+}
+const CHIP_PAL = [
+  { bg: C.cream, fg: C.ink }, { bg: C.yellow, fg: C.ink }, { bg: C.coral, fg: C.cream },
+  { bg: C.blue, fg: C.yellow }, { bg: C.green, fg: C.cream }, { bg: C.pink, fg: C.ink },
+];
+// ransom-note word chips. lines: [[word, word], [word]] in reading order, laid out right to left.
+function chipLayout(lines, size) {
+  ctx.save(); ctx.font = `${size}px ${FONT}`;
+  const out = []; let idx = 0;
+  lines.forEach((words, li) => {
+    const ws = words.map(w => ctx.measureText(w).width + size * .6), gap = size * .14;
+    const tot = ws.reduce((a, b) => a + b, 0) + gap * (words.length - 1);
+    let x = W / 2 + tot / 2;
+    words.forEach((w, wi) => { out.push({ w, cw: ws[wi], cx: x - ws[wi] / 2, li, idx: idx++ }); x -= ws[wi] + gap; });
+  });
+  ctx.restore(); return out;
+}
+function chips(c, lines, cy, size, t0, t1, t, seed, pal = CHIP_PAL) {
+  if (t < t0 || t > t1 + .22) return;
+  const fade = t > t1 ? 1 - (t - t1) / .22 : 1;
+  for (const ch of chipLayout(lines, size)) {
+    const k = prog(t, t0 + ch.idx * .13, t0 + ch.idx * .13 + .3); if (k <= 0) continue;
+    const r = rng(seed * 31 + ch.idx * 7), col = pal[(seed + ch.idx * 2) % pal.length];
+    const sc = eBack(k) * (t > t1 ? eOut(fade) : 1);
+    c.save(); c.translate(ch.cx, cy + ch.li * size * 1.5 + (r() - .5) * 14); c.rotate((r() - .5) * .16 + (1 - k) * .3); c.scale(sc, sc);
+    cutout(c, tornRect(Math.round(ch.cw), Math.round(size * 1.32), seed * 100 + ch.idx, 4), col.bg, { border: 6, tex: .5 });
+    c.font = `${size}px ${FONT}`; c.direction = 'rtl'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = col.fg; c.fillText(ch.w, 0, size * .06);
+    c.restore();
+  }
+}
+
+
+// ---------- פיצי ----------
+// feet at (x, y); scaled around the feet. arms: 0 = hanging down, PI = straight up.
+function pitz(c, s, t) {
+  const { x, y, sx = 1, sy = 1, rot = 0, sc = 1, eyes = 'norm', mouth = 'smile', brow = null, look = [0, 0], armL = .35, armR = .35,
+    band = 0, jig = 0, legs = 0, tear = 0 } = s;
+  if (sc <= 0) return;
+  c.save(); c.translate(x, y); c.rotate(rot); c.scale(sx * sc, sy * sc);
+  // arms (behind the body)
+  [[-1, armL], [1, armR]].forEach(([sd, a], n) => {
+    const sh = [sd * 72, -118], hd = [sh[0] + sd * Math.sin(a) * 96, sh[1] + Math.cos(a) * 96], el = [lerp(sh[0], hd[0], .5) + sd * 8, lerp(sh[1], hd[1], .5) + 6];
+    crayon(c, [sh, el, hd], 8, C.ink, 20 + n, 1.2);
+    cutout(c, offs(blob(16, 15, 23 + n, 14, .08), hd[0], hd[1]), C.coral, { smooth: true, border: 4, outline: true, lw: 2.8, seed: 24 + n, shadow: false });
+  });
+  // legs + feet
+  [[-1, 0], [1, 1]].forEach(([sd, n]) => {
+    const sw = Math.sin(legs * 1.0 + n * Math.PI) * 18 * (legs ? 1 : 0), hip = [sd * 34, -34], ft = [sd * 42 + sw, -2 + Math.abs(sw) * .2];
+    crayon(c, [hip, [lerp(hip[0], ft[0], .5) + sd * 4, -18], ft], 8, C.ink, 30 + n, 1.1);
+    cutout(c, offs(blob(26, 13, 32 + n, 16, .05), ft[0] + sd * 8, ft[1]), C.coralD, { smooth: true, border: 4, outline: true, lw: 2.8, seed: 34 + n, shadow: false });
+  });
+  // body
+  const body = offs(blob(102, 94, 7, 40, .07), 0, -128);
+  cutout(c, body, C.coral, { smooth: true, border: 10, outline: true, seed: 8, lw: 4.2 });
+  c.save(); c.clip(pathOf(body, true)); c.globalAlpha = .35; c.fillStyle = halftonePat(c, C.coralD, 16, 3.4);
+  c.beginPath(); c.ellipse(40, -70, 90, 60, 0, 0, TAU); c.fill(); c.restore();
+  // band-aid
+  if (band > 0) {
+    c.save(); c.translate(-38, -212); c.rotate(-.45); const bs = eBack(band); c.scale(bs, bs);
+    cutout(c, tornRect(92, 32, 91, 1.5), '#f0c39a', { border: 3, outline: true, lw: 2.4, seed: 92 });
+    c.fillStyle = '#e3a878'; c.fillRect(-16, -12, 32, 24);
+    c.fillStyle = 'rgba(120,70,40,.45)'; for (let i = 0; i < 6; i++) { c.beginPath(); c.arc(-10 + (i % 3) * 10, -5 + Math.floor(i / 3) * 10, 1.8, 0, TAU); c.fill(); }
+    c.restore();
+  }
+  // cheeks
+  c.fillStyle = C.blush; c.globalAlpha = .55; c.beginPath(); c.ellipse(-66, -108, 17, 10, 0, 0, TAU); c.ellipse(66, -108, 17, 10, 0, 0, TAU); c.fill(); c.globalAlpha = 1;
+  // eyes
+  const jx = Math.sin(t * 37) * jig * 7, jy = Math.cos(t * 29) * jig * 6;
+  [-1, 1].forEach((sd, n) => {
+    const ex = sd * 38, ey = -152;
+    if (eyes === 'x') { crayon(c, [[ex - 14, ey - 14], [ex + 14, ey + 14]], 6, C.ink, 40 + n, .8); crayon(c, [[ex + 14, ey - 14], [ex - 14, ey + 14]], 6, C.ink, 42 + n, .8); return; }
+    if (eyes === 'happy') { crayon(c, [[ex - 18, ey + 6], [ex, ey - 12], [ex + 18, ey + 6]], 6.5, C.ink, 44 + n, .7); return; }
+    const R = eyes === 'big' || eyes === 'spark' ? 34 : 30;
+    cutout(c, offs(blob(R, R * 1.05, 50 + n, 22, .04), ex, ey), '#fffdf6', { smooth: true, border: 0, shadow: false, tex: .2, outline: true, lw: 3.4, seed: 52 + n });
+    const pr = eyes === 'spark' ? 19 : eyes === 'big' ? 13 : 15;
+    const px = ex + clamp(look[0] * 11 + jx, -12, 12), py = ey + clamp(look[1] * 11 + jy, -12, 12);
+    c.fillStyle = C.ink; c.beginPath(); c.arc(px, py, pr, 0, TAU); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(px + 5, py - 6, eyes === 'spark' ? 6.5 : 4.5, 0, TAU); c.fill();
+    if (eyes === 'spark') { c.beginPath(); c.arc(px - 6, py + 6, 3, 0, TAU); c.fill(); }
+    if (eyes === 'sad') { c.fillStyle = C.coral; c.fillRect(ex - R - 4, ey - R - 6, R * 2 + 8, R * .75); crayon(c, [[ex - R + 2, ey - R * .3], [ex + R - 2, ey - R * .3]], 3.4, C.ink, 56 + n, .5); }
+  });
+  if (brow === 'det') { crayon(c, [[-62, -196], [-18, -182]], 7, C.ink, 60, .7); crayon(c, [[62, -196], [18, -182]], 7, C.ink, 61, .7); }
+  if (brow === 'sad') { crayon(c, [[-60, -186], [-20, -198]], 6, C.ink, 62, .7); crayon(c, [[60, -186], [20, -198]], 6, C.ink, 63, .7); }
+  if (tear > 0) { c.save(); c.translate(56, -118 + tear * 40); c.globalAlpha = 1 - tear * .6; c.fillStyle = C.sky; c.beginPath(); c.moveTo(0, -14); c.quadraticCurveTo(11, 4, 0, 10); c.quadraticCurveTo(-11, 4, 0, -14); c.fill(); c.strokeStyle = C.ink; c.lineWidth = 2.4; c.stroke(); c.restore(); }
+  // mouth
+  const my = -102;
+  if (mouth === 'smile') crayon(c, [[-24, my - 4], [0, my + 12], [24, my - 4]], 6, C.ink, 70, .6);
+  else if (mouth === 'flat') crayon(c, [[-18, my + 2], [18, my]], 6, C.ink, 71, .6);
+  else if (mouth === 'sad') crayon(c, [[-22, my + 10], [0, my - 2], [22, my + 10]], 6, C.ink, 72, .6);
+  else if (mouth === 'tiny') { c.fillStyle = '#3a1522'; c.beginPath(); c.ellipse(0, my + 2, 9, 11, 0, 0, TAU); c.fill(); }
+  else if (mouth === 'ouch') crayon(c, [[-26, my], [-13, my - 8], [0, my + 2], [13, my - 8], [26, my]], 5.5, C.ink, 73, .5);
+  else if (mouth === 'open' || mouth === 'wow') {
+    const w = mouth === 'wow' ? 30 : 16, h = mouth === 'wow' ? 28 : 20;
+    c.fillStyle = '#3a1522'; c.beginPath();
+    if (mouth === 'wow') { c.moveTo(-w, my - 6); c.quadraticCurveTo(0, my + h * 1.6, w, my - 6); c.closePath(); } else c.ellipse(0, my + 4, w, h, 0, 0, TAU);
+    c.fill(); c.save(); c.clip(); c.fillStyle = C.blush; c.beginPath(); c.ellipse(0, my + h, w * .8, h * .55, 0, 0, TAU); c.fill(); c.restore();
+  }
+  c.restore();
+}
+function dizzy(c, x, y, t, k) {
+  if (k <= 0) return;
+  for (let i = 0; i < 3; i++) { const a = t * 5 + i / 3 * TAU, px = x + Math.cos(a) * 110, py = y + Math.sin(a) * 26;
+    c.save(); c.translate(px, py); c.rotate(a); const s = .32 * k * (Math.sin(a) > 0 ? 1.1 : .85); c.scale(s, s);
+    cutout(c, starPts(60, 28, 200 + i), C.yellow, { border: 8, outline: true, seed: 210 + i, lw: 6 }); c.restore(); }
+}
+
+
+function dust(c, x, y, t, t0) {
+  const d = t - t0; if (d < 0 || d > .6) return;
+  const k = d / .6;
+  for (let i = 0; i < 7; i++) { const sd = i % 2 ? 1 : -1, px = x + sd * (60 + i * 22) * eOut(k), py = y - 20 * Math.sin(k * Math.PI) - i * 3;
+    c.save(); c.globalAlpha = 1 - k; c.translate(px, py); const s = (.5 + .5 * k) * (1 - i * .05);
+    c.scale(s, s); cutout(c, blob(26, 20, 400 + i, 14, .12), C.cream, { smooth: true, border: 0, shadow: false, outline: true, lw: 2.4, seed: 410 + i }); c.restore(); }
+}
+
+
+// ---------- confetti + hearts ----------
+const CONF = (() => { const r = rng(77), a = []; for (let i = 0; i < 70; i++) { const an = -Math.PI / 2 + (r() - .5) * 3.4, sp = 500 + r() * 900;
+  a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, spin: (r() - .5) * 14, w: 14 + r() * 16, h: 9 + r() * 10, col: [C.yellow, C.coral, C.blue, C.green, C.pink, C.teal, C.cream][i % 7], seed: 600 + i, round: r() < .3 }); } return a; })();
+function drawConfetti(c, t) {
+  const d = t - LEAP.t1; if (d < 0 || d > 3) return;
+  const { x: x0, y: y0 } = starState(LEAP.t1);
+  for (const p of CONF) { const px = x0 + p.vx * d * Math.exp(-d * .9), py = y0 + p.vy * d * Math.exp(-d * .9) + 700 * d * d;
+    if (py > GY + 40) continue;
+    c.save(); c.translate(px, py); c.rotate(p.spin * d); c.scale(1, Math.cos(p.spin * d * 1.3));
+    if (p.round) { c.fillStyle = p.col; c.beginPath(); c.arc(0, 0, p.w * .4, 0, TAU); c.fill(); }
+    else cutout(c, tornRect(Math.round(p.w), Math.round(p.h), p.seed, 1.5), p.col, { border: 2, shadow: false, tex: .3 });
+    c.restore(); }
+}
+function drawHearts(c, t, px, py) {
+  if (t < 19.4) return;
+  for (let i = 0; i < 5; i++) { const t0 = 19.4 + i * .38, d = t - t0; if (d < 0 || d > 1.6) continue;
+    const k = d / 1.6; c.save(); c.translate(px + Math.sin(d * 4 + i) * 40 + (i - 2) * 50, py - 60 - k * 300); c.globalAlpha = 1 - k * k;
+    const s = eBack(clamp(d / .3)) * .9; c.scale(s, s); c.fillStyle = C.blush; c.fill(heartPath(26)); c.strokeStyle = C.cream; c.lineWidth = 5; c.stroke(heartPath(26)); c.restore(); }
+}
+
+// ============================================================
+// SCENE (07 · colourful paper stickers)
+// ============================================================
+function drawStarS(c, t) {
+  const st = starState(t); if (!st.visible) return;
+  const { x, y, ang: a, lit } = st;
+  crayon(c, [PIV, [lerp(PIV[0], x, .5) + 6 * Math.sin(t * 2), lerp(PIV[1], y, .5)], [x, y - 80]], 3.2, C.ink, 71, 1);
+  c.save(); c.translate(x, y); c.rotate(-a);
+  if (lit > 0) {
+    const g = c.createRadialGradient(0, 0, 20, 0, 0, 330 * lit);
+    g.addColorStop(0, 'rgba(255,226,120,.75)'); g.addColorStop(1, 'rgba(255,226,120,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(0, 0, 330 * lit, 0, TAU); c.fill();
+    for (let i = 0; i < 12; i++) { const ra = i / 12 * TAU + t * .5, r0 = 135, r1 = 135 + 70 * lit * (i % 2 ? .6 : 1);
+      crayon(c, [[Math.cos(ra) * r0, Math.sin(ra) * r0], [Math.cos(ra) * r1, Math.sin(ra) * r1]], 5, C.yellowD, 80 + i, 1); }
+  }
+  const pulse = 1 + .04 * Math.sin(t * 5) + .12 * lit * Math.exp(-(t - LEAP.t1) * 3);
+  c.scale(pulse, pulse);
+  cutout(c, starPts(STAR_R, STAR_R / 2, 11), C.yellow, { border: 11, outline: true, seed: 12, ht: C.yellowD, htA: .45 });
+  c.fillStyle = C.blush; c.globalAlpha = .6; c.beginPath(); c.ellipse(-30, 14, 12, 7, 0, 0, TAU); c.ellipse(30, 14, 12, 7, 0, 0, TAU); c.fill(); c.globalAlpha = 1;
+  if (lit > 0) {
+    c.fillStyle = C.ink; c.beginPath(); c.arc(-20, -4, 7, 0, TAU); c.arc(20, -4, 7, 0, TAU); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(-18, -7, 2.5, 0, TAU); c.arc(22, -7, 2.5, 0, TAU); c.fill();
+    c.fillStyle = C.ink; c.beginPath(); c.arc(0, 12, 13, 0, Math.PI); c.fill();
+  } else if (st.dodge) {   // cheeky: eyes open, looking away
+    c.fillStyle = C.ink; c.beginPath(); c.arc(-14, -4, 6, 0, TAU); c.arc(26, -4, 6, 0, TAU); c.fill(); crayon(c, [[-6, 16], [8, 12]], 3, C.ink, 16, .5);
+  } else {
+    crayon(c, [[-29, -4], [-20, 2], [-11, -4]], 3.4, C.ink, 13, .6); crayon(c, [[11, -4], [20, 2], [29, -4]], 3.4, C.ink, 14, .6);
+    crayon(c, [[-8, 14], [0, 19], [8, 14]], 3, C.ink, 15, .5);
+  }
+  c.restore();
+}
+const BCOL = [C.lilac, C.teal];
+function drawBlockS(c, i, t) {
+  const b = blockState(i, t); if (!b.visible) return;
+  c.save(); c.translate(b.x, b.bottom); c.rotate(b.rot); c.scale(1 + b.sq * .6, 1 - b.sq); c.translate(0, -b.h / 2);
+  cutout(c, tornRect(b.w, b.h, 301 + i, 6), BCOL[i], { border: 10, outline: true, seed: 301 + i, ht: 'rgba(255,255,255,.9)', htA: .3 });
+  tape(c, -b.w / 2 + 20, -b.h / 2 + 12, 90, 30, -.7, 311 + i); tape(c, b.w / 2 - 22, b.h / 2 - 16, 80, 28, -.6, 321 + i);
+  hand(c, b.label, 28, -6, 70, C.ink);
+  c.save(); c.translate(-96, -8); c.rotate(-.12); cutout(c, blob(32, 32, 331 + i, 20, .05), C.yellow, { smooth: true, border: 4, outline: true, lw: 2.6, seed: 341 + i });
+  c.font = '900 42px Heebo'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = C.ink; c.fillText(b.n, 0, 3); c.restore();
+  crayon(c, [[-80, 56], [80, 50]], 4, C.ink, 351 + i, 1.2);
+  c.restore();
+}
+function bangS(c, s, t) {
+  if (t < IDEA.t0 || t > IDEA.t1) return;
+  const k = eBack(prog(t, IDEA.t0, IDEA.t0 + .2)), out = 1 - prog(t, IDEA.t1 - .15, IDEA.t1);
+  c.save(); c.translate(s.x + 30, s.y - 320 * s.sy); c.rotate(.12); c.scale(k * out, k * out);
+  cutout(c, tornRect(92, 120, 700, 4), C.yellow, { border: 8, outline: true, seed: 701 });
+  hand(c, '!', 0, 6, 110, C.ink);
+  for (let i = 0; i < 5; i++) { const a = -Math.PI * .9 + i * .45; crayon(c, [[Math.cos(a) * 86, Math.sin(a) * 86], [Math.cos(a) * 118, Math.sin(a) * 118]], 5, C.ink, 710 + i, .8); }
+  c.restore();
+}
+let L_KRAFT, L_SKY, L_GROUND;
+function buildLayers() {
+  L_KRAFT = layer(g => { g.fillStyle = C.kraft; g.fillRect(0, 0, W, H); g.globalAlpha = .7; g.globalCompositeOperation = 'multiply'; g.fillStyle = TEXP; g.fillRect(0, 0, W, H); });
+  L_SKY = layer(g => {
+    g.save(); g.translate(540, 830); g.rotate(-.012); cutout(g, tornRect(1000, 1420, 811, 7), C.sky, { border: 12, ht: 'rgba(255,255,255,.8)', htA: .18 }); g.restore();
+    tape(g, 80, 150, 150, 44, -.75, 812); tape(g, 1000, 140, 150, 44, .7, 813);
+    g.save(); g.translate(880, 420); cutout(g, blob(86, 86, 820, 30, .04), C.pink, { smooth: true, border: 8, ht: C.blush, htA: .5 }); g.restore();
+    [[210, 1010, 1.0, 830], [880, 1230, .8, 831], [170, 560, .6, 832]].forEach(([x, y, s, sd]) => { g.save(); g.translate(x, y); g.scale(s, s); cutout(g, bumpy(130, 60, 6, sd), C.cream, { smooth: true, border: 0, tex: .4 }); g.restore(); });
+    const r = rng(840); for (let i = 0; i < 12; i++) { const x = 90 + r() * 900, y = 170 + r() * 1100; if (Math.abs(x - 540) < 170 && y < 800) continue; doodleStar(g, x, y, 12 + r() * 14, i % 3 ? C.cream : C.yellow, 850 + i); }
+  });
+  L_GROUND = layer(g => {
+    const pts = [], r = rng(900);
+    for (let x = -40; x <= W + 40; x += 22) pts.push([x, GY - 8 - (Math.floor(x / 22) % 2 ? 26 + r() * 14 : r() * 6)]);
+    pts.push([W + 40, H + 40], [-40, H + 40]);
+    cutout(g, pts, C.green, { border: 10, ht: C.greenD, htA: .35 });
+    crayon(g, [[20, GY + 70], [300, GY + 64], [600, GY + 74], [900, GY + 66], [1060, GY + 72]], 4, 'rgba(255,248,234,.8)', 901, 2);
+    [[120, GY + 150, C.cream], [980, GY + 130, C.yellow], [610, GY + 240, C.pink], [300, GY + 290, C.yellow]].forEach(([x, y, col]) => {
+      g.save(); g.translate(x, y); for (let p = 0; p < 5; p++) { g.save(); g.rotate(p / 5 * TAU); cutout(g, offs(blob(16, 24, 910 + p, 14, .06), 0, -22), col, { smooth: true, border: 3, shadow: p === 0, tex: .3 }); g.restore(); }
+      g.fillStyle = C.coralD; g.beginPath(); g.arc(0, 0, 12, 0, TAU); g.fill(); g.restore(); });
+  });
+}
+film({
+  setup() { TEXP = ctx.createPattern(TEX, 'repeat'); buildLayers(); },
+  draw(c, tf) {
+    const t = Math.floor(tf * 12) / 12;             // cutouts move on twos
+    BF = Math.floor(tf * 8);
+    const z = zoom(t), sh = shake(tf); SHZ = z;
+    c.fillStyle = C.kraft; c.fillRect(0, 0, W, H);
+    c.save(); c.translate(540 + sh * .6, 760 + sh); c.scale(z, z); c.translate(-540, -760);
+    c.drawImage(L_KRAFT, -20, -20, W + 40, H + 40);
+    const skyK = eBack(prog(t, -.25, .3)), grK = eBack(prog(t, -.2, .35));   // frame 0 is the thumbnail: never empty
+    c.save(); c.translate(0, lerp(-1600, 0, skyK)); c.rotate(.04 * (1 - skyK)); c.drawImage(L_SKY, 0, 0, W, H); c.restore();
+    drawStarS(c, t);
+    drawBlockS(c, 0, t); drawBlockS(c, 1, t);
+    c.save(); c.translate(0, lerp(700, 0, grK)); c.drawImage(L_GROUND, 0, 0, W, H); c.restore();
+    dust(c, TOWER.x, GY, t, BLOCKS[0].land); dust(c, TOWER.x, blockTop(0), t, BLOCKS[1].land);
+    SPLATS.forEach(te => dust(c, HX, GY, t, te));
+    const s = pose(t);
+    pitz(c, s, t);
+    dizzy(c, s.x, s.y - 250 * s.sy * s.sc, t, s.dizzy);
+    bangS(c, s, t);
+    drawConfetti(c, t);
+    c.restore();
+    chips(c, [TITLE.words], TITLE.y, 130, TITLE.t0, 99, t, 3);
+  },
+});
+</script>

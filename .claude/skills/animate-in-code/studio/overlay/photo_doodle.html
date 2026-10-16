@@ -1,0 +1,144 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>overlay A · doodle on a photo</title>
+<body>
+<script src="../fonts-data.js"></script>
+<script>var FILM_DUR = 8;</script>
+<script src="timing.js"></script>
+<script src="../audio.js"></script>
+<script src="runtime-overlay.js"></script>
+<script src="doodle-kit.js"></script>
+<script src="photo-data.js"></script>
+<script>
+'use strict';
+// ============================================================
+// DEMO A · hand-drawn JS animation on top of a REAL photo (8 s, 9:16).
+// The photo (Evyatar pointing, the cutout from his site's hero) is embedded as a data URL in photo-data.js,
+// so drawing it never taints the canvas. Everything else is brush-pen doodle that draws itself:
+// a star on a string where he points, פיצי pops onto his shoulder, walks down his arm, leaps off his
+// fingertip and grabs the star; he cheers in a speech bubble, gets a crown, title writes itself.
+// Lines boil on twos; motion on twos. Own score: plucky music + marker scratches + cartoon sfx.
+// ============================================================
+const PH = { x: 40, y: 540, w: 1040, h: 1380 };                  // photo placement (pinned to bottom-right: the cutout is cropped there)
+const on = (u, v) => [PH.x + u * PH.w, PH.y + v * PH.h];          // photo units -> frame units
+// top edge of his outstretched arm, in photo units (read off a gridded check image of the cutout)
+const ARM = [[.155, .338], [.26, .358], [.40, .379], [.53, .397], [.585, .382], [.64, .372]];
+const armY = u => { for (let i = 0; i < ARM.length - 1; i++) if (u <= ARM[i + 1][0]) return lerp(ARM[i][1], ARM[i + 1][1], (u - ARM[i][0]) / (ARM[i + 1][0] - ARM[i][0])); return ARM[ARM.length - 1][1]; };
+const onArm = u => on(u, armY(u) + .004);
+const PS = .58;                                                    // פיצי scale
+const PIV = [232, -40], SL = 520, STAR_R = 78;
+const T = { star: -.6, trail: .2, pop: .8, walk0: 1.55, walk1: 3.75, jump0: 4.05, grab: 4.55, bub1: 2.15, bub2: 4.8, crown: 5.05, title: 6.05, under: 6.95 };
+const U_SH = .625, U_TIP = .17;
+
+function starAt(t) {
+  let a = .05 * Math.sin(t * 2.1);
+  if (t > T.grab) { const d = t - T.grab; a += .30 * Math.exp(-d * .9) * Math.sin(d * 3.6 + .2); }
+  const L = SL * eBack(prog(t, T.star, T.star + .5));
+  return { x: PIV[0] + L * Math.sin(a), y: PIV[1] + L * Math.cos(a), a };
+}
+function pose(t) {
+  const hangFeet = st => [st.x - Math.sin(st.a) * (STAR_R * .4 + 212 * PS - 12), st.y + Math.cos(st.a) * (STAR_R * .4 + 212 * PS - 12)];
+  if (t < T.walk0) { const [x, y] = onArm(U_SH), k = prog(t, T.pop, T.pop + .35);
+    return { x, y, sc: eBack(k), st: { eyes: t > 1.1 ? 'spark' : 'big', mouth: 'smile', look: [-1, -.4], dir: -1, armR: t > 1.1 ? 2.6 + .35 * Math.sin(t * 16) : .4 } }; }   // waves hello
+  if (t < T.walk1) { const k = prog(t, T.walk0, T.walk1), u = lerp(U_SH, U_TIP, eIO(k)), [x, y] = onArm(u), ph = (t - T.walk0) * 17;
+    return { x, y: y - Math.abs(Math.sin(ph)) * 10, sc: 1, st: { eyes: 'norm', mouth: 'smile', look: [-1, -.8], dir: -1, legs: ph, armL: .5 + .3 * Math.sin(ph), armR: .5 - .3 * Math.sin(ph), rot: -.04 } }; }
+  if (t < T.jump0) { const [x, y] = onArm(U_TIP), k = eOut(prog(t, T.walk1, T.walk1 + .2));
+    return { x, y, sc: 1, st: { sy: 1 - .2 * k, sx: 1 + .12 * k, eyes: 'big', mouth: 'flat', look: [.3, -1], dir: -1, armL: .1, armR: .1 } }; }
+  if (t < T.grab) { const k = prog(t, T.jump0, T.grab), a = onArm(U_TIP), b = hangFeet(starAt(T.grab));
+    return { x: lerp(a[0], b[0], eIO(k)), y: lerp(a[1], b[1], eOut(k)) - 120 * Math.sin(k * Math.PI), sc: 1, st: { sy: 1.15 - .15 * k, sx: .9 + .1 * k, eyes: 'big', mouth: 'wow', look: [.3, -1], dir: -1, armL: 2.9, armR: 3.0, legs: k * 14, rot: .1 * Math.sin(k * Math.PI) } }; }
+  const st = starAt(t), [x, y] = hangFeet(st);
+  return { x, y, sc: 1, st: { rot: st.a, eyes: t > T.grab + .4 ? 'happy' : 'spark', mouth: 'wow', look: [0, -1], dir: -1, armL: 3.0, armR: 2.95, legs: t * 9 } };
+}
+
+let L_PAPER, L_PHOTO, IMG;
+async function setup() {
+  IMG = new Image(); IMG.src = PHOTO.src; await IMG.decode();
+  L_PAPER = layer(g => {                                   // pastel mint sheet, lighter in the middle, grain
+    const gr = g.createRadialGradient(560, 820, 120, 540, 960, 1250); gr.addColorStop(0, '#eaf7ef'); gr.addColorStop(1, '#bfe2d0');
+    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+    const r = rng(5); for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(40,70,55,${.02 + r() * .05})`; g.fillRect(r() * W, r() * H, 1 + r() * 2, 1 + r() * 2); }
+  });
+  L_PHOTO = layer(g => {                                   // the cutout with a soft shadow on the paper
+    g.save(); g.shadowColor = 'rgba(30,60,45,.32)'; g.shadowBlur = 38 * S; g.shadowOffsetX = -18 * S; g.shadowOffsetY = 14 * S;
+    g.drawImage(IMG, PH.x, PH.y, PH.w, PH.h); g.restore();
+  });
+}
+function draw(c, tf, i) {
+  setBoil(i);
+  const t = Math.floor(tf * 12) / 12;                      // doodles move on twos
+  c.drawImage(L_PAPER, 0, 0, W, H);
+  // behind the photo: nothing. the photo
+  c.drawImage(L_PHOTO, 0, 0, W, H);
+  if (_qs.get('look') === 'before') return;               // `--look before`: the untouched photo, for before/after stills
+  // --- the star on its string, where he points
+  const st = starAt(t), lit = prog(t, T.grab, T.grab + .2);
+  if (t >= T.star) {
+    brush(c, [PIV, [lerp(PIV[0], st.x, .5) + 5 * Math.sin(t * 2), lerp(PIV[1], st.y, .5)], [st.x, st.y - STAR_R * .9]], { w: 3, seed: 3, p: prog(t, T.star, T.star + .35) });
+    if (lit > 0) { c.save(); const g = c.createRadialGradient(st.x, st.y, 10, st.x, st.y, 260 * lit); g.addColorStop(0, 'rgba(255,226,120,.8)'); g.addColorStop(1, 'rgba(255,226,120,0)'); c.fillStyle = g; c.beginPath(); c.arc(st.x, st.y, 260 * lit, 0, TAU); c.fill(); c.restore(); }
+    starShape(c, st.x, st.y, STAR_R * (1 + .15 * lit * Math.exp(-(t - T.grab) * 3)), { k: prog(t, T.star + .1, T.star + .7), rot: -st.a, lit, seed: 11 });
+    sparkBurst(c, st.x, st.y, STAR_R * 1.2, STAR_R * 2.6, 12, { k: prog(t, T.grab, T.grab + .7), seed: 40, w: 6 });
+  }
+  // --- where he points: a dashed trail from the fingertip up to the star
+  const tip = on(.045, .322);
+  arrow(c, [[tip[0] + 10, tip[1] - 30], [tip[0] + 60, tip[1] - 160], [st.x - 30, 640], [232, 600]], { k: prog(t, T.trail, T.trail + .55), w: 5, seed: 20, dash: [22, 16], head: 26 });
+  // scribbled stars around the idea
+  [[400, 300, 26, .45], [110, 800, 20, .6], [440, 760, 18, .75], [960, 300, 30, 5.5], [720, 180, 22, 5.7], [110, 1250, 24, 5.9]].forEach(([x, y, s, t0], n) => scribbleStar(c, x, y, s, { k: prog(t, t0, t0 + .3), seed: 60 + n, w: 4, color: n % 2 ? INK : CO.coralD }));
+  // --- confetti of hearts after the grab
+  for (let n = 0; n < 7; n++) { const d = t - T.grab - n * .12; if (d < 0 || d > 2.6) continue;
+    const r = rng(300 + n), vx = (r() - .5) * 700, vy = -300 - r() * 420, x = st.x + vx * d, y = st.y + vy * d + 520 * d * d; if (y > H) continue;
+    const s = 20 + r() * 14; shape(c, xf(heartKnots(s), x, y, 1, Math.sin(d * 4 + n) * .4), { k: 1, fill: [CO.blush, CO.pink, CO.coral][n % 3], w: 3.5, seed: 310 + n }); }
+  // --- speech bubbles (he talks to פיצי)
+  const tail = on(.645, .19);
+  if (t >= T.bub1 && t < T.bub2) {
+    const out = 1 - prog(t, T.bub2 - .15, T.bub2), k = prog(t, T.bub1, T.bub1 + .4);
+    c.save(); c.translate(610, 575); c.scale(out, out); c.translate(-610, -575);
+    shape(c, bubbleKnots(610, 575, 520, 190, tail, 7), { k, fill: CO.white, w: 5, seed: 70 });
+    handText(c, 'קדימה, פיצי!', 610, 578, 86, { k: prog(t, T.bub1 + .3, T.bub1 + .9) });
+    c.restore();
+  }
+  if (t >= T.bub2) {
+    const k = eBack(prog(t, T.bub2, T.bub2 + .25));
+    c.save(); c.translate(545, 505); c.scale(k, k); c.translate(-545, -505);
+    shape(c, bubbleKnots(545, 505, 440, 185, tail, 9), { k: 1, fill: CO.white, w: 5, seed: 72 });
+    handText(c, 'כל הכבוד!', 545, 509, 96, { k: prog(t, T.bub2 + .1, T.bub2 + .55), color: CO.blue });
+    c.restore();
+  }
+  // --- crown on his head
+  if (t >= T.crown) {
+    const ck = prog(t, T.crown, T.crown + .55), [cx, cy] = on(.815, .125), drop = (1 - eBack(prog(t, T.crown, T.crown + .3))) * -60;
+    const CR = xf([[-92, 0], [-104, -100], [-52, -42], [0, -118], [52, -42], [104, -100], [92, 0]], cx, cy + drop, 1, .1);
+    shape(c, CR, { k: ck, fill: CO.yellow, washC: CO.yellowD, w: 5, seed: 80 });
+    if (ck >= 1) { [[-62, -22, CO.red], [0, -30, CO.blue], [62, -22, CO.green]].forEach(([dx, dy, col], n) => { const [x, y] = xf([[dx, dy]], cx, cy + drop, 1, .1)[0]; c.fillStyle = col; c.beginPath(); c.arc(x, y, 11, 0, TAU); c.fill(); brush(c, xf(ellPts(12, 12, 8, 90 + n), x, y), { close: true, w: 3, seed: 92 + n }); }); }
+    sparkBurst(c, cx, cy - 60, 110, 190, 7, { k: prog(t, T.crown + .45, T.crown + 1.1), seed: 95, w: 5, rot: -Math.PI / 2 - 1.2 });
+  }
+  // --- פיצי
+  if (t >= T.pop) { const p = pose(t); if (p.sc > 0) { c.save(); c.translate(p.x, p.y); c.scale(p.sc, p.sc); pitzi(c, 0, 0, PS, p.st, 500); c.restore(); } }
+  sparkBurst(c, ...onArm(U_SH).map((v, n) => v - (n ? 70 : 0)), 60, 120, 8, { k: prog(t, T.pop, T.pop + .5), seed: 30, w: 4 });
+  // --- title, lower left where the paper is empty
+  handText(c, 'ממשיכים', 310, 1440, 150, { k: prog(t, T.title, T.title + .55) });
+  handText(c, 'לקום.', 330, 1610, 150, { k: prog(t, T.title + .45, T.title + .85) });
+  brush(c, [[520, 1700], [380, 1712], [220, 1706], [120, 1716]], { p: prog(t, T.under, T.under + .3), w: 9, color: CO.coralD, seed: 99 });
+}
+// ---------- sound ----------
+function score(ac, t0, dest) {
+  const out = ac.createGain(); out.gain.value = 2.1; out.connect(dest);        // make-up gain (the kit's bus is conservative)
+  const K = audioKit(ac, t0, out, { reverb: .22, musicGain: .5, sfxGain: .85 });
+  const CH = [[0, [48, [60, 64, 67]]], [2, [45, [60, 64, 69]]], [4, [41, [60, 65, 69]]], [6, [43, [59, 62, 67]]], [7, [48, [60, 64, 67, 72]]]];
+  CH.forEach(([a, [root, tri]], n) => { const b = n < CH.length - 1 ? CH[n + 1][0] : 8;
+    for (let t = a, j = 0; t < b - .01; t += .25, j++) { const note = tri[(j * (j % 3 === 2 ? 2 : 1)) % tri.length] + 12; K.pluck(t + .02, note, j % 2 ? .035 : .05, 3000); if (j % 2 === 0) K.bass(t, root + (j % 4 === 2 ? 7 : 0), j % 4 ? .1 : .16, .3); if (j % 4 === 2) K.hat(t, .02); } });
+  K.pad(7, 1.2, [60, 64, 67, 72], .025);
+  [[0, 'E6'], [.25, 'G6'], [.5, 'C7']].forEach(([d, n]) => K.glock(.12 + d, nm(n), .05, 1));
+  // doodle sfx: a marker scratch whenever a big line draws itself
+  scratch(K, .05, .25, .05, 1); for (let k = 0; k < 7; k++) tick(K, T.trail + k * .075, .03, 3100 + k * 80);
+  [.6, .75, .9, 5.5, 5.7, 5.9].forEach((t, n) => scratch(K, t, .25, .05, 10 + n, 3800));
+  K.pop(T.pop + .02, .14); K.boing(T.pop, 300, 700, .3, .09);
+  for (let t = T.walk0, n = 0; t < T.walk1; t += 1 / (17 / Math.PI), n++) tick(K, t, .045, n % 2 ? 1500 : 1800);
+  scratch(K, T.bub1, .45, .06, 20); scratch(K, T.bub1 + .3, .6, .06, 21, 3600);
+  K.slide(T.walk1, 700, 380, .2, .05); K.boing(T.jump0, 240, 880, .45, .13); K.slide(T.jump0, 500, 2200, .45, .05);
+  K.kick(T.grab, .35, K.sfx); K.sparkle(T.grab + .03, 84, 8, .055, .06); K.noise(T.grab, 1.2, K.sfx, .1, 'highpass', 6000, .5, .005);
+  K.pop(T.bub2, .12); scratch(K, T.bub2 + .1, .3, .06, 30);
+  scratch(K, T.crown, .55, .07, 40); K.glock(T.crown + .5, nm('C7'), .06, 1.2); K.glock(T.crown + .62, nm('G7'), .045, 1.2);
+  scratch(K, T.title, .95, .07, 50, 3000); K.swish(T.under, .3, .08);
+}
+film({ setup, draw, score });
+</script>

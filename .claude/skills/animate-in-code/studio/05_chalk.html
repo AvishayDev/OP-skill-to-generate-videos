@@ -1,0 +1,521 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>05 · גיר על לוח</title>
+<body>
+<script src="fonts-data.js"></script>
+<script src="story.js"></script>
+<script src="audio.js"></script>
+<script src="runtime.js"></script>
+<script>
+'use strict';
+// ============================================================
+// 05 · CHALK ON A BLACKBOARD.
+// Everything moving is drawn each frame into one "chalk" layer (broken jittered strokes with
+// noise-driven skips + side-of-chalk scumble fills), then the whole layer is multiplied by a
+// board-grain alpha mask (destination-in) so chalk skips on the slate tooth, then composited
+// with a soft downscaled "powder" halo. Dark details (pupils, mouths, star face) are ERASED
+// out of the chalk so the slate shows through. Fast motion leaves soft smudge ghosts.
+// Boil on twos. Voice: classroom nylon guitar, claps, shaker, chalk squeaks, book slam, bell.
+// ============================================================
+const C = {
+  board: '#1f2d27', white: '#f3f0e4', yellow: '#f7df6e', pink: '#ffa8c3', pinkD: '#ff7ba4',
+  blue: '#a9d3f3', green: '#b2e39b', orange: '#ffc58c', lilac: '#d2bdf5',
+};
+let BF = 0;
+const SMK = 4;                                 // smudge layer = 1/SMK resolution
+
+// ---------- geometry helpers ----------
+function ell(cx, cy, rx, ry, n = 36, wob = 0, seed = 1) {
+  const r = rng(seed), ph = [r() * TAU, r() * TAU], pts = [];
+  for (let i = 0; i < n; i++) { const a = i / n * TAU, m = 1 + wob * (Math.sin(a * 2 + ph[0]) * .6 + Math.sin(a * 3 + ph[1]) * .4); pts.push([cx + Math.cos(a) * rx * m, cy + Math.sin(a) * ry * m]); }
+  return pts;
+}
+function starPts(R, r) { const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU, rr = i % 2 ? r : R; pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); } return pts; }
+function pathOf(pts) { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); return p; }
+function bbox(pts) { let a = 1e9, b = 1e9, c = -1e9, d = -1e9; for (const [x, y] of pts) { a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); d = Math.max(d, y); } return [a, b, c, d]; }
+function jit(pts, seed, amp) { const r = rng(seed * 7919 + BF * 131); return pts.map(p => [p[0] + (r() - .5) * 2 * amp, p[1] + (r() - .5) * 2 * amp]); }
+// Catmull-Rom resample -> dense smooth polyline
+function spline(pts, closed, seg = 6) {
+  const n = pts.length, out = [], P = i => closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))];
+  const last = closed ? n : n - 1;
+  for (let i = 0; i < last; i++) {
+    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2), m = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / seg));
+    for (let j = 0; j < m; j++) { const u = j / m, u2 = u * u, u3 = u2 * u, f = k => .5 * (2 * p1[k] + (-p0[k] + p2[k]) * u + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * u2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * u3); out.push([f(0), f(1)]); }
+  }
+  out.push(closed ? out[0] : pts[n - 1]); return out;
+}
+
+// ---------- the chalk primitives ----------
+// Broken dusty line: jittered spline, value-noise skips along the arc, a thinner offset second pass, dust specks.
+function chalkLine(g, pts, w, col, seed, o = {}) {
+  const { closed = false, amp = 1.6, k = 1, gap = .17, a = .92, dual = true, specks = true, seg = 5 } = o;
+  if (k <= 0 || a <= 0) return;
+  const q = spline(jit(pts, seed, amp), closed, seg), r = rng(seed * 977 + BF * 31);
+  const cum = [0]; for (let i = 1; i < q.length; i++) cum.push(cum[i - 1] + Math.hypot(q[i][0] - q[i - 1][0], q[i][1] - q[i - 1][1]));
+  const tot = cum[cum.length - 1], lim = tot * k, cell = 30 + w * 2;
+  const gl = []; const gr = rng(seed * 13 + BF * 7); for (let i = 0; i < tot / cell + 3; i++) gl.push(gr());
+  const gapAt = s => { const u = s / cell, i = Math.floor(u), f = u - i, sm = f * f * (3 - 2 * f); return lerp(gl[i], gl[i + 1], sm); };
+  g.save(); g.strokeStyle = col; g.fillStyle = col; g.lineCap = 'round'; g.lineJoin = 'round';
+  for (let pass = 0; pass < (dual ? 2 : 1); pass++) {
+    g.lineWidth = pass ? w * .45 : w; g.globalAlpha = pass ? a * .6 : a;
+    const ox = pass ? (r() - .5) * w * .7 : 0, oy = pass ? (r() - .5) * w * .7 : 0, th = gap + (pass ? .12 : 0);
+    g.beginPath(); let pen = false;
+    for (let i = 1; i < q.length; i++) {
+      if (cum[i - 1] >= lim) break;
+      if (gapAt(cum[i]) < th) { pen = false; continue; }
+      let [x0, y0] = q[i - 1], [x1, y1] = q[i];
+      if (cum[i] > lim) { const f = (lim - cum[i - 1]) / (cum[i] - cum[i - 1] || 1); x1 = lerp(x0, x1, f); y1 = lerp(y0, y1, f); }
+      if (!pen) { g.moveTo(x0 + ox, y0 + oy); pen = true; }
+      g.lineTo(x1 + ox, y1 + oy);
+    }
+    g.stroke();
+  }
+  if (specks) {
+    let nIn = 0; while (nIn < q.length - 1 && cum[nIn] < lim) nIn++;
+    const n = Math.floor(Math.min(lim, tot) / 30); g.globalAlpha = a * .55;
+    for (let i = 0; i < n; i++) { const p = q[Math.floor(r() * nIn)], s = 1 + r() * w * .22; g.fillRect(p[0] + (r() - .5) * w * 3.2, p[1] + (r() - .5) * w * 3.2, s, s); }
+  }
+  g.restore();
+}
+// Side-of-chalk scumble: broken parallel strokes clipped to a shape.
+function chalkFill(g, pts, col, seed, o = {}) {
+  const { sp = 10, w = 8, a = .4, ang = -.55, cross = 0 } = o;
+  if (a <= 0) return;
+  const r = rng(seed * 131 + BF * 17), [x0, y0, x1, y1] = bbox(pts), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = Math.hypot(x1 - x0, y1 - y0) / 2 + 8;
+  g.save(); g.clip(pathOf(pts)); g.strokeStyle = col; g.lineCap = 'round'; g.translate(cx, cy);
+  const hatch = (an, al) => {
+    g.save(); g.rotate(an);
+    for (let y = -R + r() * sp; y < R; y += sp * (.8 + r() * .4)) {
+      g.lineWidth = w * (.7 + r() * .6); g.globalAlpha = al * (.55 + r() * .7); g.beginPath();
+      let x = -R - r() * 40; while (x < R) { const len = 30 + r() * 110; g.moveTo(x, y + (r() - .5) * 3); g.lineTo(x + len, y + (r() - .5) * 5); x += len + (r() < .35 ? 6 + r() * 26 : 1); }
+      g.stroke();
+    }
+    g.restore();
+  };
+  hatch(ang, a); if (cross) hatch(ang + 1.15, a * cross);
+  g.restore();
+}
+// Erase (slate shows through): used for pupils, mouths, occlusion.
+function erase(g, f, al = 1) { g.save(); g.globalCompositeOperation = 'destination-out'; g.globalAlpha = al; g.fillStyle = '#000'; g.strokeStyle = '#000'; f(g); g.restore(); }
+function eraseLine(g, pts, w) { erase(g, q => { q.lineWidth = w; q.lineCap = 'round'; q.lineJoin = 'round'; const s = spline(pts, false, 4); q.beginPath(); q.moveTo(s[0][0], s[0][1]); for (const p of s) q.lineTo(p[0], p[1]); q.stroke(); }); }
+// Chalk handwriting: solid text + thin stroke; the grain mask erodes it later. k = write-on (right to left).
+// After the grain pass a faint un-grained copy is laid on top (POST queue) so words stay legible.
+let POST = [];
+function chalkText(g, str, x, y, size, col, font, k = 1, a = .95, wt = '', halo = 0) {
+  if (k <= 0) return 0;
+  const body = (q, al, lw) => {
+    q.save(); q.font = `${wt} ${size}px ${font}`.trim(); q.direction = 'rtl'; q.textAlign = 'center'; q.textBaseline = 'middle';
+    const w = q.measureText(str).width;
+    if (k < 1) { q.beginPath(); q.rect(x + w / 2 + 20 - (w + 40) * k, y - size, (w + 40) * k + 10, size * 2); q.clip(); }
+    q.lineJoin = 'round'; q.lineCap = 'round';
+    if (halo && lw) erase(q, e => { e.lineWidth = halo; e.lineJoin = 'round'; e.strokeText(str, x, y); e.fillText(str, x, y); });
+    q.globalAlpha = al; q.fillStyle = col; q.strokeStyle = col;
+    q.fillText(str, x + (BF % 2 ? .8 : -.8), y); if (lw) { q.lineWidth = lw; q.strokeText(str, x, y); }
+    q.restore(); return w;
+  };
+  const w = body(g, a, size * .045);
+  POST.push({ m: g.getTransform(), f: q => body(q, .42, 0) });
+  return w;
+}
+
+// ---------- grain (the slate tooth) ----------
+let GRAIN, GRAIN_P;
+function makeGrain(N = 512) {
+  const c = mkCanvas(N, N), g = c.getContext('2d'), im = g.createImageData(N, N), d = im.data;
+  const lat = (Px, Py, seed) => { const r = rng(seed), a = new Float32Array(Px * Py); for (let i = 0; i < a.length; i++) a[i] = r();
+    return (x, y) => { const u = x / N * Px, v = y / N * Py, i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, su = fu * fu * (3 - 2 * fu), sv = fv * fv * (3 - 2 * fv);
+      const I = i % Px, I1 = (i + 1) % Px, J = j % Py, J1 = (j + 1) % Py;
+      return lerp(lerp(a[J * Px + I], a[J * Px + I1], su), lerp(a[J1 * Px + I], a[J1 * Px + I1], su), sv); }; };
+  const n1 = lat(16, 16, 1), n2 = lat(64, 64, 2), st = lat(6, 170, 3), r = rng(5);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const v = .38 * n1(x, y) + .27 * n2(x, y) + .35 * st(x, y), f = r(), f2 = r(), s = v * .75 + f * .45 + (f2 < .08 ? -.3 : 0);
+    const a = clamp((s - .47) / .26); d[(y * N + x) * 4 + 3] = 255 * a * a * (3 - 2 * a); d[(y * N + x) * 4] = d[(y * N + x) * 4 + 1] = d[(y * N + x) * 4 + 2] = 255;
+  }
+  g.putImageData(im, 0, 0); return c;
+}
+function applyGrain(g, ox, oy) {
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); GRAIN_P.setTransform(new DOMMatrix().translateSelf(ox, oy));
+  g.globalCompositeOperation = 'destination-in'; g.fillStyle = GRAIN_P; g.fillRect(0, 0, OUT_W, OUT_H); g.restore();
+}
+
+// ---------- static board + frame ----------
+const FONT = 'OHRonShemer';
+let L_BOARD, L_FRAME;
+function streakBand(g, cx, cy, rad, a0, a1, bw, alpha, col, seed) {   // an eraser swipe: arc of thin parallel streaks
+  const r = rng(seed); g.save(); g.strokeStyle = col; g.lineCap = 'round';
+  for (let i = 0; i < bw / 3; i++) { const rr = rad - bw / 2 + i * 3 + (r() - .5) * 2; g.lineWidth = 1 + r() * 3.5; g.globalAlpha = alpha * (.3 + r() * .9);
+    const s0 = a0 + (r() - .5) * .08, s1 = a1 + (r() - .5) * .08; g.beginPath(); g.arc(cx, cy, rr, s0, s1); g.stroke(); }
+  g.restore();
+}
+function buildBoard() {
+  L_BOARD = layer(g => {
+    g.fillStyle = C.board; g.fillRect(0, 0, W, H);
+    const r = rng(1001);
+    // mottled slate: big soft residue clouds + darker damp patches
+    for (let i = 0; i < 46; i++) { const x = r() * W, y = r() * H, R = 120 + r() * 380, light = r() < .6;
+      const gr = g.createRadialGradient(x, y, 0, x, y, R); gr.addColorStop(0, light ? `rgba(190,215,200,${.025 + r() * .045})` : `rgba(8,18,14,${.12 + r() * .15})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(x - R, y - R, 2 * R, 2 * R); }
+    // eraser swipes (residue arcs)
+    [[300, 1400, 900, -2.2, -1.2, 150, .05], [900, -200, 900, 1.75, 2.4, 170, .03], [-100, 700, 700, -.6, .5, 140, .05], [1300, 1300, 800, 2.6, 3.5, 160, .04], [540, 2400, 1200, -2.0, -1.2, 130, .035]]
+      .forEach(([cx, cy, rad, a0, a1, bw, al], i) => streakBand(g, cx, cy, rad, a0, a1, bw, al, '#dfe9e2', 1100 + i));
+    // ghosts of a previous lesson: drawn in chalk, then half erased, then laid down faint
+    const ghost = layer(q => {
+      q.lineCap = 'round'; q.lineJoin = 'round';
+      q.font = '500 58px Heebo'; q.fillStyle = C.white; q.direction = 'ltr'; q.textAlign = 'left';
+      q.fillText('x² + 3x = 10', 50, 760); q.fillText('a² + b² = c²', 700, 560); q.fillText('7 × 8 = 56', 60, 1240);
+      q.font = '44px Heebo'; q.fillText('(x+5)(x−2)', 70, 830); q.fillText('π·r²', 850, 640);
+      q.font = `64px ${FONT}`; q.direction = 'rtl'; q.textAlign = 'right'; q.fillText('שיעורי בית', 1020, 480); q.fillText('תרגיל 4', 330, 1120);
+      q.strokeStyle = C.white; q.lineWidth = 5;
+      q.beginPath(); q.moveTo(760, 880); q.lineTo(1010, 880); q.lineTo(760, 700); q.closePath(); q.stroke(); q.strokeRect(760, 852, 28, 28);   // right triangle
+      q.beginPath(); q.moveTo(70, 1040); q.lineTo(300, 1040); q.moveTo(90, 1060); q.lineTo(90, 900); q.stroke();                       // axes
+      q.beginPath(); for (let x = 0; x <= 200; x += 5) { const y = 1040 - 120 + ((x - 100) / 100) ** 2 * 110; x ? q.lineTo(100 + x, y) : q.moveTo(100 + x, y); } q.stroke();
+      q.beginPath(); q.arc(960, 1000, 34, 0, TAU); q.stroke();
+      // rub most of it out
+      q.globalCompositeOperation = 'destination-out';
+      [[200, 1500, 900, -1.9, -1.3, 170, .95], [1000, 200, 520, 1.9, 2.6, 150, .9], [-60, 820, 330, -.5, .6, 120, .85], [1250, 1150, 520, 2.6, 3.4, 160, .9], [300, 1450, 360, -1.9, -1.2, 110, .9]]
+        .forEach(([cx, cy, rad, a0, a1, bw, al], i) => streakBand(q, cx, cy, rad, a0, a1, bw, al, '#000', 1200 + i));
+      q.setTransform(1, 0, 0, 1, 0, 0); q.globalCompositeOperation = 'destination-in'; q.fillStyle = GRAIN_P; q.fillRect(0, 0, q.canvas.width, q.canvas.height);
+    });
+    g.globalAlpha = .13; g.drawImage(ghost, 0, 0, W, H); g.globalAlpha = 1;
+    // fine slate speckle
+    for (let i = 0; i < 5000; i++) { g.fillStyle = r() < .5 ? `rgba(220,235,225,${.02 + r() * .05})` : `rgba(0,0,0,${.06 + r() * .1})`; const s = .8 + r() * 1.8; g.fillRect(r() * W, r() * H, s, s); }
+    // dust settled near the tray
+    const dg = g.createLinearGradient(0, H - 260, 0, H - 60); dg.addColorStop(0, 'rgba(225,235,228,0)'); dg.addColorStop(1, 'rgba(225,235,228,.09)'); g.fillStyle = dg; g.fillRect(0, H - 260, W, 200);
+  }, W + 40, H + 40);
+  L_FRAME = layer(g => {
+    const r = rng(1300), FW = 30, TY = H - 64;
+    const wood = (x, y, w, h, vert) => {
+      const gr = vert ? g.createLinearGradient(x, 0, x + w, 0) : g.createLinearGradient(0, y, 0, y + h);
+      gr.addColorStop(0, '#8a5a32'); gr.addColorStop(.45, '#a8733f'); gr.addColorStop(1, '#5e3a1d'); g.fillStyle = gr; g.fillRect(x, y, w, h);
+      g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.lineWidth = 1.2;
+      for (let i = 0; i < (vert ? w : h) / 2.5; i++) { g.strokeStyle = `rgba(${r() < .5 ? '60,30,10' : '200,150,90'},${.08 + r() * .15})`; g.beginPath();
+        const o = (vert ? x : y) + r() * (vert ? w : h), L = vert ? h : w, ph = r() * 9;
+        for (let s = 0; s <= L; s += 40) { const d = Math.sin(s * .004 + ph) * 3 + Math.sin(s * .017 + ph) * 1.2; vert ? (s ? g.lineTo(o + d, y + s) : g.moveTo(o + d, y + s)) : (s ? g.lineTo(x + s, o + d) : g.moveTo(x + s, o + d)); }
+        g.stroke(); }
+      g.restore();
+    };
+    // inner shadow onto the slate
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(FW, FW, W - 2 * FW, 10); g.fillRect(FW, FW, 8, TY - FW); g.fillRect(W - FW - 6, FW, 6, TY - FW);
+    wood(0, 0, FW, H, true); wood(W - FW, 0, FW, H, true); wood(0, 0, W, FW, false);
+    // chalk tray
+    g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(FW, TY - 12, W - 2 * FW, 12);
+    wood(0, TY, W, H - TY, false);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, TY + 22, W, 4);
+    for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(240,240,230,${.1 + r() * .3})`; const s = 1 + r() * 2.5; g.fillRect(40 + r() * (W - 80), TY + 4 + r() * 18, s, s * .6); }
+    // chalk sticks + felt eraser
+    [[150, 90, C.white, .02], [300, 70, C.yellow, -.05], [640, 60, C.pink, .04], [720, 46, C.blue, 0], [940, 64, C.white, -.03]].forEach(([x, l, col, rot]) => {
+      g.save(); g.translate(x, TY + 8); g.rotate(rot); g.fillStyle = col; g.fillRect(-l / 2, -9, l, 17); g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(-l / 2, 3, l, 5);
+      g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(-l / 2, -8, l, 4); g.restore(); });
+    g.save(); g.translate(470, TY - 6); g.rotate(-.02);
+    g.fillStyle = '#6b4a2e'; g.fillRect(-90, -18, 180, 30); g.fillStyle = '#3c3f47'; g.fillRect(-90, 10, 180, 14);
+    g.fillStyle = 'rgba(230,230,220,.55)'; for (let i = 0; i < 120; i++) g.fillRect(-88 + r() * 176, 12 + r() * 11, 2, 2);
+    g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(-90, -18, 180, 6); g.restore();
+  });
+}
+
+// ---------- scene pieces (drawn into the chalk layer) ----------
+function drawGround(g, t) {
+  const k = eOut(prog(t, -.3, .3)), r = rng(2000);
+  const line = []; for (let x = 1066; x >= 14; x -= 70) line.push([x, GY + 4 + Math.sin(x * .013) * 5 + (r() - .5) * 4]);   // drawn right to left
+  chalkFill(g, [[14, GY + 2], [1066, GY + 2], [1066, GY + 70], [14, GY + 70]], C.green, 2010, { sp: 8, w: 6, a: .2 * k, ang: .06 });
+  chalkLine(g, line, 10, C.white, 2001, { k });
+  const r2 = rng(2020);
+  for (let x = 60; x < 1040; x += 58 + r2() * 30) { const kk = prog(t, -.25 + (1066 - x) / 1052 * .5, .1 + (1066 - x) / 1052 * .5); if (kk <= 0) continue; const h = 20 + r2() * 26;
+    chalkLine(g, [[x - 12, GY + 8], [x - 4, GY - h * .6], [x, GY + 6], [x + 6, GY - h], [x + 12, GY + 8]], 4.5, C.green, 2100 + x | 0, { k: kk, dual: false, specks: false, amp: 1 }); }
+  [[150, GY + 150, C.pink], [960, GY + 120, C.yellow], [610, GY + 200, C.blue], [330, GY + 225, C.yellow], [820, GY + 230, C.pink]].forEach(([x, y, col], i) => {
+    const kk = prog(t, .05 + i * .06, .35 + i * .06); if (kk <= 0) return;
+    for (let p = 0; p < 5; p++) { const a = p / 5 * TAU; chalkLine(g, ell(x + Math.cos(a) * 20, y + Math.sin(a) * 20, 13, 13, 12, 0, 1), 4.5, col, 2200 + i * 9 + p, { closed: true, k: kk, dual: false }); }
+    chalkFill(g, ell(x, y, 10, 10, 12), C.white, 2300 + i, { sp: 5, w: 6, a: .7 * kk });
+  });
+}
+function drawDoodles(g, t) {
+  const k = prog(t, -.25, .4);
+  const cloud = (x, y, s, seed) => { const pts = []; for (let i = 0; i <= 40; i++) { const a = Math.PI + i / 40 * Math.PI; pts.push([x + Math.cos(a) * 120 * s, y + Math.sin(a) * 42 * s * (1 + .35 * Math.abs(Math.sin(a * 3.5)))]); }
+    pts.push([x + 120 * s, y + 8 * s], [x - 120 * s, y + 8 * s]); chalkLine(g, pts, 5, C.blue, seed, { closed: true, k, a: .7, dual: false }); };
+  cloud(200, 560, .85, 2400); cloud(900, 900, .7, 2401);
+  const r = rng(2500);
+  for (let i = 0; i < 9; i++) { const x = 80 + r() * 920, y = 480 + r() * 820; if (Math.abs(x - 540) < 200 || (x > 640 && y > 1000)) continue; const s = 10 + r() * 12, kk = prog(t, i * .04, .3 + i * .04);
+    chalkLine(g, [[x - s, y], [x + s, y]], 3.5, i % 2 ? C.yellow : C.white, 2510 + i, { k: kk, dual: false, specks: false, amp: .6 }); chalkLine(g, [[x, y - s], [x, y + s]], 3.5, i % 2 ? C.yellow : C.white, 2530 + i, { k: kk, dual: false, specks: false, amp: .6 }); }
+}
+function starPos(t) { const a = starAng(t); return { x: PIV[0] + SLEN * Math.sin(a), y: PIV[1] + SLEN * Math.cos(a), a }; }
+function drawStar(g, t) {
+  const { x, y, a } = starPos(t), st = starState(t), lit = st.lit;
+  const ks = prog(t, -.32, .2), kstar = prog(t, -.3, .36), kfill = eOut(prog(t, -.3, .3));
+  chalkLine(g, [PIV, [lerp(PIV[0], x, .5) + 6 * Math.sin(t * 2), lerp(PIV[1], y, .5)], [x - 100 * Math.sin(a) * .9, y - 100 * Math.cos(a) * .9]], 4.5, C.white, 71, { k: ks, amp: 1.2 });
+  g.save(); g.translate(x, y); g.rotate(-a);
+  const pulse = 1 + .04 * Math.sin(t * 5) + .14 * lit * Math.exp(-(t - LEAP.t1) * 3); g.scale(pulse, pulse);
+  if (lit > 0) for (let i = 0; i < 16; i++) { const ra = i / 16 * TAU + t * .35, r0 = 128 + (i % 2) * 14, r1 = r0 + (70 + (i % 3) * 30) * lit;
+    chalkLine(g, [[Math.cos(ra) * r0, Math.sin(ra) * r0], [Math.cos(ra) * r1, Math.sin(ra) * r1]], 6, i % 4 ? C.yellow : C.white, 80 + i, { dual: false, amp: 1.4 }); }
+  const sp = starPts(STAR_R, STAR_R * .5);
+  chalkFill(g, sp, C.yellow, 90, { sp: 8, w: 8, a: (.42 + .4 * lit) * kfill, ang: -.8, cross: .5 });
+  chalkLine(g, sp, 10, C.yellow, 12, { closed: true, k: kstar, gap: .14 });
+  chalkLine(g, sp, 3.5, C.white, 13, { closed: true, k: kstar, a: .55, dual: false, amp: 2.4 });
+  // shine marks
+  const kk = prog(t, .1, .4);
+  [[-2.1, 0], [-1.0, 1], [.3, 2]].forEach(([an, n]) => { const r0 = 118, r1 = 150; chalkLine(g, [[Math.cos(an) * r0, Math.sin(an) * r0], [Math.cos(an) * r1, Math.sin(an) * r1]], 5, C.yellow, 95 + n, { k: kk, dual: false, specks: false }); });
+  // face: erased out of the chalk
+  if (kstar > .55) {
+    if (lit > 0) {
+      erase(g, q => { q.beginPath(); q.arc(-22, -6, 10, 0, TAU); q.arc(22, -6, 10, 0, TAU); q.fill(); q.beginPath(); q.moveTo(-16, 12); q.arc(0, 12, 16, 0, Math.PI); q.closePath(); q.fill(); });
+      g.fillStyle = C.white; g.fillRect(-20, -12, 5, 5); g.fillRect(24, -12, 5, 5);
+    } else if (st.dodge) {
+      erase(g, q => { q.beginPath(); q.arc(-12, -4, 7.5, 0, TAU); q.arc(28, -4, 7.5, 0, TAU); q.fill(); });
+      eraseLine(g, [[-2, 18], [16, 12]], 5);
+    } else {
+      eraseLine(g, [[-32, -4], [-22, 3], [-12, -4]], 5.5); eraseLine(g, [[12, -4], [22, 3], [32, -4]], 5.5); eraseLine(g, [[-9, 15], [0, 21], [9, 15]], 5);
+    }
+    chalkFill(g, ell(-34, 16, 13, 8, 12), C.pinkD, 97, { sp: 4, w: 5, a: .8 }); chalkFill(g, ell(34, 16, 13, 8, 12), C.pinkD, 98, { sp: 4, w: 5, a: .8 });
+  }
+  g.restore();
+}
+const BCOL = [C.blue, C.green];
+function drawBlock(g, i, t) {
+  const b = blockState(i, t); if (!b.visible) return;
+  g.save(); g.translate(b.x, b.bottom); g.rotate(b.rot); g.scale(1 + b.sq * .6, 1 - b.sq); g.translate(0, -b.h / 2);
+  const hw = b.w / 2, hh = b.h / 2, box = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+  erase(g, q => q.fill(pathOf(box)), .9);
+  chalkFill(g, box, BCOL[i], 300 + i, { sp: 13, w: 9, a: .3, ang: .75, cross: .45 });
+  // sketchy box: each edge its own stroke, overshooting the corners
+  for (let e = 0; e < 4; e++) { const p = box[e], q = box[(e + 1) % 4], dx = (q[0] - p[0]), dy = (q[1] - p[1]), L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, o1 = 8 + (e * 7 % 11), o2 = 10 + (e * 5 % 9);
+    chalkLine(g, [[p[0] - ux * o1, p[1] - uy * o1], [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], [q[0] + ux * o2, q[1] + uy * o2]], 9, C.white, 310 + i * 5 + e, { amp: 1.8 }); }
+  chalkText(g, b.label, 46, -12, 84, C.white, FONT);
+  g.save(); g.translate(-90, -10);
+  chalkLine(g, ell(0, 0, 36, 34, 22, .04, 330 + i), 7, C.yellow, 331 + i, { closed: true });
+  chalkText(g, b.n, 0, 3, 54, C.yellow, 'Heebo', 1, .97, '800'); g.restore();
+  chalkLine(g, [[-92, 60], [0, 64], [96, 56]], 5, C.white, 351 + i, { a: .7, dual: false });
+  g.restore();
+}
+function drawPitz(g, s, t) {
+  const { x, y, sx = 1, sy = 1, rot = 0, sc = 1, eyes, mouth, brow, look = [0, 0], armL, armR, band = 0, jig = 0, legs = 0 } = s;
+  if (sc <= .02) return;
+  g.save(); g.translate(x, y); g.rotate(rot); g.scale(sx * sc, sy * sc);
+  // clean the board where the body is (so it reads in front of blocks/string)
+  erase(g, q => q.fill(pathOf(ell(0, -128, 114, 106, 40, .05, 7))), .95);
+  // legs + feet
+  [[-1, 0], [1, 1]].forEach(([sd, n]) => {
+    const sw = legs ? Math.sin(legs + n * Math.PI) * 18 : 0, hip = [sd * 34, -40], ft = [sd * 42 + sw, -4 + Math.abs(sw) * .2];
+    chalkLine(g, [hip, [lerp(hip[0], ft[0], .5) + sd * 4, -20], ft], 9, C.pink, 30 + n, { amp: 1.2, specks: false });
+    const fp = ell(ft[0] + sd * 8, ft[1], 25, 12, 16, .05, 32 + n); chalkFill(g, fp, C.pinkD, 36 + n, { sp: 5, w: 6, a: .7 }); chalkLine(g, fp, 5, C.pink, 34 + n, { closed: true, dual: false, specks: false });
+  });
+  // arms
+  [[-1, armL], [1, armR]].forEach(([sd, a], n) => {
+    const sh = [sd * 72, -118], hd = [sh[0] + sd * Math.sin(a) * 96, sh[1] + Math.cos(a) * 96], el = [lerp(sh[0], hd[0], .5) + sd * 8, lerp(sh[1], hd[1], .5) + 6];
+    chalkLine(g, [sh, el, hd], 9, C.pink, 20 + n, { amp: 1.2, specks: false });
+    const hp = ell(hd[0], hd[1], 16, 15, 14, .06, 23 + n); chalkFill(g, hp, C.pinkD, 25 + n, { sp: 5, w: 6, a: .75 }); chalkLine(g, hp, 5, C.pink, 27 + n, { closed: true, dual: false, specks: false });
+  });
+  // body: two-tone scumble + pink outline + a white overdraw
+  const body = ell(0, -128, 102, 94, 40, .05, 7);
+  erase(g, q => q.fill(pathOf(body)), 1);
+  chalkFill(g, body, C.pink, 5, { sp: 9, w: 9, a: .62, ang: -.6 });
+  chalkFill(g, ell(38, -80, 80, 56, 24), C.pinkD, 6, { sp: 9, w: 8, a: .3, ang: -.6 });
+  chalkLine(g, body, 11, C.pink, 8, { closed: true, gap: .12 });
+  chalkLine(g, body, 3.5, C.white, 9, { closed: true, amp: 2.6, a: .5, dual: false, specks: false });
+  // band-aid (after the 2nd fall)
+  if (band > 0) { g.save(); g.translate(-40, -210); g.rotate(-.45); const bs = eBack(band); g.scale(bs, bs); const bp = [[-46, -15], [46, -15], [46, 15], [-46, 15]];
+    erase(g, q => q.fill(pathOf(bp)), .9); chalkFill(g, bp, C.orange, 93, { sp: 6, w: 6, a: .6, ang: .3 }); chalkLine(g, bp, 4, C.white, 94, { closed: true, dual: false, specks: false });
+    g.fillStyle = C.white; g.globalAlpha = .8; for (let i = 0; i < 4; i++) g.fillRect(-9 + (i % 2) * 12, -7 + (i >> 1) * 10, 4, 4); g.restore(); }
+  // cheeks
+  chalkFill(g, ell(-66, -106, 19, 11, 14), C.pinkD, 40, { sp: 4, w: 5, a: .9, ang: .2 }); chalkFill(g, ell(66, -106, 19, 11, 14), C.pinkD, 41, { sp: 4, w: 5, a: .9, ang: .2 });
+  // eyes
+  const jx = Math.sin(t * 37) * jig * 7, jy = Math.cos(t * 29) * jig * 6;
+  [-1, 1].forEach((sd, n) => {
+    const ex = sd * 40, ey = -154;
+    if (eyes === 'x') { erase(g, q => { q.beginPath(); q.arc(ex, ey, 24, 0, TAU); q.fill(); }, .9); chalkLine(g, [[ex - 16, ey - 16], [ex + 16, ey + 16]], 7, C.white, 44 + n, { amp: .8, dual: false }); chalkLine(g, [[ex + 16, ey - 16], [ex - 16, ey + 16]], 7, C.white, 46 + n, { amp: .8, dual: false }); return; }
+    if (eyes === 'happy') { chalkLine(g, [[ex - 20, ey + 8], [ex, ey - 14], [ex + 20, ey + 8]], 8, C.white, 48 + n, { amp: .8, dual: false }); return; }
+    const R = eyes === 'big' || eyes === 'spark' ? 38 : 34, ep = ell(ex, ey, R, R * 1.06, 24, .03, 50 + n);
+    erase(g, q => q.fill(pathOf(ep)), 1);
+    g.save(); g.globalAlpha = .55; g.fillStyle = C.white; g.fill(pathOf(ep)); g.restore();
+    chalkFill(g, ep, C.white, 52 + n, { sp: 5, w: 6, a: .7, ang: -.5 });
+    chalkLine(g, ep, 5, C.white, 54 + n, { closed: true, dual: false, specks: false });
+    const pr = eyes === 'spark' ? 21 : eyes === 'big' ? 15 : 17;
+    const px = ex + clamp(look[0] * 12 + jx, -13, 13), py = ey + clamp(look[1] * 12 + jy, -13, 13);
+    erase(g, q => { q.beginPath(); q.arc(px, py, pr, 0, TAU); q.fill(); });
+    g.fillStyle = C.white; g.beginPath(); g.arc(px + 6, py - 7, eyes === 'spark' ? 7 : 5, 0, TAU); g.fill();
+    if (eyes === 'spark') { g.beginPath(); g.arc(px - 7, py + 7, 3.5, 0, TAU); g.fill(); }
+  });
+  if (brow === 'det') { chalkLine(g, [[-66, -206], [-20, -192]], 8, C.white, 60, { amp: .7, dual: false }); chalkLine(g, [[66, -206], [20, -192]], 8, C.white, 61, { amp: .7, dual: false }); }
+  // mouth
+  const my = -100;
+  if (mouth === 'smile') chalkLine(g, [[-26, my - 5], [0, my + 12], [26, my - 5]], 7, C.white, 70, { amp: .7, dual: false });
+  else if (mouth === 'flat') chalkLine(g, [[-19, my + 2], [19, my]], 7, C.white, 71, { amp: .7, dual: false });
+  else if (mouth === 'tiny') { erase(g, q => { q.beginPath(); q.ellipse(0, my + 2, 10, 12, 0, 0, TAU); q.fill(); }); chalkLine(g, ell(0, my + 2, 11, 13, 14), 3.5, C.white, 72, { closed: true, dual: false, specks: false }); }
+  else if (mouth === 'ouch') chalkLine(g, [[-28, my], [-14, my - 9], [0, my + 2], [14, my - 9], [28, my]], 6, C.white, 73, { amp: .6, dual: false });
+  else if (mouth === 'open' || mouth === 'wow') {
+    const w = mouth === 'wow' ? 32 : 17, h = mouth === 'wow' ? 30 : 21, mp = [];
+    if (mouth === 'wow') { for (let i = 0; i <= 16; i++) { const a = i / 16 * Math.PI; mp.push([Math.cos(a) * w, my - 6 + Math.sin(a) * h * 1.25]); } }
+    else mp.push(...ell(0, my + 4, w, h, 18));
+    erase(g, q => q.fill(pathOf(mp)));
+    chalkFill(g, ell(0, my + h * (mouth === 'wow' ? 1.0 : .7), w * .7, h * .45, 14), C.pinkD, 75, { sp: 4, w: 5, a: .85 });
+    chalkLine(g, mp, 4, C.white, 76, { closed: true, dual: false, specks: false, a: .8 });
+  }
+  g.restore();
+}
+function drawDizzy(g, x, y, t, k) {
+  if (k <= 0) return;
+  for (let i = 0; i < 3; i++) { const a = t * 5 + i / 3 * TAU, px = x + Math.cos(a) * 112, py = y + Math.sin(a) * 26, s = .3 * k * (Math.sin(a) > 0 ? 1.1 : .85);
+    g.save(); g.translate(px, py); g.rotate(a); g.scale(s, s); chalkLine(g, starPts(62, 28), 14, C.yellow, 210 + i, { closed: true, dual: false, specks: false }); g.restore(); }
+}
+function drawBang(g, s, t) {
+  if (t < IDEA.t0 || t > IDEA.t1) return;
+  const k = prog(t, IDEA.t0, IDEA.t0 + .14), out = 1 - prog(t, IDEA.t1 - .12, IDEA.t1);
+  g.save(); g.translate(s.x + 40, s.y - 330 * s.sy); g.rotate(.1); g.globalAlpha = out;
+  chalkLine(g, [[-6, -70], [0, -10], [4, 18]], 22, C.yellow, 701, { k: k * 1.4, gap: .1 });
+  if (k > .7) chalkFill(g, ell(4, 50, 14, 14, 14), C.yellow, 702, { sp: 4, w: 7, a: 1 });
+  for (let i = 0; i < 5; i++) { const a = -Math.PI * .92 + i * .46; chalkLine(g, [[Math.cos(a) * 92, Math.sin(a) * 92], [Math.cos(a) * 128, Math.sin(a) * 128]], 6, C.white, 710 + i, { k: prog(t, IDEA.t0 + .06, IDEA.t0 + .2), dual: false }); }
+  g.restore();
+}
+// impact: curly chalk puffs + flying dust specks
+function chalkPuff(g, x, y, t, t0, big = 1) {
+  const d = t - t0; if (d < 0 || d > .7) return;
+  const k = d / .7, r = rng(Math.round(t0 * 100));
+  for (let i = 0; i < 7; i++) { const sd = i % 2 ? 1 : -1, px = x + sd * (50 + i * 20) * eOut(k) * big, py = y - 24 * Math.sin(k * Math.PI) - i * 4, rr = (14 + i * 3) * (.6 + .6 * k) * big;
+    chalkLine(g, ell(px, py, rr, rr * .8, 14, .1, 400 + i), 4.5, C.white, 410 + i, { closed: true, a: .85 * (1 - k), dual: false }); }
+  g.save(); g.fillStyle = C.white;
+  for (let i = 0; i < 40; i++) { const an = -Math.PI * (.05 + r() * .9), sp = (180 + r() * 520) * big, px = x + Math.cos(an) * sp * d * (i % 2 ? 1 : -1), py = y + Math.sin(an) * sp * d + 900 * d * d;
+    g.globalAlpha = (1 - k) * (.4 + r() * .6); const s = 2 + r() * 4; g.fillRect(px, py, s, s); }
+  g.restore();
+}
+const CONF = (() => { const r = rng(77), a = []; for (let i = 0; i < 46; i++) { const an = -Math.PI / 2 + (r() - .5) * 3.4, sp = 500 + r() * 900;
+  a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, spin: (r() - .5) * 12, l: 16 + r() * 18, col: [C.yellow, C.pink, C.blue, C.green, C.white, C.orange, C.lilac][i % 7], star: i % 5 === 0 }); } return a; })();
+function drawConfetti(g, t) {
+  const d = t - LEAP.t1; if (d < 0 || d > 3) return;
+  const { x: x0, y: y0 } = starPos(LEAP.t1);
+  CONF.forEach((p, i) => { const px = x0 + p.vx * d * Math.exp(-d * .9), py = y0 + p.vy * d * Math.exp(-d * .9) + 700 * d * d; if (py > GY + 40) return;
+    g.save(); g.translate(px, py); g.rotate(p.spin * d);
+    if (p.star) { g.scale(.28, .28); chalkLine(g, starPts(60, 28), 16, p.col, 600 + i, { closed: true, dual: false, specks: false }); }
+    else chalkLine(g, [[-p.l / 2, 0], [0, 3], [p.l / 2, 0]], 7, p.col, 600 + i, { dual: false, specks: false, amp: 1 });
+    g.restore(); });
+}
+function drawTitle(g, t) {
+  if (t < TITLE.t0) return;
+  const k = eOut(prog(t, TITLE.t0, TITLE.t0 + .5)), size = 172, y = TITLE.y;
+  const w = chalkText(g, TITLE.text, 540, y, size, C.white, FONT, k, .97, '', 34);
+  const k2 = prog(t, TITLE.t0 + .45, TITLE.t0 + .72), L = w / 2 + 20;
+  chalkLine(g, [[540 + L, y + 104], [540 + L * .3, y + 112], [540 - L * .4, y + 106], [540 - L + 10, y + 96], [540 - L - 16, y + 78], [540 - L + 14, y + 86]], 13, C.yellow, 9001, { k: k2, gap: .12 });
+  // chalk dust dropping off the writing hand
+  if (k < 1) { const r = rng(9100 + BF); g.save(); g.fillStyle = C.white; const hx = 540 + w / 2 - w * k;
+    for (let i = 0; i < 16; i++) { g.globalAlpha = .3 + r() * .5; g.fillRect(hx + (r() - .5) * 60, y + 40 + r() * 140, 2 + r() * 3, 2 + r() * 3); } g.restore(); }
+}
+
+// ---------- soft smudge layer (low-res, upscaled = blurred) ----------
+function smudges(q, t) {
+  // motion ghosts of the character
+  const cur = pose(t), pr = pose(Math.max(0, t - .08)), sp = Math.hypot(cur.x - pr.x, cur.y - pr.y) / .08;
+  if (sp > 700 && t > .7) for (let k = 1; k <= 5; k++) { const p = pose(Math.max(0, t - k * .035)), al = clamp((sp - 700) / 2600) * .34 * (1 - k / 6);
+    q.fillStyle = `rgba(255,170,200,${al})`; q.beginPath(); q.ellipse(p.x, p.y - 128 * p.sy * p.sc, 104 * p.sx * p.sc, 96 * p.sy * p.sc, p.rot, 0, TAU); q.fill(); }
+  // falling blocks smear
+  BLOCKS.forEach((b, i) => { if (t < b.t || t > b.land + .05) return;
+    for (let k = 1; k <= 4; k++) { const s = blockState(i, Math.max(b.t, t - k * .035)); if (!s.visible) continue; q.fillStyle = `rgba(220,235,240,${.14 * (1 - k / 5)})`; q.fillRect(s.x - s.w / 2, s.top, s.w, s.h); } });
+  // lingering smudge prints where פיצי splatted, and dust clouds
+  SPLATS.forEach(te => { const d = t - te; if (d < 0 || d > 2.2) return; const a = .22 * (1 - d / 2.2);
+    q.fillStyle = `rgba(255,175,205,${a})`; q.beginPath(); q.ellipse(HX, GY - 30, 160, 44, 0, 0, TAU); q.fill(); });
+  [[HX, GY, SPLATS[0], 1], [HX, GY, SPLATS[1], 1], [TOWER.x, GY, BLOCKS[0].land, 1.3], [TOWER.x, blockTop(0), BLOCKS[1].land, 1.3]].forEach(([x, y, te, b]) => {
+    const d = t - te; if (d < 0 || d > 1.2) return; const k = d / 1.2, r = rng(Math.round(te * 100));
+    for (let i = 0; i < 9; i++) { const sd = i % 2 ? 1 : -1; q.fillStyle = `rgba(235,240,235,${.3 * (1 - k)})`; q.beginPath(); q.arc(x + sd * (40 + r() * 140) * eOut(k) * b, y - 20 - r() * 70 * eOut(k), (30 + r() * 40) * (.5 + k) * b, 0, TAU); q.fill(); } });
+  // yellow powder bloom around the lit star
+  const st = starState(t);
+  if (st.lit > 0) { const { x, y } = starPos(t), R = 420 * st.lit * (1 + .06 * Math.sin(t * 6)); const gr = q.createRadialGradient(x, y, 0, x, y, R);
+    gr.addColorStop(0, 'rgba(255,230,120,.6)'); gr.addColorStop(.4, 'rgba(255,220,110,.22)'); gr.addColorStop(1, 'rgba(255,220,110,0)'); q.fillStyle = gr; q.fillRect(x - R, y - R, 2 * R, 2 * R); }
+}
+
+// ---------- film ----------
+let CH, CHG, SM, SMG, HA, HAG, HB, HBG;
+film({
+  setup() {
+    GRAIN = makeGrain(); GRAIN_P = ctx.createPattern(GRAIN, 'repeat');
+    buildBoard();
+    CH = mkCanvas(OUT_W, OUT_H); CHG = CH.getContext('2d');
+    SM = mkCanvas(Math.ceil(OUT_W / SMK), Math.ceil(OUT_H / SMK)); SMG = SM.getContext('2d');
+    HA = mkCanvas(Math.ceil(OUT_W / 2), Math.ceil(OUT_H / 2)); HAG = HA.getContext('2d');
+    HB = mkCanvas(Math.ceil(OUT_W / 5), Math.ceil(OUT_H / 5)); HBG = HB.getContext('2d');
+  },
+  draw(c, tf) {
+    const t = Math.floor(tf * 12) / 12;             // chalk redrawn on twos
+    BF = Math.floor(tf * 12);
+    const z = zoom(t), sh = shake(tf);
+    const cam = (g, sc) => { g.setTransform(sc, 0, 0, sc, 0, 0); g.translate(540 + sh * .6, 760 + sh); g.scale(z, z); g.translate(-540, -760); };
+    // 1 board
+    c.fillStyle = C.board; c.fillRect(0, 0, W, H);
+    c.save(); c.translate(540 + sh * .6, 760 + sh); c.scale(z, z); c.translate(-540, -760); c.drawImage(L_BOARD, -20, -20, W + 40, H + 40); c.restore();
+    // 2 smudges (quarter res, bilinear upscale = soft)
+    SMG.setTransform(1, 0, 0, 1, 0, 0); SMG.clearRect(0, 0, SM.width, SM.height); cam(SMG, S / SMK); smudges(SMG, t);
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.imageSmoothingQuality = 'high'; c.drawImage(SM, 0, 0, OUT_W, OUT_H); c.restore();
+    // 3 chalk layer
+    const g = CHG; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, OUT_W, OUT_H); cam(g, S);
+    drawDoodles(g, t); drawGround(g, t);
+    drawStar(g, t);
+    drawBlock(g, 0, t); drawBlock(g, 1, t);
+    chalkPuff(g, TOWER.x, GY, t, BLOCKS[0].land, 1.3); chalkPuff(g, TOWER.x, blockTop(0), t, BLOCKS[1].land, 1.3);
+    SPLATS.forEach(te => chalkPuff(g, HX, GY, t, te));
+    const s = pose(t);
+    drawPitz(g, s, t);
+    drawDizzy(g, s.x, s.y - 256 * s.sy * s.sc, t, s.dizzy);
+    drawBang(g, s, t);
+    drawConfetti(g, t);
+    g.setTransform(S, 0, 0, S, 0, 0); drawTitle(g, t);
+    applyGrain(g, (BF * 173) % 512, (BF * 311) % 512);
+    for (const p of POST) { g.setTransform(p.m); p.f(g); } POST = [];
+    // 4 powder halo (two-step downscale) then the sharp chalk
+    HAG.setTransform(1, 0, 0, 1, 0, 0); HAG.clearRect(0, 0, HA.width, HA.height); HAG.drawImage(CH, 0, 0, HA.width, HA.height);
+    HBG.setTransform(1, 0, 0, 1, 0, 0); HBG.clearRect(0, 0, HB.width, HB.height); HBG.drawImage(HA, 0, 0, HB.width, HB.height);
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = .5; c.drawImage(HB, 0, 0, OUT_W, OUT_H); c.globalAlpha = 1; c.drawImage(CH, 0, 0); c.restore();
+    // 5 wooden frame + tray (shakes with the board, not zoomed)
+    c.save(); c.translate(sh * .6, sh); c.drawImage(L_FRAME, 0, 0, W, H); c.restore();
+  },
+  kit: { reverb: .22, musicGain: .5, sfxGain: .85, revSec: 1.3 },
+  voice: K => {
+    const R = rng(55), { osc, noise, mf, at, ac, music, sfx } = K;
+    const tone = (type, f0, f1, t, d, v, out = sfx) => {       // sustained tone with pitch glide (squeaks)
+      const n = ac.createOscillator(), g = ac.createGain(); n.type = type; n.frequency.setValueAtTime(f0, at(t)); n.frequency.exponentialRampToValueAtTime(f1, at(t + d));
+      g.gain.setValueAtTime(0, at(t)); g.gain.linearRampToValueAtTime(v, at(t + Math.min(.015, d * .2))); g.gain.setValueAtTime(v, at(t + d * .7)); g.gain.linearRampToValueAtTime(0, at(t + d));
+      n.connect(g); g.connect(out); n.start(at(t)); n.stop(at(t + d + .05)); return n; };
+    const squeak = (t, f0, f1, d, v = .05) => {
+      const o = tone('sine', f0, f1, t, d, v), o2 = tone('triangle', f0 * 2.01, f1 * 2.01, t, d, v * .22);
+      const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 31 + R() * 10; lg.gain.value = f0 * .03; l.connect(lg); lg.connect(o.frequency); l.start(at(t)); l.stop(at(t + d + .05));
+      noise(t, d * .8, sfx, v * .5, 'bandpass', f0 * 1.2, 5, .01); };
+    const scratch = (t, d, v = .08) => { const n = Math.max(2, Math.round(d / .045));
+      for (let k = 0; k < n; k++) noise(t + k * .045 + R() * .012, .025 + R() * .025, sfx, v * (.45 + R() * .55), 'bandpass', 2300 + R() * 2800, 2.4, .002);
+      noise(t, d, sfx, v * .15, 'highpass', 5200, .7, .02); };
+    const tap = (t, v = .1) => { noise(t, .02, sfx, v, 'highpass', 2600, .8, .001); osc('sine', 1900, t, .035, sfx, v * .35, .001); };
+    const rub = (t, d, v = .2) => { for (let k = 0; k * .07 < d; k++) noise(t + k * .07, .07, sfx, v * (k % 2 ? .65 : 1) * (1 - k * .07 / d * .5), 'bandpass', k % 2 ? 680 : 1050, .9, .025); };
+    const slam = (t, v = .7) => { const o = osc('sine', 125, t, .4, sfx, v); o.frequency.exponentialRampToValueAtTime(36, at(t + .35));
+      noise(t, .035, sfx, v * .95, 'highpass', 1400, .7, .001); noise(t, .28, sfx, v * .6, 'lowpass', 520, .7, .002); noise(t + .015, .14, sfx, v * .12, 'bandpass', 2400, 1.5, .01); };
+    const bell = (t, f, v = .1) => [[1, 1, 1.6], [2.76, .45, .7], [5.4, .22, .35], [8.93, .1, .2]].forEach(([m, a, d]) => osc('sine', f * m, t, d, sfx, v * a, .002));
+    const gtr = (t, m, v = .06, d = .8) => { osc('triangle', mf(m), t, d, music, v, .002, d, 2300); osc('sawtooth', mf(m), t, d * .35, music, v * .3, .002, d * .35, 1600);
+      osc('sine', mf(m + 12), t, .18, music, v * .12, .002, .18); noise(t, .012, music, v * .35, 'bandpass', 3000, 2, .001); };
+    const clap = (t, v = .05) => { noise(t, .07, music, v, 'bandpass', 1500, 1.1); noise(t + .011, .06, music, v * .8, 'bandpass', 1900, 1.3); noise(t + .023, .09, music, v * .55, 'bandpass', 1200, 1); };
+    const shaker = (t, v = .016) => noise(t, .05, music, v, 'bandpass', 7200, 1.2, .015);
+    const pick = (a, b, root, tri, gain = 1) => {
+      for (let t = Math.ceil(a / .25 - 1e-6) * .25; t < b - .01; t += .25) { const e = Math.round(t / .25);
+        if (e % 2 === 0) gtr(t, (e >> 1) % 2 ? root + 7 : root, .085 * gain, .7);
+        else gtr(t, tri[[1, 2, 0, 2][(e >> 1) % 4]] + 12, .05 * gain, .6);
+        if (e % 4 === 2) clap(t, .045 * gain);
+        shaker(t, (e % 2 ? .02 : .011) * gain); }
+    };
+    return {
+      groove: (a, b, root, tri) => pick(a, b, root, tri),
+      motif(t) { [[0, 'E5'], [.25, 'G5'], [.5, 'C6'], [1.0, 'B5'], [1.25, 'G5'], [1.5, 'C6']].forEach(([d, n]) => gtr(t + d, nm(n), .075, 1.0)); },
+      ending(t, root, tri) { [48, 55, 60, 64, 67, 72].forEach((m, j) => gtr(t + j * .035, m, .07, 1.9)); pick(t + .5, 8.0, root, tri, .7);
+        [0, .5, .75, 1.0, 1.5].forEach(d => clap(t + .02 + d, .06)); bell(t + 1.3, 2093, .025); },
+      cues: {
+        reveal: t => { scratch(t, .45, .09); squeak(t + .3, 2600, 3200, .1, .02); },
+        star: t => { scratch(t + .05, .3, .07); squeak(t + .36, 3000, 3700, .09, .03); gtr(t + .5, 84, .045, 1.2); },
+        pop: t => { tap(t, .12); squeak(t + .03, 1800, 2600, .07, .03); },
+        jump: (t, n) => squeak(t, 1400, n ? 2700 : 2200, .28, .055),
+        fall: (t, n) => squeak(t, n ? 2900 : 2500, 700, .25, .04),
+        splat: t => { rub(t, .42, .24); const o = osc('sine', 150, t, .2, sfx, .35); o.frequency.exponentialRampToValueAtTime(50, at(t + .18)); },
+        dizzy: t => { for (let k = 0; k < 3; k++) squeak(t + k * .13, 3200 + k * 200, 3800 + k * 200, .06, .018); },
+        getup: t => { scratch(t, .14, .06); squeak(t + .02, 1500, 2300, .15, .035); },
+        drop: t => { squeak(t, 3300, 1500, .24, .025); scratch(t, .2, .04); },
+        thud: (t, n) => slam(t, .65 + n * .1),
+        idea: t => { bell(t, 1760, .05); squeak(t + .04, 2800, 3500, .08, .035); tap(t + .16, .1); },
+        hop: (t, n) => squeak(t, 1600 + n * 300, 2400 + n * 400, .18, .045),
+        land: t => { noise(t, .06, sfx, .12, 'lowpass', 900, .8, .002); const o = osc('sine', 210, t, .08, sfx, .14); o.frequency.exponentialRampToValueAtTime(90, at(t + .07)); },
+        leap: t => { squeak(t, 1300, 3400, .42, .055); K.swish(t, .4, .07); },
+        grab: t => { bell(t, 1320, .13); bell(t + .1, 1320, .07); bell(t + .2, 1320, .04); K.kick(t, .3, sfx); K.sparkle(t + .08, 84, 8, .06, .045); [0, .12, .2, .33].forEach(d => clap(t + .3 + d, .05)); },
+        title: t => { scratch(t, .5, .08); squeak(t + .46, 2300, 1500, .26, .03); },
+      },
+    };
+  },
+});
+</script>

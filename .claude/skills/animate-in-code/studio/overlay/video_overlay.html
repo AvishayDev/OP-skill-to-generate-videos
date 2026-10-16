@@ -1,0 +1,159 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>overlay B · doodles over real video</title>
+<body>
+<script src="../fonts-data.js"></script>
+<script>var FILM_DUR = 9.5;</script>
+<script src="timing.js"></script>
+<script src="../audio.js"></script>
+<script src="runtime-overlay.js"></script>
+<script src="doodle-kit.js"></script>
+<script>
+'use strict';
+// ============================================================
+// DEMO B · hand-drawn JS animation composited over REAL VIDEO (9.5 s, 9:16).
+// This film draws ONLY the overlay, on a transparent canvas (no background fill anywhere).
+// render.mjs keeps the RGBA PNGs in out/video_overlay-frames/; composite.sh lays them over
+// your trimmed clip (composite.sh) with ffmpeg and mixes the doodle sfx under his speech.
+//
+// The clip (clip time):  "...שבתוכו אתם תוכלו למצוא | עשרות כלים (2.0) | שכולם בול בפוני (3.5, OK-sign 3.8-4.5)
+//                         | יאללה, סיימתי לחפור (5.6-7.1, laughs, head tilts) | לערב ומקווה שתיהנו (7.4-9.1, open palms 8.0)"
+// Every doodle is keyframed to that: HEAD / HAND tracks were read off gridded frames of the clip.
+// Ink lines carry a light halo so they read on the dark wall AND the light shirt.
+// ============================================================
+// head centre (between the eyes) per time; hair top is ~450 above it; face is ~±240 wide
+const HEAD = track([[0, 600, 745], [.5, 590, 745], [1, 610, 745], [1.5, 616, 760], [2, 655, 760], [2.5, 665, 730], [3, 665, 690], [3.5, 660, 723], [3.75, 685, 707], [4, 680, 723],
+  [4.25, 688, 723], [4.5, 690, 707], [5, 665, 745], [5.5, 640, 780], [6, 560, 730], [6.5, 535, 700], [7, 575, 730], [7.5, 610, 713], [8, 650, 707], [8.5, 660, 740], [9, 660, 723], [9.5, 745, 690]]);
+// his OK-sign hand ("בול בפוני")
+const HAND = track([[3.5, 250, 1325], [3.75, 237, 1195], [4, 276, 935], [4.25, 200, 840], [4.5, 300, 1100], [4.75, 300, 1250]]);
+const HALO = 4.5, LINE = { halo: HALO };
+const TXT = { color: '#fffaf0', halo: 7, haloColor: INK };       // light lettering with an ink rim: reads on dark and light
+
+function tool(c, kind, x, y, s, k, seed) {       // gouache-bodied props that pop in (k 0..1)
+  if (k <= 0) return; c.save(); c.translate(x, y); const sc = eBack(clamp(k * 1.4)); c.scale(sc * s, sc * s);
+  const L = { halo: HALO / s, seed, w: 5 / s * .8 + 2 };
+  if (kind === 'bulb') {
+    shape(c, [[0, -80], [48, -60], [58, -14], [30, 30], [24, 58], [-24, 58], [-30, 30], [-58, -14], [-48, -60]], { k: 1, fill: '#fff3b0', washC: CO.yellow, halo: L.halo, seed, w: L.w });
+    shape(c, [[-22, 60], [22, 60], [20, 92], [-20, 92]], { k: 1, fill: '#c9d3df', halo: L.halo, seed: seed + 1, w: L.w });
+    brush(c, [[-14, 30], [-8, -10], [0, 10], [8, -10], [14, 30]], { w: L.w * .7, seed: seed + 2 });
+    for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + (i - 2) * .55; brush(c, [[Math.cos(a) * 100, Math.sin(a) * 100 - 10], [Math.cos(a) * 130, Math.sin(a) * 130 - 10]], { w: L.w, seed: seed + 5 + i, halo: L.halo }); }
+  } else if (kind === 'pencil') {
+    c.rotate(.5);
+    shape(c, [[-22, -110], [22, -110], [22, 60], [0, 110], [-22, 60]], { k: 1, fill: CO.yellow, washC: CO.yellowD, halo: L.halo, seed, w: L.w });
+    shape(c, [[-22, 60], [22, 60], [0, 110]], { k: 1, fill: '#f3d2a6', seed: seed + 1, w: L.w });
+    shape(c, [[-22, -110], [22, -110], [22, -80], [-22, -80]], { k: 1, fill: CO.pink, seed: seed + 2, w: L.w });
+    brush(c, [[-6, 98], [6, 98], [0, 110]], { w: L.w * 1.4, seed: seed + 3 });
+  } else if (kind === 'gear') {
+    const p = []; for (let i = 0; i < 16; i++) { const a = i / 16 * TAU + BOIL * .08; p.push([Math.cos(a) * (i % 2 ? 58 : 76), Math.sin(a) * (i % 2 ? 58 : 76)]); }
+    shape(c, p, { k: 1, fill: CO.sky, washC: CO.blue, washAl: .3, halo: L.halo, seed, w: L.w });
+    shape(c, ellPts(22, 22, 10, seed + 1), { k: 1, fill: '#fffaf0', seed: seed + 2, w: L.w });
+  } else if (kind === 'brush') {
+    c.rotate(-.6);
+    shape(c, [[-12, -120], [12, -120], [14, 20], [-14, 20]], { k: 1, fill: '#b98a5e', halo: L.halo, seed, w: L.w });
+    shape(c, [[-16, 20], [16, 20], [16, 44], [-16, 44]], { k: 1, fill: '#c9d3df', seed: seed + 1, w: L.w });
+    shape(c, [[-16, 44], [16, 44], [22, 90], [0, 120], [-22, 90]], { k: 1, fill: CO.coral, washC: CO.coralD, seed: seed + 2, w: L.w });
+  }
+  c.restore();
+}
+function title(c, str, t, t0, t1, ulCol, seed) {  // written on at t0, underlined, wiped off at t1
+  if (t < t0 || t > t1 + .2) return;
+  const out = t > t1 ? 1 - prog(t, t1, t1 + .2) : 1, k = prog(t, t0, t0 + .12 * str.length / 2 + .25);
+  c.save(); c.globalAlpha = out;
+  const w = handText(c, str, 540, 104, 104, { ...TXT, k, font: 'Heebo', weight: '800', halo: 8 });   // clean sans: OHRonShemer turns the double yod of סיימתי into quote marks
+  brush(c, [[540 + w / 2 + 20, 176], [540, 183], [540 - w / 2 - 20, 174]], { p: prog(t, t0 + .5, t0 + .8), w: 10, color: ulCol, seed, ...LINE, halo: 3, haloColor: INK });
+  c.restore();
+}
+function draw(c, tf, i) {
+  setBoil(i);
+  const t = tf;                                   // tracking runs every frame (on ones) so doodles stay glued to him; lines boil on twos
+  const [hx, hy] = HEAD(t), top = hy - 450;
+  // 1 · halo over his head, whole clip
+  const hk = prog(t, .12, .6), bob = Math.sin(t * 3) * 6;
+  if (hk > 0) { const pts = xf(ellPts(150, 34, 16, 3, .02), hx + 10, top - 30 + bob, 1, (HEAD(t + .1)[0] - hx) * .004);
+    c.save(); c.globalAlpha = .9; brush(c, pts, { close: true, p: hk, w: 13, color: CO.yellow, seed: 3, halo: 3, haloColor: INK }); c.restore();
+    sparkBurst(c, hx + 170, top - 50, 20, 70, 5, { k: prog(t, .5, 1.1), seed: 4, w: 5, color: CO.yellow, halo: 2, haloColor: INK }); }
+  // 2 · "אני" + arrow to him (0.35 - 1.95)
+  if (t < 2.1) { const out = 1 - prog(t, 1.85, 2.05);
+    c.save(); c.globalAlpha = out;
+    handText(c, 'אני', 175, 470, 112, { ...TXT, k: prog(t, .35, .7) });
+    arrow(c, [[190, 545], [215, 640], [hx - 330, hy - 70], [hx - 262, hy - 30]], { k: prog(t, .6, 1.05), w: 7, seed: 10, ...LINE, color: '#fffaf0', haloColor: INK, head: 34 });
+    c.restore(); }
+  // sparks as his hand sweeps in (0.75, 1.3)
+  sparkBurst(c, 250, 1330, 60, 140, 7, { k: prog(t, .72, 1.2), seed: 12, w: 6, ...LINE, color: CO.yellow, haloColor: INK });
+  // 3 · titles, top band (dark ceiling)
+  title(c, 'עשרות כלים', t, 1.95, 5.5, CO.yellow, 20);
+  title(c, 'סיימתי לחפור', t, 5.75, 7.35, CO.coral, 21);
+  title(c, 'תיהנו!', t, 7.55, 99, CO.pink, 22);
+  // 4 · "עשרות כלים": tools pop into the free space around him (2.0 - 3.7)
+  const tk = t0 => prog(t, t0, t0 + .3) * (1 - prog(t, 3.45, 3.7));
+  const bobT = (n) => Math.sin(t * 4 + n * 1.7) * 7;
+  tool(c, 'bulb', 165, 760 + bobT(0), .95, tk(2.05), 30);
+  tool(c, 'pencil', 990, 470 + bobT(1), .8, tk(2.25), 40);
+  tool(c, 'gear', 975, 800 + bobT(2), .85, tk(2.45), 50);
+  tool(c, 'brush', 150, 1080 + bobT(3), .85, tk(2.65), 60);
+  // 5 · "בול בפוני": a target drawn around his OK-sign, a dart hits the centre
+  if (t > 3.72 && t < 4.85) {
+    const [ax, ay] = HAND(t), out = 1 - prog(t, 4.6, 4.85);
+    c.save(); c.globalAlpha = out;
+    [[150, CO.red], [105, '#fffaf0'], [62, CO.red]].forEach(([r, col], n) => brush(c, xf(ellPts(r, r * .96, 18, 70 + n, .03), ax, ay), { close: true, p: prog(t, 3.75 + n * .08, 3.95 + n * .08), w: 11, color: col, seed: 70 + n, halo: 3, haloColor: INK }));
+    const dk = prog(t, 3.93, 4.08), dx = lerp(-80, ax - 12, eIn(dk)), dy = lerp(ay - 420, ay - 14, eIn(dk));
+    if (dk > 0) { c.save(); c.translate(dx, dy); c.rotate(Math.atan2(ay - 14 - (ay - 420), ax - 12 + 80)); brush(c, [[-140, 0], [0, 0]], { w: 8, seed: 80, ...LINE, color: INK, haloColor: '#fffaf0' });
+      shape(c, [[-150, 0], [-175, -26], [-128, 0], [-175, 26]], { fill: CO.yellow, halo: 3, seed: 81, w: 4 }); c.restore(); }
+    sparkBurst(c, ax, ay, 40, 190, 10, { k: prog(t, 4.08, 4.6), seed: 82, w: 7, color: CO.yellow, halo: 3, haloColor: INK });
+    handText(c, 'בול!', 170, 610, 118, { ...TXT, k: prog(t, 4.1, 4.35), rot: -.1 });
+    c.restore();
+  }
+  // 6 · "סיימתי לחפור": a shovel digs in the bottom corner, dirt flies, a sweat drop
+  if (t > 5.7 && t < 7.6) {
+    const out = 1 - prog(t, 7.35, 7.6), dig = Math.sin((t - 5.8) * 9), sk = prog(t, 5.75, 6.05);
+    c.save(); c.globalAlpha = out;
+    shape(c, [[760, 1880], [800, 1790], [900, 1770], [1010, 1790], [1060, 1880]], { k: prog(t, 5.8, 6.1), fill: '#9b6a45', washC: '#6d4428', halo: HALO, seed: 90 });
+    c.save(); c.translate(930, 1760); c.rotate(-.5 + dig * .28); c.scale(eBack(sk), eBack(sk));
+    brush(c, [[0, -300], [0, -30]], { w: 13, color: '#8a5a3c', seed: 91, halo: 3, haloColor: INK });
+    brush(c, [[-40, -310], [40, -310]], { w: 12, color: '#8a5a3c', seed: 92, halo: 3, haloColor: INK });
+    shape(c, [[-48, -40], [48, -40], [44, 30], [0, 70], [-44, 30]], { fill: '#c9d3df', washC: '#8796a8', halo: HALO, seed: 93, w: 5 });
+    c.restore();
+    for (let n = 0; n < 9; n++) { const t0 = 5.95 + n * .14, d = t - t0; if (d < 0 || d > .7) continue; const r = rng(95 + n);
+      const x = 900 + (-160 - r() * 420) * d, y = 1720 - (900 + r() * 400) * d + 2200 * d * d;
+      shape(c, xf(ellPts(14 + r() * 10, 11 + r() * 7, 8, 96 + n, .12), x, y), { fill: '#8a5a3c', halo: 2.5, seed: 96 + n, w: 3 }); }
+    const sw = prog(t, 6.0, 6.3), [sx, sy] = [hx + 245, hy - 190 + (t - 6) * 60];
+    if (sw > 0) shape(c, [[sx, sy - 40], [sx + 22, sy], [sx, sy + 18], [sx - 22, sy]], { k: sw, fill: CO.sky, washC: '#5f9fd4', halo: HALO, seed: 99, w: 4.5 });
+    c.restore();
+  }
+  // 7 · "שתיהנו": hearts + sparks burst from his open palms (8.0)
+  [[100, 1480, 0], [870, 1640, 1]].forEach(([px, py, s]) => {
+    sparkBurst(c, px, py, 50, 150, 8, { k: prog(t, 7.9, 8.4), seed: 110 + s, w: 6, color: CO.yellow, halo: 3, haloColor: INK });
+    for (let n = 0; n < 4; n++) { const d = t - 7.95 - n * .12; if (d < 0 || d > 1.5) continue; const r = rng(120 + s * 10 + n);
+      const x = px + (s ? -1 : 1) * (40 + r() * 160) * d + Math.sin(d * 6 + n) * 16, y = py - (380 + r() * 260) * d;
+      c.save(); c.globalAlpha = 1 - prog(d, 1.1, 1.5); shape(c, xf(heartKnots(30 + r() * 14), x, y, 1, Math.sin(d * 5 + n) * .3), { fill: [CO.blush, CO.pink, CO.coral][n % 3], halo: HALO, seed: 130 + n, w: 4 }); c.restore(); }
+  });
+  // 8 · פיצי pops up on his shoulder (the frame-left one, never over his face) and waves goodbye (8.3 - end)
+  if (t > 8.3) {
+    const k = prog(t, 8.3, 8.6), px = Math.min(400, hx - 320), py = hy + 272;           // HIS right shoulder = frame left: the side his head moves away from at the end
+    c.save(); c.translate(px, py); c.scale(eBack(k), eBack(k));
+    pitzi(c, 0, 0, .78, { eyes: t > 8.9 ? 'happy' : 'spark', mouth: t > 8.9 ? 'smile' : 'wow', look: [1, -.3], dir: 1, armL: 2.6 + .4 * Math.sin(t * 14), armR: .4, rot: .08 }, 500, HALO);
+    c.restore();
+    sparkBurst(c, px, py - 120, 120, 200, 7, { k: prog(t, 8.35, 8.85), seed: 140, w: 5, color: '#fffaf0', halo: 3, haloColor: INK });
+  }
+}
+// ---------- sound: doodle sfx + a whisper of pluck, mixed UNDER his voice by composite.sh ----------
+function score(ac, t0, dest) {
+  const out = ac.createGain(); out.gain.value = 1.8; out.connect(dest);
+  const K = audioKit(ac, t0, out, { reverb: .18, musicGain: .16, sfxGain: .8 });
+  const ARP = [[0, [60, 64, 67, 72]], [2, [57, 60, 64, 69]], [4, [53, 57, 60, 65]], [6, [55, 59, 62, 67]], [8, [60, 64, 67, 72]]];
+  ARP.forEach(([a, notes], n) => { const b = n < ARP.length - 1 ? ARP[n + 1][0] : 9.5; for (let t = a, j = 0; t < b - .01; t += .5, j++) K.pluck(t, notes[j % 4] + 12, .04, 2600); });
+  K.glock(.15, nm('C7'), .05, 1.2); scratch(K, .15, .45, .05, 1, 3600);                   // halo
+  scratch(K, .35, .35, .05, 2); scratch(K, .6, .45, .05, 3); K.sparkle(.74, 88, 4, .04, .03);  // "אני" + arrow, sparks
+  scratch(K, 1.95, .7, .055, 4, 3000);                                                     // title 1
+  [2.05, 2.25, 2.45, 2.65].forEach((t, n) => { K.pop(t, .1); K.glock(t + .02, nm(['E6', 'G6', 'C7', 'E7'][n]), .035, .6); });
+  [3.45, 3.55, 3.62, 3.68].forEach(t => K.pop(t, .05));                                    // tools blink out
+  scratch(K, 3.75, .45, .055, 5, 2800); K.slide(3.93, 2600, 900, .15, .05);                 // target + dart whistle
+  K.kick(4.08, .3, K.sfx); K.noise(4.08, .06, K.sfx, .12, 'bandpass', 1800, 2); K.sparkle(4.1, 88, 5, .04, .04);
+  scratch(K, 5.75, .8, .055, 6, 3000);                                                     // title 2
+  for (let k = 0; k < 7; k++) { const t = 5.95 + k * .2; K.noise(t, .09, K.sfx, .07, 'lowpass', 700, .8); K.noise(t, .03, K.sfx, .05, 'highpass', 4500); }   // shovel chks
+  K.boing(6.05, 900, 500, .2, .04);                                                         // sweat drop
+  scratch(K, 7.55, .5, .055, 7, 3200); K.sparkle(7.92, 84, 7, .05, .045);                   // title 3, hearts
+  K.pop(8.32, .1); K.boing(8.3, 280, 700, .3, .07); K.glock(9.0, nm('G6'), .04, 1); K.glock(9.12, nm('C7'), .04, 1.2);
+}
+film({ draw, score });
+</script>

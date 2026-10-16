@@ -1,0 +1,11 @@
+{
+  "name": "video-studio",
+  "private": true,
+  "type": "module",
+  "description": "Claude Code video studio: any idea, language, length and style → finished mp4, made in code",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "ep": "node pipeline/cli.mjs",
+    "test": "node --test pipeline/*.test.mjs"
+  }
+}

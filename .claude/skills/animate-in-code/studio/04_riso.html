@@ -1,0 +1,489 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>04 · הדפס ריזוגרף</title>
+<body>
+<script src="fonts-data.js"></script>
+<script src="story.js"></script>
+<script src="audio.js"></script>
+<script src="runtime.js"></script>
+<script>
+'use strict';
+// ============================================================
+// 04 · RISOGRAPH PRINT
+// Three fluorescent inks, each rendered as its own PLATE (an offscreen canvas holding only
+// that ink's coverage). Plates carry solids, knock-outs and coarse halftone screens at their
+// own screen angle; each plate is then eaten by a grain mask (blotchy density, drum streaks,
+// speckle dropout), tinted with its ink and multiplied onto warm paper, misregistered by a
+// few px + a tiny rotation that jitters on twos. Overprints make the extra colours:
+// pink+blue = navy/purple, yellow+blue = green, yellow+pink = orange-red.
+// Voice: lo-fi hip-hop (dusty Rhodes with wow/flutter, half-time boom-bap, vinyl crackle).
+// ============================================================
+const INK = { Y: '#ffe800', P: '#ff48b0', B: '#0078bf' };
+const KEYS = ['Y', 'P', 'B'];
+const ANG = { Y: 5, P: 75, B: 20 };            // halftone screen angles (deg), world-anchored
+const CELL = 13;                                // halftone cell (world px)
+const MARGIN = 40;                              // unprinted paper margin (riso can't print to the edge)
+const PAPER_C = '#f4eddd';
+let G = {}, PLATE = {}, STATIC = {}, MASK = {}, PAPER = null, WM = new DOMMatrix(), MPAD = 96;
+
+// ---------- geometry (cached) ----------
+const _cache = new Map();
+const memo = (k, f) => { if (!_cache.has(k)) _cache.set(k, f()); return _cache.get(k); };
+function blob(rx, ry, seed, n = 34, amp = .06) {
+  return memo(`b${rx}|${ry}|${seed}|${n}|${amp}`, () => {
+    const r = rng(seed), ph = [r() * TAU, r() * TAU, r() * TAU], pts = [];
+    for (let i = 0; i < n; i++) { const a = i / n * TAU, m = 1 + amp * (Math.sin(a * 2 + ph[0]) * .5 + Math.sin(a * 3 + ph[1]) * .35 + Math.sin(a * 5 + ph[2]) * .15);
+      pts.push([Math.cos(a) * rx * m, Math.sin(a) * ry * m]); }
+    return pts;
+  });
+}
+function bumpy(rx, ry, bumps, seed) {
+  return memo(`c${rx}|${ry}|${bumps}|${seed}`, () => {
+    const r = rng(seed), pts = [], n = 90;
+    for (let i = 0; i < n; i++) { const a = i / n * TAU; let m = 1; if (Math.sin(a) < .3) m += .18 * Math.abs(Math.sin(a * bumps / 2 + r() * .05)); pts.push([Math.cos(a) * rx * m, Math.sin(a) * ry * m * (Math.sin(a) > 0 ? .55 : 1)]); }
+    return pts;
+  });
+}
+function starPts(R, r) { const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU, rr = i % 2 ? r : R; pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); } return pts; }
+function burstPts(R, r, n, seed) { const q = rng(seed), pts = []; for (let i = 0; i < n * 2; i++) { const a = i / (n * 2) * TAU, rr = (i % 2 ? r : R) * (1 + (q() - .5) * .25); pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); } return pts; }
+function pathOf(pts, smooth) {
+  const p = new Path2D(), n = pts.length;
+  if (!smooth) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < n; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); return p; }
+  const m = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], s0 = m(pts[n - 1], pts[0]);
+  p.moveTo(s0[0], s0[1]);
+  for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; p.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); }
+  p.closePath(); return p;
+}
+function linePath(pts) {
+  const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) p.quadraticCurveTo(pts[i][0], pts[i][1], (pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2);
+  const L = pts[pts.length - 1]; p.lineTo(L[0], L[1]); return p;
+}
+const offs = (pts, dx, dy) => pts.map(p => [p[0] + dx, p[1] + dy]);
+const ell = (x, y, rx, ry, rot = 0) => { const p = new Path2D(); p.ellipse(x, y, rx, ry, rot, 0, TAU); return p; };
+const rrect = (x, y, w, h, r) => { const p = new Path2D(); p.roundRect(x, y, w, h, r); return p; };
+
+// ---------- plate primitives (every plate draws coverage in black; ink is applied at the end) ----------
+const TILE = new Map();
+function tile(v) {
+  v = Math.round(clamp(v, 0, .95) * 20) / 20;
+  if (!TILE.has(v)) { const c = mkCanvas(CELL, CELL), q = c.getContext('2d'); q.fillStyle = '#000'; q.beginPath(); q.arc(CELL / 2, CELL / 2, CELL * Math.sqrt(v / Math.PI), 0, TAU); q.fill(); TILE.set(v, c); }
+  return TILE.get(v);
+}
+// halftone screen anchored to the page (world), not to the object: dots stay put while shapes move through them
+function tint(g, v, k) { const p = g.createPattern(tile(v), 'repeat'); p.setTransform(g.getTransform().inverse().multiply(WM).rotate(ANG[k])); return p; }
+const fillIn = (g, path, rule = 'nonzero') => { g.fillStyle = '#000'; g.fill(path, rule); };
+const knock = (g, path, rule = 'nonzero') => { g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.fill(path, rule); g.restore(); };
+const tintIn = (g, k, path, v, rule = 'nonzero') => { if (v < .03) return; g.fillStyle = tint(g, v, k); g.fill(path, rule); };
+const strokeIn = (g, path, lw) => { g.lineWidth = lw; g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = '#000'; g.stroke(path); };
+const knockStroke = (g, path, lw) => { g.save(); g.globalCompositeOperation = 'destination-out'; strokeIn(g, path, lw); g.restore(); };
+function each(f) { for (const k of KEYS) f(G[k], k); }
+function push(x, y, rot = 0, sx = 1, sy = 1) { each(g => { g.save(); g.translate(x, y); if (rot) g.rotate(rot); if (sx !== 1 || sy !== 1) g.scale(sx, sy); }); }
+function pop() { each(g => g.restore()); }
+// an opaque object printed in the given inks: knock it out of every other plate (no unwanted overprint)
+function obj(path, inks, rule) { each((g, k) => inks.includes(k) ? fillIn(g, path, rule) : knock(g, path, rule)); }
+// navy line = pink + blue overprint
+function navy(path, lw, knockY = true) { strokeIn(G.P, path, lw); strokeIn(G.B, path, lw); if (knockY) knockStroke(G.Y, path, lw); }
+// variable-density halftone field on the plate's rotated screen: fn(x,y) -> coverage 0..1
+function htField(g, k, x0, y0, x1, y1, fn, cell = CELL) {
+  const a = ANG[k] * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a);
+  const cs = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]];
+  const pi = cs.map(([x, y]) => (x * ux + y * uy) / cell), pj = cs.map(([x, y]) => (-x * uy + y * ux) / cell);
+  const i0 = Math.floor(Math.min(...pi)) - 1, i1 = Math.ceil(Math.max(...pi)) + 1, j0 = Math.floor(Math.min(...pj)) - 1, j1 = Math.ceil(Math.max(...pj)) + 1;
+  g.beginPath(); g.fillStyle = '#000';
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+    const u = (i + .5) * cell, v = (j + .5) * cell, x = u * ux - v * uy, y = u * uy + v * ux;
+    if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+    const val = fn(x, y); if (val < .02) continue;
+    const r = Math.min(cell * .72, cell * Math.sqrt(val / Math.PI)); g.moveTo(x + r, y); g.arc(x, y, r, 0, TAU);
+  }
+  g.fill();
+}
+function textIn(g, str, x, y, font, mode = 'fill', lw = 0) {
+  g.save(); g.font = font; g.direction = 'rtl'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#000'; g.strokeStyle = '#000';
+  if (mode === 'knock') g.globalCompositeOperation = 'destination-out';
+  if (lw) { g.lineWidth = lw; g.lineJoin = 'round'; g.strokeText(str, x, y); }
+  g.fillText(str, x, y); g.restore();
+}
+
+// ---------- paper + ink grain masks (made once) ----------
+function buildPaper() {
+  PAPER = mkCanvas(OUT_W, OUT_H); const g = PAPER.getContext('2d'), r = rng(5);
+  g.fillStyle = PAPER_C; g.fillRect(0, 0, OUT_W, OUT_H);
+  const id = g.getImageData(0, 0, OUT_W, OUT_H), d = id.data;
+  for (let k = 0; k < d.length; k += 4) { const n = (r() - .5) * 9; d[k] += n; d[k + 1] += n; d[k + 2] += n * 1.1; }
+  g.putImageData(id, 0, 0);
+  g.setTransform(S, 0, 0, S, 0, 0);
+  for (let i = 0; i < 900; i++) { g.strokeStyle = `rgba(${120 + r() * 40},${100 + r() * 30},70,${.05 + r() * .09})`; g.lineWidth = .6 + r(); const x = r() * W, y = r() * H, a = r() * TAU, l = 4 + r() * 16;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a + .5) * l * .5, y + Math.sin(a + .5) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); }
+  for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(70,55,40,${.1 + r() * .25})`; g.beginPath(); g.arc(r() * W, r() * H, .5 + r() * 1.3, 0, TAU); g.fill(); }
+  const vg = g.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .75); vg.addColorStop(0, 'rgba(120,90,50,0)'); vg.addColorStop(1, 'rgba(120,90,50,.10)');
+  g.fillStyle = vg; g.fillRect(0, 0, W, H);
+}
+// alpha = how much ink is REMOVED: blotchy density, drum streaks, fine grain and speckle dropout
+function buildMask(seed, strength) {
+  const w = OUT_W + MPAD, h = OUT_H + MPAD, c = mkCanvas(w, h), g = c.getContext('2d'), id = g.createImageData(w, h), d = id.data, r = rng(seed);
+  const lat = cell => { const gw = Math.ceil(w / cell) + 2, gh = Math.ceil(h / cell) + 2, a = new Float32Array(gw * gh); for (let k = 0; k < a.length; k++) a[k] = r(); return { cell, gw, a }; };
+  const smp = (L, x, y) => { const fx = x / L.cell, fy = y / L.cell, ix = fx | 0, iy = fy | 0, u = fx - ix, v = fy - iy, su = u * u * (3 - 2 * u), sv = v * v * (3 - 2 * v), a = L.a, gw = L.gw, o = iy * gw + ix;
+    return (a[o] * (1 - su) + a[o + 1] * su) * (1 - sv) + (a[o + gw] * (1 - su) + a[o + gw + 1] * su) * sv; };
+  const L1 = lat(190 * S), L2 = lat(46 * S), L3 = lat(Math.max(2, 3.2 * S));
+  const rows = new Float32Array(h), rl = lat(26 * S); for (let y = 0; y < h; y++) rows[y] = smp(rl, 3, y);
+  for (let y = 0; y < h; y++) {
+    const streak = Math.max(0, rows[y] - .62) * .55;
+    for (let x = 0; x < w; x++) {
+      const k = (y * w + x) * 4;
+      let rem = Math.max(0, smp(L1, x, y) * .65 + smp(L2, x, y) * .35 - .5) * 1.1 + streak;
+      rem += Math.max(0, smp(L3, x, y) - .55) * .9;
+      if (r() < .05) rem += .3 + r() * .7;
+      d[k + 3] = clamp(rem * strength) * 255;
+    }
+  }
+  g.putImageData(id, 0, 0); return c;
+}
+
+// ---------- static print layers (per plate, world coords) ----------
+function groundPath() {
+  const p = new Path2D(); p.moveTo(0, H);
+  for (let x = 0; x <= W; x += 18) p.lineTo(x, GY - 16 - 7 * Math.sin(x * .013 + 1) - (Math.floor(x / 18) % 2 ? 9 : 0));
+  p.lineTo(W, H); p.closePath(); return p;
+}
+const CLOUDS = [[205, 1040, 1.0, 830], [900, 1250, .8, 831], [150, 470, .7, 832], [930, 760, .55, 833]];
+const SPARKS = [[120, 300, 16], [980, 470, 22], [300, 820, 12], [720, 980, 14], [960, 1080, 10], [110, 1260, 13], [650, 1330, 11]];
+function sparkPath(x, y, s) { const p = new Path2D(); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU - Math.PI / 2, rr = i % 2 ? s * .28 : s; i ? p.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr) : p.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } p.closePath(); return p; }
+function buildStatic() {
+  WM = new DOMMatrix([S, 0, 0, S, 0, 0]);
+  const gp = groundPath();
+  const hills = new Path2D(); hills.moveTo(0, GY); hills.quadraticCurveTo(250, 1250, 600, GY); hills.closePath();
+  hills.moveTo(420, GY); hills.quadraticCurveTo(820, 1180, W, 1420); hills.lineTo(W, GY); hills.closePath();
+  STATIC.B = layer(g => {
+    htField(g, 'B', 0, 0, W, GY, (x, y) => .07 + .30 * Math.pow(clamp((y - 120) / (GY - 120)), 1.3));
+    CLOUDS.forEach(([x, y, s, sd]) => { g.save(); g.translate(x, y); g.scale(s, s); knock(g, pathOf(bumpy(150, 62, 6, sd), true)); g.restore(); });
+    SPARKS.forEach(([x, y, s]) => knock(g, sparkPath(x, y, s * 1.5)));
+    knock(g, gp); tintIn(g, 'B', gp, .34);
+    for (let i = 0; i < 4; i++) { const y0 = GY + 70 + i * 82 + i * i * 8, p = new Path2D(); p.moveTo(0, y0); for (let x = 0; x <= W; x += 30) p.lineTo(x, y0 + 8 * Math.sin(x * .01 + i * 2)); strokeIn(g, p, 7 + i * 2); }
+    const r = rng(77); for (let x = 70; x < W - 40; x += 70 + r() * 60) { const y = GY - 8 + r() * 6, h = 16 + r() * 10;   // little grass tufts
+      for (const dx of [-1, 0, 1]) { const p = new Path2D(); p.moveTo(x + dx * 5, y + 8); p.quadraticCurveTo(x + dx * 6, y - h * .5, x + dx * 14, y - h * (dx ? .8 : 1)); strokeIn(g, p, 4.5); } }
+  });
+  STATIC.P = layer(g => {
+    tintIn(g, 'P', hills, .26); knock(g, gp);
+    tintIn(g, 'P', ell(540, 600, 270, 270), .16);
+    const r = rng(90); for (let i = 0; i < 14; i++) { const x = 70 + r() * 940, y = GY + 60 + r() * 250; for (let p = 0; p < 5; p++) { const a = p / 5 * TAU; fillIn(g, ell(x + Math.cos(a) * 11, y + Math.sin(a) * 11, 9, 9)); } knock(g, ell(x, y, 6, 6)); }
+  });
+  STATIC.Y = layer(g => {
+    fillIn(g, gp);
+    SPARKS.forEach(([x, y, s]) => fillIn(g, sparkPath(x, y, s)));
+    CLOUDS.forEach(([x, y, s, sd]) => { g.save(); g.translate(x, y); g.scale(s, s); g.save(); g.clip(pathOf(bumpy(150, 62, 6, sd), true)); tintIn(g, 'Y', rrect(-200, 8, 400, 100, 0), .3); g.restore(); g.restore(); });
+  });
+}
+
+// ---------- the star ----------
+function starS(t) {
+  const st = starState(t);
+  if (t < .6) { const L = SLEN * lerp(.55, 1, eBack(prog(t, 0, .55))), a = starAng(t); return { ...st, visible: true, x: PIV[0] + L * Math.sin(a), y: PIV[1] + L * Math.cos(a) }; }
+  return st;
+}
+function drawStar(t) {
+  const st = starS(t), { x, y, ang: a, lit } = st;
+  strokeIn(G.B, linePath([PIV, [lerp(PIV[0], x, .5) + 5 * Math.sin(t * 2), lerp(PIV[1], y, .5)], [x - 90 * Math.sin(a), y - 90 * Math.cos(a)]]), 5);
+  if (lit > 0) {                                                  // pink overprint glow + rays
+    const R = 380 * lit, d = t - LEAP.t1;
+    htField(G.P, 'P', x - R, y - R, x + R, y + R, (px, py) => { const q = Math.hypot(px - x, py - y) / R; return q < 1 ? .62 * lit * Math.pow(1 - q, 1.2) : 0; });
+    push(x, y, t * .35);
+    for (let i = 0; i < 14; i++) { const ra = i / 14 * TAU, r0 = 150, r1 = r0 + (110 + 70 * (i % 2)) * lit * (1 + .15 * Math.sin(d * 9 + i)), w = .1;
+      const p = new Path2D(); p.moveTo(Math.cos(ra - w) * r0, Math.sin(ra - w) * r0); p.lineTo(Math.cos(ra) * r1, Math.sin(ra) * r1); p.lineTo(Math.cos(ra + w) * r0, Math.sin(ra + w) * r0); p.closePath();
+      if (i % 2) obj(p, ['Y']); else obj(p, ['Y', 'P']); }
+    pop();
+  }
+  const pulse = 1 + .04 * Math.sin(t * 5) + .16 * lit * Math.exp(-(t - LEAP.t1) * 3);
+  push(x, y, -a, pulse, pulse);
+  const sp = pathOf(starPts(STAR_R, STAR_R * .5), false);
+  obj(sp, ['Y']); strokeIn(G.Y, sp, 18);                           // round the points a touch
+  G.P.save(); G.P.clip(sp); tintIn(G.P, 'P', rrect(-130, 18, 260, 120, 0), lit > 0 ? .15 : .34); G.P.restore();
+  fillIn(G.P, ell(-32, 16, 13, 8)); fillIn(G.P, ell(32, 16, 13, 8));
+  const dk = p => { fillIn(G.P, p); fillIn(G.B, p); };
+  if (lit > 0) {
+    dk(ell(-20, -6, 8, 9)); dk(ell(20, -6, 8, 9)); each(g => knock(g, ell(-17, -9, 3, 3))); each(g => knock(g, ell(23, -9, 3, 3)));
+    const m = new Path2D(); m.moveTo(-14, 8); m.quadraticCurveTo(0, 34, 14, 8); m.closePath(); dk(m);
+  } else if (st.dodge) {
+    dk(ell(-12, -6, 6.5, 7)); dk(ell(26, -6, 6.5, 7)); navy(linePath([[-4, 16], [12, 11]]), 4, false);
+  } else {
+    navy(linePath([[-29, -4], [-20, 3], [-11, -4]]), 4.5, false); navy(linePath([[11, -4], [20, 3], [29, -4]]), 4.5, false); navy(linePath([[-8, 14], [0, 20], [8, 14]]), 4, false);
+  }
+  pop();
+}
+
+// ---------- the failure blocks ----------
+function drawBlock(i, t) {
+  const b = blockState(i, t); if (!b.visible) return;
+  if (i === 0) { const k = clamp(1 - (GY - b.bottom) / 900); if (k > 0) tintIn(G.B, 'B', ell(b.x, GY + 6, 150 * k, 20 * k), .6); }
+  push(b.x, b.bottom, b.rot, 1 + b.sq * .6, 1 - b.sq); push(0, -b.h / 2);
+  const body = rrect(-b.w / 2, -b.h / 2, b.w, b.h, 14);
+  obj(body, ['B']);
+  G.P.save(); G.P.clip(body); tintIn(G.P, 'P', rrect(b.w / 2 - 56, -b.h / 2, 60, b.h, 0), .5); tintIn(G.P, 'P', rrect(-b.w / 2, b.h / 2 - 30, b.w, 30, 0), .5); G.P.restore();
+  each(g => textIn(g, b.label, 0, -52, '800 76px Heebo', 'knock'));
+  const disc = ell(0, 50, 52, 52);
+  obj(disc, ['P']);
+  each(g => textIn(g, b.n, 0, 56, '900 78px Heebo', 'knock'));
+  pop(); pop();
+}
+
+// ---------- פיצי ----------
+function pitz(s, t) {
+  const { x, y, sx = 1, sy = 1, rot = 0, sc = 1, eyes = 'norm', mouth = 'smile', brow = null, look = [0, 0], armL = .35, armR = .35, band = 0, jig = 0, legs = 0 } = s;
+  if (sc <= .01) return;
+  push(x, y, rot, sx * sc, sy * sc);
+  // arms (navy lines behind the body) + pink hands
+  [[-1, armL], [1, armR]].forEach(([sd, a]) => {
+    const sh = [sd * 72, -118], hd = [sh[0] + sd * Math.sin(a) * 96, sh[1] + Math.cos(a) * 96], el = [lerp(sh[0], hd[0], .5) + sd * 8, lerp(sh[1], hd[1], .5) + 6];
+    navy(linePath([sh, el, hd]), 11);
+    const h = ell(hd[0], hd[1], 17, 16); obj(h, ['P']); strokeIn(G.B, h, 4);
+  });
+  // legs + blue feet
+  [[-1, 0], [1, 1]].forEach(([sd, n]) => {
+    const sw = legs ? Math.sin(legs + n * Math.PI) * 18 : 0, hip = [sd * 34, -34], ft = [sd * 42 + sw, -2 + Math.abs(sw) * .2];
+    navy(linePath([hip, [lerp(hip[0], ft[0], .5) + sd * 4, -18], ft]), 11);
+    obj(ell(ft[0] + sd * 8, ft[1] - 4, 27, 14), ['B']);
+  });
+  // body: solid pink, blue halftone shading crescent, one-plate blue outline
+  const bp = pathOf(offs(blob(102, 94, 7, 40, .07), 0, -128), true);
+  obj(bp, ['P']);
+  const cres = new Path2D(); cres.rect(-150, -260, 300, 280); cres.ellipse(-26, -150, 104, 96, 0, 0, TAU);
+  G.B.save(); G.B.clip(bp); tintIn(G.B, 'B', cres, .42, 'evenodd'); G.B.restore();
+  strokeIn(G.B, bp, 7);
+  if (band > 0) { push(-40, -210, -.45, eBack(band), eBack(band)); const bb = rrect(-46, -15, 92, 30, 12); obj(bb, ['Y']); tintIn(G.P, 'P', bb, .3); fillIn(G.P, rrect(-14, -11, 28, 22, 4)); strokeIn(G.B, bb, 3.5); pop(); }
+  // cheeks: yellow over pink = warm orange-red blush
+  fillIn(G.Y, ell(-66, -106, 18, 10)); fillIn(G.Y, ell(66, -106, 18, 10));
+  // eyes
+  const jx = Math.sin(t * 37) * jig * 7, jy = Math.cos(t * 29) * jig * 6;
+  [-1, 1].forEach(sd => {
+    const ex = sd * 38, ey = -152;
+    if (eyes === 'x') { navy(linePath([[ex - 14, ey - 14], [ex + 14, ey + 14]]), 7); navy(linePath([[ex + 14, ey - 14], [ex - 14, ey + 14]]), 7); return; }
+    if (eyes === 'happy') { navy(linePath([[ex - 18, ey + 6], [ex, ey - 12], [ex + 18, ey + 6]]), 7.5); return; }
+    const R = eyes === 'big' || eyes === 'spark' ? 34 : 30;
+    const ew = ell(ex, ey, R, R * 1.06); each(g => knock(g, ew)); strokeIn(G.B, ew, 4);
+    const pr = eyes === 'spark' ? 19 : eyes === 'big' ? 13 : 15;
+    const px = ex + clamp(look[0] * 11 + jx, -12, 12), py = ey + clamp(look[1] * 11 + jy, -12, 12);
+    const pp = ell(px, py, pr, pr); fillIn(G.P, pp); fillIn(G.B, pp);
+    each(g => knock(g, ell(px + 5, py - 6, eyes === 'spark' ? 6.5 : 4.5, eyes === 'spark' ? 6.5 : 4.5)));
+    if (eyes === 'spark') each(g => knock(g, ell(px - 6, py + 6, 3, 3)));
+  });
+  if (brow === 'det') { strokeIn(G.B, linePath([[-62, -198], [-18, -184]]), 8); strokeIn(G.B, linePath([[62, -198], [18, -184]]), 8); }
+  // mouth (blue over pink = navy; tongue = knocked blue, so the pink shows)
+  const my = -102;
+  if (mouth === 'smile') strokeIn(G.B, linePath([[-24, my - 4], [0, my + 12], [24, my - 4]]), 7);
+  else if (mouth === 'flat') strokeIn(G.B, linePath([[-18, my + 2], [18, my]]), 7);
+  else if (mouth === 'tiny') fillIn(G.B, ell(0, my + 2, 9, 11));
+  else if (mouth === 'ouch') strokeIn(G.B, linePath([[-26, my], [-13, my - 8], [0, my + 2], [13, my - 8], [26, my]]), 6.5);
+  else if (mouth === 'open' || mouth === 'wow') {
+    const w = mouth === 'wow' ? 30 : 16, h = mouth === 'wow' ? 28 : 20, m = new Path2D();
+    if (mouth === 'wow') { m.moveTo(-w, my - 6); m.quadraticCurveTo(0, my + h * 1.6, w, my - 6); m.closePath(); } else m.ellipse(0, my + 4, w, h, 0, 0, TAU);
+    fillIn(G.B, m); G.B.save(); G.B.clip(m); knock(G.B, ell(0, my + h, w * .8, h * .55)); G.B.restore();
+  }
+  pop();
+}
+function groundShadow(s) {
+  if (s.sc <= .01 || s.x > 640) return;
+  const hgt = GY - s.y, k = clamp(1 - hgt / 700) * s.sc; if (k <= 0) return;
+  tintIn(G.B, 'B', ell(s.x, GY + 4, 110 * k * s.sx, 18 * k), .62);
+}
+
+// ---------- fx ----------
+function dust(x, y, t, t0) {
+  const d = t - t0; if (d < 0 || d > .6) return; const k = d / .6;
+  for (let i = 0; i < 7; i++) { const sd = i % 2 ? 1 : -1, px = x + sd * (60 + i * 24) * eOut(k), py = y - 26 * Math.sin(k * Math.PI) - i * 4, r = (22 + i * 3) * (.6 + .6 * k);
+    tintIn(G.P, 'P', ell(px, py, r, r * .8), .6 * (1 - k)); }
+}
+function splatBurst(t) {
+  for (const te of SPLATS) {
+    const d = t - te; if (d < 0 || d > .42) continue; const k = d / .42, sc = eBack(clamp(d / .12)) * (1 - eIn(k) * .6);
+    each(g => { g.save(); g.beginPath(); g.rect(-100, -100, W + 200, GY - 18 + 100); g.clip(); });
+    push(HX, GY - 40, (te > 3 ? .3 : 0) + d * .8, sc, sc * .8);
+    obj(pathOf(burstPts(230, 150, 11, te > 3 ? 12 : 11), false), ['Y']);
+    for (let i = 0; i < 10; i++) { const a = i / 10 * TAU + .2, r0 = 250 + 60 * k, r1 = r0 + 70 * (1 - k); navy(linePath([[Math.cos(a) * r0, Math.sin(a) * r0], [Math.cos(a) * r1, Math.sin(a) * r1]]), 10 * (1 - k) + 2, false); }
+    pop(); pop();
+  }
+}
+function dizzyStars(s, t) {
+  if (s.dizzy <= 0) return;
+  const cx = s.x, cy = s.y - 250 * s.sy * s.sc;
+  for (let i = 0; i < 3; i++) { const a = t * 5 + i / 3 * TAU, sz = .32 * s.dizzy * (Math.sin(a) > 0 ? 1.1 : .85);
+    push(cx + Math.cos(a) * 115, cy + Math.sin(a) * 26, a, sz, sz); const p = pathOf(starPts(60, 30), false); obj(p, ['Y']); strokeIn(G.B, p, 8); pop(); }
+}
+function bang(s, t) {
+  if (t < IDEA.t0 || t > IDEA.t1) return;
+  const k = eBack(prog(t, IDEA.t0, IDEA.t0 + .2)), out = 1 - prog(t, IDEA.t1 - .15, IDEA.t1);
+  push(s.x + 40, s.y - 330 * s.sy, .12, k * out, k * out);
+  obj(pathOf(burstPts(96, 66, 9, 700), false), ['Y']);
+  textIn(G.P, '!', 0, 6, '900 130px Heebo'); textIn(G.B, '!', 0, 6, '900 130px Heebo');
+  pop();
+}
+const INKSETS = [['Y'], ['P'], ['B'], ['Y', 'P'], ['P', 'B'], ['Y', 'B']];
+const CONF = (() => { const r = rng(77), a = []; for (let i = 0; i < 64; i++) { const an = -Math.PI / 2 + (r() - .5) * 3.4, sp = 500 + r() * 900;
+  a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, spin: (r() - .5) * 14, w: 16 + r() * 18, h: 10 + r() * 12, inks: INKSETS[i % 6], shape: i % 3 }); } return a; })();
+function confetti(t) {
+  const d = t - LEAP.t1; if (d < 0 || d > 3) return;
+  const { x: x0, y: y0 } = starS(LEAP.t1);
+  for (const p of CONF) {
+    const px = x0 + p.vx * d * Math.exp(-d * .9), py = y0 + p.vy * d * Math.exp(-d * .9) + 700 * d * d; if (py > GY + 40) continue;
+    push(px, py, p.spin * d, 1, Math.cos(p.spin * d * 1.3));
+    const path = p.shape === 0 ? rrect(-p.w / 2, -p.h / 2, p.w, p.h, 2) : p.shape === 1 ? ell(0, 0, p.w * .42, p.w * .42) : pathOf([[0, -p.w * .55], [p.w * .5, p.w * .4], [-p.w * .5, p.w * .4]], false);
+    obj(path, p.inks); pop();
+  }
+}
+function title(t) {
+  if (t < TITLE.t0) return;
+  const F = '900 198px Heebo';
+  [['ממשיכים', 205, 0], ['לקום.', 418, 1]].forEach(([w, y, n]) => {
+    const t0 = TITLE.t0 + n * .22, k = prog(t, t0, t0 + .3); if (k <= 0) return;
+    const sc = eBack(k), settle = 1 - eOut(prog(t, t0, t0 + .6));
+    push(540, y, (n ? .02 : -.02) * (1 - k), sc, sc);
+    each(g => textIn(g, w, 0, 0, F, 'knock', 40));               // paper halo: nothing overprints the headline
+    textIn(G.P, w, 13 + settle * 48, 13 + settle * 30, F);       // pink shadow ink, slams into register
+    textIn(G.P, w, 0, 0, F, 'knock');
+    textIn(G.B, w, -settle * 20, -settle * 12, F);               // headline in blue
+    pop();
+  });
+}
+function marks(g, k) {
+  g.save(); g.lineWidth = 2; g.strokeStyle = '#000'; g.fillStyle = '#000';
+  for (const [x, y] of [[20, 960], [W - 20, 960], [W / 2, 20]]) { g.beginPath(); g.arc(x, y, 10, 0, TAU); g.moveTo(x - 17, y); g.lineTo(x + 17, y); g.moveTo(x, y - 17); g.lineTo(x, y + 17); g.stroke(); }
+  const sw = { Y: [0, 3, 5], P: [1, 3, 4], B: [2, 4, 5] }[k];
+  for (const j of sw) g.fillRect(W - MARGIN - 6 * 30 + j * 30, H - 28, 26, 14);
+  if (k === 'B') { g.font = '600 17px Heebo'; g.direction = 'rtl'; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText('פיצי והכוכב · ריזו 3 צבעים · 04', W - MARGIN - 6 * 30 - 18, H - 21); }
+  g.restore();
+}
+
+// ---------- registration: every plate lands a little off, and jumps on impacts ----------
+const REG = { Y: [-5, 6, -.0024], P: [0, 0, 0], B: [6, -4, .0017] }, DIRS = { Y: [-1, .7], P: [.5, -1], B: [1, .6] };
+function reg(k, tf) {
+  const JF = Math.floor(tf * 12), r = rng(JF * 13 + k.charCodeAt(0) * 7), b = REG[k], dv = DIRS[k];
+  const open = 1 - eOut(prog(tf, 0, .7)), dg = tf - LEAP.t1, hit = shake(tf) * .7 + (dg >= 0 ? 16 * Math.exp(-dg * 6) * Math.cos(dg * 30) : 0);
+  const m = open * 22 + hit;
+  return [b[0] + (r() - .5) * 4 + dv[0] * m, b[1] + (r() - .5) * 4 + dv[1] * m, b[2] + (r() - .5) * .0014 + open * .018 * dv[0]];
+}
+
+film({
+  setup() {
+    for (const k of KEYS) { PLATE[k] = mkCanvas(OUT_W, OUT_H); G[k] = PLATE[k].getContext('2d'); }
+    buildPaper(); buildStatic();
+    MASK.Y = buildMask(11, .85); MASK.P = buildMask(22, 1); MASK.B = buildMask(33, 1);
+  },
+  draw(c, tf) {
+    const t = Math.floor(tf * 12) / 12, JF = Math.floor(tf * 12);    // printed on twos
+    const z = zoom(t), sh = shake(t);
+    WM = new DOMMatrix([S, 0, 0, S, 0, 0]).translate(540 + sh * .6, 760 + sh).scale(z).translate(-540, -760);
+    each(g => { g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, OUT_W, OUT_H); g.setTransform(WM); });
+    each((g, k) => g.drawImage(STATIC[k], 0, 0, W, H));
+    drawStar(t);
+    drawBlock(0, t); drawBlock(1, t);
+    dust(TOWER.x, GY, t, BLOCKS[0].land); dust(TOWER.x, blockTop(0), t, BLOCKS[1].land);
+    SPLATS.forEach(te => dust(HX, GY, t, te));
+    splatBurst(t);
+    const s = pose(t);
+    groundShadow(s);
+    pitz(s, t);
+    dizzyStars(s, t);
+    bang(s, t);
+    confetti(t);
+    title(t);
+    // finish each plate: trim to the printable area, print marks, grain, then ink
+    const m = MARGIN * S;
+    each((g, k) => {
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, OUT_W, m); g.clearRect(0, OUT_H - m, OUT_W, m); g.clearRect(0, 0, m, OUT_H); g.clearRect(OUT_W - m, 0, m, OUT_H);
+      g.setTransform(S, 0, 0, S, 0, 0); marks(g, k); g.setTransform(1, 0, 0, 1, 0, 0);
+      const r = rng(JF * 31 + k.charCodeAt(0));
+      g.globalCompositeOperation = 'destination-out'; g.drawImage(MASK[k], -Math.floor(r() * MPAD), -Math.floor(r() * MPAD));
+      g.globalCompositeOperation = 'source-in'; g.fillStyle = INK[k]; g.fillRect(0, 0, OUT_W, OUT_H);
+      g.globalCompositeOperation = 'source-over';
+    });
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.drawImage(PAPER, 0, 0);
+    c.globalCompositeOperation = 'multiply';
+    for (const k of KEYS) { const [dx, dy, rt] = reg(k, tf); c.save(); c.translate(OUT_W / 2 + dx * S, OUT_H / 2 + dy * S); c.rotate(rt); c.drawImage(PLATE[k], -OUT_W / 2, -OUT_H / 2); c.restore(); }
+    c.globalCompositeOperation = 'source-over';
+  },
+  kit: { reverb: .22, musicGain: .6, sfxGain: .8, revSec: 1.8 },
+  voice: K => {
+    const { ac, at, osc, noise, mf } = K;
+    // dusty bus: music -> lowpass -> master/reverb (the "sampled off vinyl" top end)
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3400; lp.Q.value = .4;
+    K.music.disconnect(); K.music.connect(lp); lp.connect(K.master); lp.connect(K.rev);
+    lp.frequency.setValueAtTime(3400, at(7.1)); lp.frequency.exponentialRampToValueAtTime(650, at(8.0));
+    // wow + flutter shared by every key voice
+    const wow = ac.createOscillator(), wowG = ac.createGain(), flu = ac.createOscillator(), fluG = ac.createGain();
+    wow.frequency.value = .55; wowG.gain.value = 13; flu.frequency.value = 6.3; fluG.gain.value = 3.5;
+    wow.connect(wowG); flu.connect(fluG); wow.start(at(0)); flu.start(at(0)); wow.stop(at(8.6)); flu.stop(at(8.6));
+    const wob = o => { wowG.connect(o.detune); fluG.connect(o.detune); return o; };
+    const rhodes = (t, m, v = .06, d = 1.6, out = K.music) => {
+      const f = mf(m);
+      wob(osc('sine', f, t, d, out, v, .006));
+      wob(osc('sine', f * 2, t, d * .45, out, v * .2, .004));
+      wob(osc('triangle', f, t, d * .3, out, v * .22, .004, null, 1600));   // bark
+      wob(osc('sine', f * 7.1, t, .07, out, v * .1, .001));                  // tine ping
+    };
+    const chord = (t, notes, v = .05, roll = .018, d = 1.7, out) => notes.forEach((m, j) => rhodes(t + j * roll, m, v, d, out));
+    const kick = (t, v = .34) => { const o = osc('sine', 118, t, .32, K.music, v, .002); o.frequency.exponentialRampToValueAtTime(44, at(t + .2)); noise(t, .025, K.music, v * .18, 'lowpass', 1400); };
+    const snare = (t, v = .1) => { noise(t, .2, K.music, v, 'bandpass', 1900, .7); noise(t, .12, K.music, v * .8, 'lowpass', 900, .6); osc('triangle', 190, t, .08, K.music, v * .5, .002); };
+    const hat = (t, v = .022) => noise(t, .035, K.music, v, 'highpass', 6500);
+    const drums = (a, b) => {                                 // half-time boom-bap on a swung 8th grid
+      for (let k = Math.ceil(a / .25 - 1e-6); k * .25 < b - 1e-6; k++) {
+        const s = k % 8, tt = k * .25 + (k % 2 ? .045 : 0);
+        if (s === 0 || s === 3) kick(tt, s ? .24 : .34);
+        if (s === 6 && k % 16 === 14) kick(tt, .16);
+        if (s === 4) snare(tt, .11);
+        hat(tt, k % 2 ? .014 : .024);
+      }
+    };
+    const EXT = { C: [71, 74], F: [64, 67], G: [65, 69], Am: [67, 71] };
+    const pick = (t, f0, f1, v = .12, d = .16) => { const o = osc('triangle', f0, t, d, K.sfx, v, .002, d, 1300); o.frequency.exponentialRampToValueAtTime(f1, at(t + d * .8)); };
+    const scratch = (t, d = .34, v = .4) => {
+      const f = noise(t, d, K.sfx, v * .5, 'bandpass', 700, 3, .004);
+      [[0, 600], [.3, 2800], [.55, 650], [.8, 2100], [1, 900]].forEach(([u, fr]) => f.frequency.linearRampToValueAtTime(fr, at(t + d * u)));
+      const o = osc('sawtooth', 160, t, d, K.sfx, v * .22, .004, d, 1500);
+      [[.3, 420], [.55, 130], [.8, 330], [1, 150]].forEach(([u, fr]) => o.frequency.linearRampToValueAtTime(fr, at(t + d * u)));
+    };
+    const boom = (t, v = .6, f0 = 96) => { const o = osc('sine', f0, t, 1.0, K.sfx, v, .003); o.frequency.exponentialRampToValueAtTime(41, at(t + .4)); osc('triangle', f0 * 1.5, t, .12, K.sfx, v * .3, .002, .12, 700); noise(t, .04, K.sfx, v * .2, 'lowpass', 1800); };
+    return {
+      setup() {
+        // vinyl bed: steady hiss + rumble + sparse deterministic crackle (dry, never ducked)
+        const nb = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), nd = nb.getChannelData(0), r = rng(404); for (let k = 0; k < nd.length; k++) nd[k] = r() * 2 - 1;
+        [['bandpass', 4200, .5, .012], ['lowpass', 110, .7, .05]].forEach(([ty, f, q, v]) => { const s = ac.createBufferSource(); s.buffer = nb; s.loop = true; const bq = ac.createBiquadFilter(); bq.type = ty; bq.frequency.value = f; bq.Q.value = q;
+          const g = ac.createGain(); g.gain.setValueAtTime(0, at(0)); g.gain.linearRampToValueAtTime(v, at(.15)); g.gain.setValueAtTime(v, at(7.8)); g.gain.linearRampToValueAtTime(0, at(8.1)); s.connect(bq); bq.connect(g); g.connect(K.master); s.start(at(0)); s.stop(at(8.2)); });
+        const cr = rng(505); for (let k = 0; k < 150; k++) { const t = cr() * 7.95, big = cr() < .12; noise(t, .002 + cr() * .004, K.master, (big ? .09 : .02) + cr() * .03, 'highpass', 1200 + cr() * 3500, .7, .0004); }
+      },
+      groove(a, b, root, tri, name) {
+        drums(a, b);
+        const notes = [...tri, ...(EXT[name] || [])].map(m => m - 12 + (m < 62 ? 12 : 0));
+        for (let t = a; t < b - .3; t += 1.0) chord(t + .02, notes, t === a ? .045 : .03, .02, Math.min(1.8, b - t + .3));
+        K.bass(a, root - 12, .26, Math.min(1.2, b - a)); if (b - a > 1.1) K.bass(a + 1.0, root - 12, .18, .6);
+      },
+      motif(t) { [[0, 'E5'], [.3, 'G5'], [.5, 'C6'], [1.05, 'B5'], [1.3, 'G5'], [1.55, 'D6']].forEach(([d, n]) => rhodes(t + d, nm(n) - 12, .055, 1.1)); },
+      ending(t, root) {
+        drums(t, 8.0);
+        chord(t, [60, 64, 67, 71, 74], .06, .03, 2.2); K.bass(t, root - 12, .3, 1.8);
+        rhodes(t + 1.0, 79, .04, 1.4); rhodes(t + 1.25, 76, .035, 1.4);
+      },
+      cues: {
+        reveal: t => { boom(t, .35, 70); noise(t, .25, K.master, .12, 'highpass', 2500, .6, .002); const o = osc('sine', 60, t, .5, K.sfx, .12, .05, .5); o.frequency.exponentialRampToValueAtTime(130, at(t + .45)); },
+        star: t => { rhodes(t + .1, 84, .05, 1.2, K.sfx); rhodes(t + .32, 91, .035, 1.2, K.sfx); },
+        pop: t => pick(t, 420, 700, .13, .1),
+        jump: (t, n) => { pick(t, 260, n ? 700 : 560, .14, .22); pick(t + .06, 390, n ? 1000 : 820, .06, .18); },
+        fall: (t, n) => { const o = osc('sine', n ? 950 : 800, t, .26, K.sfx, .07, .02, .26); o.frequency.exponentialRampToValueAtTime(180, at(t + .25)); },
+        splat: t => { scratch(t, .34, .45); boom(t, .45, 80); noise(t, .2, K.sfx, .22, 'lowpass', 600, .8); },
+        dizzy: t => [0, .12, .24].forEach((d, j) => rhodes(t + d, 88 - j * 3, .035, .5, K.sfx)),
+        getup: t => pick(t, 300, 620, .1, .18),
+        drop: t => { const o = osc('sine', 1500, t, .25, K.sfx, .04, .02, .25); o.frequency.exponentialRampToValueAtTime(400, at(t + .25)); noise(t, .22, K.sfx, .03, 'bandpass', 2400, 2, .1); },
+        thud: (t, n) => boom(t, .72 + n * .1, 92),
+        idea: t => [0, 4, 7, 11, 14].forEach((d, j) => rhodes(t + j * .045, 76 + d, .05, 1.0, K.sfx)),
+        hop: (t, n) => pick(t, 330 + n * 90, 700 + n * 160, .13, .2),
+        land: t => { const o = osc('sine', 120, t, .14, K.sfx, .22); o.frequency.exponentialRampToValueAtTime(50, at(t + .12)); },
+        leap: t => { const f = noise(t, .45, K.sfx, .1, 'highpass', 400, .7, .35); f.frequency.exponentialRampToValueAtTime(6000, at(t + .45)); pick(t, 260, 1100, .1, .4); },
+        grab: t => { boom(t, .6, 100); chord(t, [72, 76, 79, 83, 86], .075, .012, 2.2, K.sfx); chord(t + .01, [84, 88, 91], .03, .012, 1.4, K.sfx);
+          [0, 4, 7, 11, 14, 19].forEach((d, j) => rhodes(t + .14 + j * .06, 84 + d, .03, .8, K.sfx)); for (let k = 0; k < 10; k++) noise(t + k * .05, .003, K.master, .06, 'highpass', 3000); },
+        title: t => { noise(t, .3, K.sfx, .05, 'bandpass', 1800, .8, .1); rhodes(t + .05, 67, .04, 1.2, K.sfx); },
+      },
+    };
+  },
+});
+</script>

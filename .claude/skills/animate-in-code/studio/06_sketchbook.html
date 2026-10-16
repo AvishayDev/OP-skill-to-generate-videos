@@ -1,0 +1,570 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>06 · מחברת סקיצות בעיפרון</title>
+<body>
+<script src="fonts-data.js"></script>
+<script src="story.js"></script>
+<script src="audio.js"></script>
+<script src="runtime.js"></script>
+<script>
+'use strict';
+// ============================================================
+// 06 · SKETCHBOOK PENCIL TEST
+// Cream sketchbook page with tooth, spiral binding, smudges, a coffee ring and margin notes.
+// Every drawing = graphite passes with pressure (width + alpha along the stroke) and overshoot,
+// over light-blue construction lines. Shading = hatching fields that follow the form.
+// All graphite goes into one offscreen layer that the paper tooth eats (destination-out)
+// before it is multiplied onto the page. Pencil-test boil on twos + onion-skin ghosts.
+// One accent: yellow pencil, for the star when it lights up.
+// Voice: solo felt piano, pencil scratches, eraser rub, page thumps, page-flip swishes.
+// ============================================================
+const P = {
+  paper: '#f3ecdc', desk: '#3b332d', gr: '#3a393f', grd: '#232226', blue: '#5a8fdc',
+  yel: '#f7c41a', yelD: '#e8940f', coffee: 'rgba(128,84,40,', wire: '#8e9096',
+};
+let BF = 0;               // boil frame (changes every 2 output frames)
+let G, GX;                // graphite layer
+let TOOTH, TOOTHP, L_PAPER, TITLE_CV = null, TITLE_M = null;
+
+// ---------- geometry helpers ----------
+function catmull(pts, closed, step) {
+  const n = pts.length, out = [];
+  if (n < 2) return pts.slice();
+  const Pt = i => closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))];
+  const segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const p0 = Pt(i - 1), p1 = Pt(i), p2 = Pt(i + 1), p3 = Pt(i + 2);
+    const m = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
+    for (let j = 0; j < m; j++) {
+      const u = j / m, u2 = u * u, u3 = u2 * u, o = [0, 0];
+      for (let k = 0; k < 2; k++) o[k] = .5 * (2 * p1[k] + (-p0[k] + p2[k]) * u + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * u2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * u3);
+      out.push(o);
+    }
+  }
+  out.push(closed ? out[0].slice() : pts[n - 1].slice());
+  return out;
+}
+function linear(pts, closed, step) {
+  const q = closed ? [...pts, pts[0]] : pts, out = [];
+  for (let i = 0; i < q.length - 1; i++) {
+    const a = q[i], b = q[i + 1], m = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+    for (let j = 0; j < m; j++) out.push([lerp(a[0], b[0], j / m), lerp(a[1], b[1], j / m)]);
+  }
+  out.push(q[q.length - 1].slice());
+  return out;
+}
+function pip(Pp, x, y) { let c = false; for (let i = 0, j = Pp.length - 1; i < Pp.length; j = i++) { const a = Pp[i], b = Pp[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; }
+const ell = (cx, cy, rx, ry, n = 24, a0 = 0, wob = 0, seed = 1) => { const r = rng(seed), o = []; for (let i = 0; i < n; i++) { const a = a0 + i / n * TAU, m = 1 + (r() - .5) * wob; o.push([cx + Math.cos(a) * rx * m, cy + Math.sin(a) * ry * m]); } return o; };
+function starPoly(R, cx = 0, cy = 0, rot = 0) { const o = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + rot + i / 10 * TAU, rr = i % 2 ? R * .5 : R; o.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); } return o; }
+
+// ---------- the pencil ----------
+// segs: a resampled polyline drawn as short pieces; pressure shapes width + alpha along it.
+function segs(g, s, w, a, col, ph, taper = true) {
+  const N = s.length; if (N < 2) return;
+  g.strokeStyle = col; g.lineCap = 'butt'; g.lineJoin = 'round';
+  for (let i = 0; i < N - 1; i += 2) {
+    const j = Math.min(i + 2, N - 1), u = (i + 1) / (N - 1);
+    let pr = taper ? Math.min(1, (u + .03) / .16, (1 - u + .03) / .24) : 1;
+    pr = Math.pow(clamp(pr), .6) * (.74 + .26 * Math.sin(u * 11 + ph));
+    g.lineWidth = w * (.4 + .6 * pr); g.globalAlpha = a * (.25 + .75 * pr);
+    g.beginPath(); g.moveTo(s[i][0], s[i][1]); g.lineTo(s[i + 1][0], s[i + 1][1]); if (j > i + 1) g.lineTo(s[j][0], s[j][1]); g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+// pencil(g, pts, opts): several thin passes, each re-jittered per boil frame, with overshoot.
+function pencil(g, pts, o = {}) {
+  const { w = 3, a = .85, col = P.grd, passes = 2, closed = false, smooth = true, seed = 1, amp = 1.5, over = 9, step = 5, boil = true, k = 1, taper = true } = o;
+  if (k <= 0 || !pts || pts.length < 2) return;
+  for (let p = 0; p < passes; p++) {
+    const r = rng(seed * 7919 + (boil ? BF * 104729 : 0) + p * 613);
+    const ja = amp * (p ? 1.7 : 1), ox = (r() - .5) * ja * 1.4, oy = (r() - .5) * ja * 1.4;
+    const q = pts.map(v => [v[0] + ox + (r() - .5) * ja, v[1] + oy + (r() - .5) * ja]);
+    let s = smooth ? catmull(q, closed, step) : linear(q, closed, step);
+    if (closed) {
+      const n = s.length - 1, st = Math.floor(r() * n), ext = Math.floor(n * (.05 + r() * .09)), arr = [];
+      for (let i = 0; i <= n + ext; i++) { const v = s[(st + i) % n]; arr.push(i > n ? [v[0] + (r() - .5) * 3 * ja, v[1] + (r() - .5) * 3 * ja] : v); }
+      s = arr;
+    } else if (over > 0 && s.length > 2) {
+      const e = (A, B) => { const dx = A[0] - B[0], dy = A[1] - B[1], L = Math.hypot(dx, dy) || 1; return [dx / L, dy / L]; };
+      const e0 = e(s[0], s[1]), e1 = e(s[s.length - 1], s[s.length - 2]), o0 = over * (.2 + r() * .9), o1 = over * (.3 + r() * 1.1);
+      s.unshift([s[0][0] + e0[0] * o0, s[0][1] + e0[1] * o0]); s.push([s[s.length - 1][0] + e1[0] * o1, s[s.length - 1][1] + e1[1] * o1]);
+    }
+    if (k < 1) s = s.slice(0, Math.max(2, Math.ceil(s.length * k)));
+    const wf = [1, .6, .45][p] || .4, af = [1, .5, .32][p] || .3, hard = a >= 1 && p === 0;
+    if (hard) segs(g, s, w * .55, 1, col, r() * 10, taper);   // pressed core of the final pass
+    segs(g, s, w * wf, a * af, col, r() * 10, taper);
+  }
+}
+const blue = (g, pts, o = {}) => pencil(g, pts, { col: P.blue, w: 2.2, a: .5, passes: 1, amp: 2.2, over: 22, ...o });
+// hatch: parallel strokes across a field f(x,y) in local space, kept where f > th; map() -> world.
+function hatch(g, o) {
+  const { box, ang, gap = 8, f, th = 0, map = p => p, w = 2, a = .55, col = P.gr, seed = 1, maxL = 90, boil = true } = o;
+  const [x0, y0, x1, y1] = box, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = Math.hypot(x1 - x0, y1 - y0) / 2;
+  const ca = Math.cos(ang), sa = Math.sin(ang), r = rng(seed * 31 + (boil ? BF * 977 : 0));
+  const inB = (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  const run = [];
+  const flush = () => { if (run.length > 2) segs(g, run.map(map), w, a * (.75 + r() * .25), col, r() * 10); run.length = 0; };
+  for (let d = -R; d <= R; d += gap) {
+    const dd = d + (r() - .5) * gap * .45, thl = th + (r() - .5) * .1, lim = maxL * (.6 + r() * .8);
+    let len = 0;
+    for (let s = -R; s <= R + .1; s += 5) {
+      const x = cx + ca * s - sa * dd, y = cy + sa * s + ca * dd;
+      if (inB(x, y) && f(x, y) > thl) { run.push([x + (r() - .5) * 1.1, y + (r() - .5) * 1.1]); len += 5; if (len > lim) { flush(); len = 0; s += 3; } }
+      else { flush(); len = 0; }
+    }
+    flush();
+  }
+}
+function erase(g, pts, a = .93) { g.save(); g.globalCompositeOperation = 'destination-out'; g.globalAlpha = a; g.fillStyle = '#000'; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.fill(); g.restore(); }
+function eraseDot(g, x, y, r) { g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.restore(); }
+function penText(g, str, x, y, size, font, o = {}) {       // text as graphite: dark pass + offset second pass (boils)
+  const { a = .9, col = P.grd, seed = 1, align = 'center', bold = false } = o, r = rng(seed * 13 + BF * 71);
+  g.save(); const fp = font.split(' '); g.font = fp.length > 1 ? `${fp[0]} ${size}px ${fp.slice(1).join(' ')}` : `${size}px ${font}`; g.direction = 'rtl'; g.textAlign = align; g.textBaseline = 'middle'; g.fillStyle = col;
+  g.globalAlpha = a; g.fillText(str, x + (r() - .5) * 1.4, y + (r() - .5) * 1.4);
+  g.globalAlpha = a * .4; g.fillText(str, x + 1.2 + (r() - .5) * 2, y - .8 + (r() - .5) * 2);
+  if (bold) { g.globalAlpha = a; g.fillText(str, x - 1.3, y + 1); g.strokeStyle = col; g.lineWidth = 2.2; g.globalAlpha = a * .8; g.strokeText(str, x, y); }
+  g.restore();
+}
+
+// ---------- paper ----------
+function makeTooth() {
+  const n = 512, c = mkCanvas(n, n), g = c.getContext('2d'), im = g.createImageData(n, n), r = rng(606);
+  const lf = new Float32Array(n * n);                         // low-frequency fibre field (tileable-ish blur of noise)
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) lf[y * n + x] = .5 + .25 * Math.sin(x * .09 + Math.sin(y * .05) * 2) * Math.sin(y * .11 + x * .013);
+  for (let i = 0; i < n * n; i++) {
+    const v = r(), pit = r() < .035 ? .85 : 0;
+    const a = Math.max(pit * .8, .05 + .6 * Math.pow(v, 2.2) * (.6 + .8 * lf[i]));
+    im.data[i * 4 + 3] = Math.min(255, a * 255);
+  }
+  g.putImageData(im, 0, 0);
+  g.globalAlpha = .5; g.strokeStyle = '#000'; g.lineWidth = 1;          // fibres
+  for (let i = 0; i < 90; i++) { const x = r() * n, y = r() * n, an = r() * TAU, l = 5 + r() * 16; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(an) * l * .5 + 2, y + Math.sin(an) * l * .5, x + Math.cos(an) * l, y + Math.sin(an) * l); g.stroke(); }
+  return c;
+}
+function buildPaper() {
+  const PAD = 40;
+  L_PAPER = layer(g0 => {
+    g0.translate(PAD, PAD);
+    const g = g0;
+    g.fillStyle = P.desk; g.fillRect(-PAD, -PAD, W + PAD * 2, H + PAD * 2);
+    // page
+    const PX = 16;
+    g.save(); g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 18 * S; g.shadowOffsetX = -4 * S;
+    g.fillStyle = P.paper; g.fillRect(PX, -PAD, W + PAD - PX, H + PAD * 2); g.restore();
+    const vg = g.createRadialGradient(560, 900, 300, 560, 900, 1300); vg.addColorStop(0, 'rgba(255,252,240,.35)'); vg.addColorStop(1, 'rgba(150,120,80,.16)');
+    g.fillStyle = vg; g.fillRect(PX, -PAD, W + PAD - PX, H + PAD * 2);
+    // graphite smudges (the side of a hand dragging across the page)
+    const smudge = (x, y, rx, ry, rot, a) => { g.save(); g.translate(x, y); g.rotate(rot); g.scale(1, ry / rx); const gr = g.createRadialGradient(0, 0, 0, 0, 0, rx); gr.addColorStop(0, `rgba(70,68,74,${a})`); gr.addColorStop(1, 'rgba(70,68,74,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, rx, 0, TAU); g.fill(); g.restore(); };
+    smudge(760, 1480, 170, 50, -.2, .07); smudge(250, 1660, 140, 38, .1, .06); smudge(900, 900, 90, 40, .6, .045); smudge(170, 420, 110, 30, -.4, .04);
+    // coffee ring
+    const cr = rng(51); g.lineCap = 'round';
+    for (let k = 0; k < 2; k++) { const cx = 962 + k * 16, cy = 118 + k * 10, R = 88 - k * 4;
+      for (let i = 0; i < 60; i++) { const a0 = i / 60 * TAU, a1 = a0 + TAU / 60 + .02; if (k && (i > 20 && i < 44)) continue;
+        g.strokeStyle = P.coffee + (k ? .12 : .22) * (.5 + cr()) + ')'; g.lineWidth = 3 + cr() * 4; g.beginPath(); g.arc(cx, cy, R + (cr() - .5) * 2, a0, a1); g.stroke(); } }
+    g.fillStyle = P.coffee + '.05)'; g.beginPath(); g.arc(962, 118, 84, 0, TAU); g.fill();
+    // eraser ghosts: an earlier star and an earlier body, rubbed out
+    const ghost = mkCanvas(g.canvas.width, g.canvas.height), gg = ghost.getContext('2d'); gg.setTransform(S, 0, 0, S, PAD * S, PAD * S);
+    const bfk = BF; BF = 0;
+    pencil(gg, starPoly(80, 250, 760, .2), { closed: true, smooth: false, w: 3, a: .8, seed: 901, passes: 2 });
+    pencil(gg, ell(820, 880, 100, 92, 20, 0, .05, 902), { closed: true, w: 3, a: .8, seed: 903, passes: 2 });
+    pencil(gg, [[780, 870], [792, 868]], { w: 3, seed: 904 }); pencil(gg, [[844, 870], [856, 868]], { w: 3, seed: 905 });
+    BF = bfk;
+    g.globalAlpha = .16; g.drawImage(ghost, -PAD, -PAD, W + PAD * 2, H + PAD * 2); g.globalAlpha = 1;
+    const rub = (x, y, l, h, rot) => { g.save(); g.translate(x, y); g.rotate(rot); const rr = rng(x + y); for (let i = 0; i < 7; i++) { const yy = -h / 2 + i / 6 * h + (rr() - .5) * 6, ll = l * (.6 + rr() * .4); g.fillStyle = `rgba(253,250,242,${.18 + rr() * .2})`; g.beginPath(); g.roundRect(-ll / 2 + (rr() - .5) * 30, yy - 7, ll, 14, 7); g.fill(); } g.restore(); };
+    rub(250, 740, 210, 60, -.3); rub(260, 790, 180, 50, -.25); rub(820, 860, 240, 70, .15); rub(810, 920, 200, 60, .12);
+    // punched holes + spiral wire
+    for (let y = 36; y < H; y += 68) {
+      g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.ellipse(58, y + 2, 11, 14, 0, 0, TAU); g.fill();
+      g.fillStyle = P.desk; g.beginPath(); g.ellipse(56, y, 10, 13, 0, 0, TAU); g.fill();
+      g.lineCap = 'round';
+      g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 9; g.beginPath(); g.moveTo(58, y + 4); g.bezierCurveTo(40, y - 30, -2, y - 22, -6, y + 20); g.stroke();
+      g.strokeStyle = P.wire; g.lineWidth = 7; g.beginPath(); g.moveTo(56, y); g.bezierCurveTo(38, y - 34, -4, y - 26, -8, y + 16); g.stroke();
+      g.strokeStyle = 'rgba(235,237,240,.85)'; g.lineWidth = 2; g.beginPath(); g.moveTo(50, y - 12); g.bezierCurveTo(36, y - 28, 12, y - 28, 2, y - 12); g.stroke();
+    }
+    // static graphite for the background drawing (no boil: a pencil test's BG is one drawing)
+    const bg = mkCanvas(g.canvas.width, g.canvas.height), q = bg.getContext('2d'); q.setTransform(S, 0, 0, S, PAD * S, PAD * S);
+    drawBG(q);
+    q.setTransform(S, 0, 0, S, 0, 0); q.globalCompositeOperation = 'destination-out'; q.fillStyle = q.createPattern(TOOTH, 'repeat'); q.fillRect(0, 0, bg.width / S, bg.height / S);
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'multiply'; g.drawImage(bg, 0, 0); g.restore();
+    // paper grain: per-pixel luminance noise
+    const cv2 = g.canvas, cx2 = cv2.getContext('2d'), im = cx2.getImageData(0, 0, cv2.width, cv2.height), d = im.data, r = rng(77);
+    for (let i = 0; i < d.length; i += 4) { const v = (r() - .5) * 14 + (r() < .01 ? -18 : 0); d[i] += v; d[i + 1] += v; d[i + 2] += v * .9; }
+    cx2.putImageData(im, 0, 0);
+  }, W + PAD * 2, H + PAD * 2);
+}
+function drawBG(g) {
+  BF = 0;
+  // ground line: two passes, a gap, grass tufts, pebbles, a band of hatching under it
+  pencil(g, [[92, GY + 2], [300, GY - 1], [560, GY + 3], [780, GY], [1050, GY + 2]], { w: 3.4, a: .9, seed: 11, passes: 3, over: 20, step: 6 });
+  hatch(g, { box: [70, GY + 6, 1070, GY + 90], ang: -.08, gap: 7, f: (x, y) => 1 - (y - GY) / 90 + (Math.sin(x * .02) * .15), th: .35, w: 1.6, a: .38, seed: 12, maxL: 120 });
+  hatch(g, { box: [70, GY + 6, 1070, GY + 60], ang: .9, gap: 11, f: (x, y) => 1 - (y - GY) / 50, th: .5, w: 1.3, a: .3, seed: 13, maxL: 40 });
+  const r = rng(14);
+  [[150, 0], [520, 1], [640, 2], [990, 3], [260, 4]].forEach(([x, n]) => { for (let i = 0; i < 4; i++) { const bx = x + i * 9, h = 18 + r() * 22; pencil(g, [[bx, GY + 1], [bx + 3 + r() * 5, GY - h * .6], [bx + 6 + r() * 8, GY - h]], { w: 2, a: .75, seed: 20 + n * 5 + i, passes: 1, over: 2 }); } });
+  [[450, GY + 40, 14, 8], [880, GY + 30, 10, 6], [205, GY + 55, 8, 5]].forEach(([x, y, rx, ry], i) => pencil(g, ell(x, y, rx, ry, 10, 0, .15, 40 + i), { closed: true, w: 2, a: .7, seed: 45 + i, passes: 1 }));
+  // blue planning marks: the star's swing arc and the leap arc
+  const arc = []; for (let a = -.36; a <= .36; a += .06) arc.push([PIV[0] + SLEN * Math.sin(a), PIV[1] + SLEN * Math.cos(a) + 24]);
+  blue(g, arc, { seed: 50, a: .4 });
+  for (let i = 0; i < 5; i++) { const a = -.3 + i * .15, x = PIV[0] + SLEN * Math.sin(a), y = PIV[1] + SLEN * Math.cos(a) + 24; blue(g, [[x, y - 10], [x, y + 10]], { seed: 51 + i, over: 3, a: .45 }); }
+  const lp = []; for (let k = 0; k <= 1.001; k += .1) { const st = starState(LEAP.t1), to = [st.x, st.y + GRAB_OFF], fr = HOPS[1].to; lp.push([lerp(fr[0], to[0], eIO(k)), lerp(fr[1], to[1], eOut(k)) - 140 * Math.sin(k * Math.PI) - 120]); }
+  for (let i = 0; i < lp.length - 1; i += 2) blue(g, [lp[i], lp[i + 1]], { seed: 60 + i, over: 2, a: .35 });
+  // margin notes + a timing chart + the drawing-number box
+  penText(g, 'פיצי · מבחן עיפרון', 650, 1735, 50, 'OHRonShemer', { a: .72, seed: 70 });
+  penText(g, 'כל נפילה = מדרגה', 650, 1800, 30, '500 Heebo', { a: .55, seed: 71 });
+  pencil(g, [[470, 1830], [640, 1836], [830, 1828]], { w: 2, a: .45, seed: 72, passes: 1 });
+  pencil(g, [[170, 1680], [170, 1870]], { w: 2.4, a: .7, seed: 73, passes: 2, over: 6 });
+  for (let i = 0; i < 9; i++) { const y = 1690 + i * 22 + i * i * .6, l = i % 4 === 0 ? 34 : 20; pencil(g, [[170, y], [170 + l, y]], { w: 1.8, a: .6, seed: 80 + i, passes: 1, over: 2 }); }
+  g.save(); g.font = '600 24px Heebo'; g.fillStyle = P.gr; g.globalAlpha = .6; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('1', 222, 1690); g.fillText('12', 226, 1868); g.restore();
+  blue(g, [[196, 1700], [236, 1760], [214, 1850]], { seed: 95, over: 4, a: .4 });
+  pencil(g, [[918, 1814], [1044, 1812], [1046, 1882], [916, 1884]], { closed: true, smooth: false, w: 2.4, a: .7, seed: 96, passes: 2 });
+  penText(g, 'תמונה', 981, 1786, 30, 'OHRonShemer', { a: .55, seed: 97 });
+  // scene-number corner mark
+  pencil(g, [[80, 90], [250, 88]], { w: 2, a: .6, seed: 98, passes: 1 }); penText(g, 'סצנה', 195, 60, 34, 'OHRonShemer', { a: .6, seed: 99 });
+  g.save(); g.font = '700 34px Heebo'; g.fillStyle = P.gr; g.globalAlpha = .65; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('1', 116, 60); g.restore();
+}
+function toothPass(g) { g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = TOOTHP; g.fillRect(-200, -200, W + 400, H + 400); g.restore(); }
+
+// ---------- פיצי in pencil ----------
+function makeT(s) {
+  const { x, y, sx = 1, sy = 1, rot = 0, sc = 1 } = s, cs = Math.cos(rot), sn = Math.sin(rot), kx = sx * sc, ky = sy * sc;
+  const T = p => [x + p[0] * kx * cs - p[1] * ky * sn, y + p[0] * kx * sn + p[1] * ky * cs];
+  T.apply = g => { g.translate(x, y); g.rotate(rot); g.scale(kx, ky); };
+  return T;
+}
+const TT = (T, pts) => pts.map(T);
+function bodyPts(n = 26) { const o = []; for (let i = 0; i < n; i++) { const a = i / n * TAU, m = 1 + .04 * Math.sin(a * 3 + 1) + .025 * Math.sin(a * 5); o.push([Math.cos(a) * 102 * m, -128 + Math.sin(a) * 94 * m]); } return o; }
+const BODY_PTS = bodyPts();
+function construction(g, s, T, k = 1) {
+  if (k <= 0) return;
+  const lx = s.look[0] * 26, ly = s.look[1] * 8;
+  blue(g, TT(T, ell(-3, -126, 108, 99, 22, .4)), { closed: true, seed: 101, k });
+  blue(g, TT(T, [[lx * .5, -226], [lx * 1.25, -128], [lx * .5, -30]]), { seed: 102, k });
+  blue(g, TT(T, [[-104, -150 + ly], [0, -136 + ly * 1.6], [104, -150 + ly]]), { seed: 103, k });
+  // line of action
+  const j = (s.jig || 0) * 18 + (s.phase === 'rise' || s.phase === 'leap' || s.phase === 'hop' ? -30 : 0);
+  blue(g, TT(T, [[-6, 30], [j, -110], [8 - j * .3, -268]]), { seed: 104, k, a: .42 });
+}
+function pitz(g, s, t, o = {}) {
+  const { ghost = false, intro = null } = o;
+  const T = makeT(s), sc = s.sc ?? 1;
+  const W0 = Math.max(.35, sc);
+  const kCon = intro ? intro.con : 1, kOut = intro ? intro.out : 1, kFace = intro ? intro.face : 1, kLimb = intro ? intro.limb : 1;
+  if (ghost) {   // onion skin: the previous drawing, rubbed out but still showing
+    pencil(g, TT(T, BODY_PTS), { closed: true, w: 2.4, a: .16, passes: 1, seed: 7, boil: false });
+    return;
+  }
+  // knock out what is behind the body so it reads as a solid drawing on top
+  if (kOut > .5) erase(g, TT(T, ell(0, -128, 100, 92, 22)), .9);
+  construction(g, s, T, kCon);
+  const { eyes = 'norm', mouth = 'smile', brow = null, look = [0, 0], armL = .35, armR = .35, band = 0, jig = 0, legs = 0 } = s;
+  // arms
+  [[-1, armL], [1, armR]].forEach(([sd, a], n) => {
+    const sh = [sd * 70, -120], hd = [sh[0] + sd * Math.sin(a) * 96, sh[1] + Math.cos(a) * 96], el = [lerp(sh[0], hd[0], .5) + sd * 10, lerp(sh[1], hd[1], .5) + 6];
+    pencil(g, TT(T, [sh, el, hd]), { w: 6 * W0, a: 1, seed: 120 + n, passes: 2, k: kLimb, over: 4 });
+    if (kLimb >= 1) { blue(g, TT(T, ell(hd[0] + 3, hd[1] - 2, 19, 19, 10)), { closed: true, seed: 124 + n, a: .35 });
+      pencil(g, TT(T, ell(hd[0], hd[1], 15, 14, 12, a)), { closed: true, w: 5.4 * W0, a: 1, seed: 126 + n, passes: 2 }); }
+  });
+  // legs + feet
+  [[-1, 0], [1, 1]].forEach(([sd, n]) => {
+    const sw = legs ? Math.sin(legs + n * Math.PI) * 18 : 0, hip = [sd * 34, -40], ft = [sd * 42 + sw, -4 + Math.abs(sw) * .2];
+    pencil(g, TT(T, [hip, [lerp(hip[0], ft[0], .5) + sd * 4, -20], ft]), { w: 6 * W0, a: 1, seed: 130 + n, passes: 2, k: kLimb, over: 3 });
+    if (kLimb >= 1) pencil(g, TT(T, ell(ft[0] + sd * 8, ft[1], 25, 12, 12)), { closed: true, w: 5.4 * W0, a: 1, seed: 134 + n, passes: 2 });
+  });
+  // body contour: three passes, drawn in the intro
+  pencil(g, TT(T, BODY_PTS), { closed: true, w: 9 * W0, a: 1, seed: 140, passes: 3, k: kOut, amp: 1.8 });
+
+  // form shading: hatching on the side away from the light, cross-hatching in the core shadow
+  const f = (x, y) => { const nx = x / 102, ny = (y + 128) / 94, r2 = nx * nx + ny * ny; if (r2 > .9) return -1;
+    if (Math.hypot(x + 38, y + 152) < 46 || Math.hypot(x - 38, y + 152) < 46 || (Math.abs(x) < 42 && Math.abs(y + 100) < 30)) return -1;
+    return nx * .55 + ny * .8 + r2 * .35; };
+  if (kFace > .5) {
+    hatch(g, { box: [-104, -224, 104, -32], ang: -1.0, gap: 8, f, th: .45, map: T, w: 2.8 * W0, a: .72, seed: 150 });
+    hatch(g, { box: [-104, -224, 104, -32], ang: .5, gap: 9, f, th: .92, map: T, w: 2.4 * W0, a: .62, seed: 151 });
+  }
+  if (kFace <= 0) return;
+  // blush: quick diagonal strokes
+  for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) { const bx = sd * 66 - 12 + i * 10, by = -106; pencil(g, TT(T, [[bx - 4, by + 9], [bx + 4, by - 9]]), { w: 3 * W0, a: .7, seed: 160 + i + (sd > 0 ? 5 : 0), passes: 1, over: 2 }); }
+  // band-aid
+  if (band > 0) {
+    const bs = eBack(clamp(band)), cs = Math.cos(-.45), sn = Math.sin(-.45), bp = (px, py) => [-38 + (px * cs - py * sn) * bs, -214 + (px * sn + py * cs) * bs];
+    const rect = [bp(-46, -15), bp(46, -15), bp(46, 15), bp(-46, 15)];
+    erase(g, TT(T, rect), .95);
+    pencil(g, TT(T, rect), { closed: true, smooth: false, w: 2.4, a: .85, seed: 170, passes: 2 });
+    pencil(g, TT(T, [bp(-15, -15), bp(-15, 15)]), { w: 2, a: .7, seed: 171, passes: 1, over: 2 }); pencil(g, TT(T, [bp(15, -15), bp(15, 15)]), { w: 2, a: .7, seed: 172, passes: 1, over: 2 });
+    for (let i = 0; i < 4; i++) { const [dx, dy] = bp(-7 + (i % 2) * 14, -6 + (i >> 1) * 12), w0 = T([dx, dy]); g.fillStyle = P.gr; g.globalAlpha = .7; g.beginPath(); g.arc(w0[0], w0[1], 2.2, 0, TAU); g.fill(); g.globalAlpha = 1; }
+  }
+  // eyes
+  const jx = Math.sin(t * 37) * jig * 7, jy = Math.cos(t * 29) * jig * 6;
+  [-1, 1].forEach((sd, n) => {
+    const ex = sd * 38, ey = -152;
+    if (eyes === 'x') { pencil(g, TT(T, [[ex - 15, ey - 15], [ex + 15, ey + 15]]), { w: 6, a: .95, seed: 180 + n, over: 4 }); pencil(g, TT(T, [[ex + 15, ey - 15], [ex - 15, ey + 15]]), { w: 6, a: .95, seed: 182 + n, over: 4 }); return; }
+    if (eyes === 'happy') { pencil(g, TT(T, [[ex - 19, ey + 7], [ex, ey - 13], [ex + 19, ey + 7]]), { w: 6.5, a: .95, seed: 184 + n, over: 3 }); return; }
+    const R = eyes === 'big' || eyes === 'spark' ? 33 : 29;
+    pencil(g, TT(T, ell(ex, ey, R, R * 1.07, 16, 1)), { closed: true, w: 6 * W0, a: 1, seed: 186 + n, passes: 2, amp: 1 });
+    const pr = eyes === 'spark' ? 18 : eyes === 'big' ? 12.5 : 14.5;
+    const px = ex + clamp(look[0] * 11 + jx, -12, 12), py = ey + clamp(look[1] * 11 + jy, -12, 12);
+    g.save(); T.apply(g); const r = rng(190 + n + BF * 7);
+    g.fillStyle = P.grd; g.globalAlpha = .93; g.beginPath(); g.ellipse(px + (r() - .5) * 1.2, py, pr, pr * 1.05, 0, 0, TAU); g.fill();
+    g.globalAlpha = .5; g.beginPath(); g.ellipse(px + .8, py - .6, pr + 1.2, pr + .6, 0, 0, TAU); g.fill();
+    g.globalAlpha = 1; g.globalCompositeOperation = 'destination-out';
+    g.beginPath(); g.arc(px + 5, py - 6, eyes === 'spark' ? 6.5 : 4.6, 0, TAU); g.fill();
+    if (eyes === 'spark') { g.beginPath(); g.arc(px - 6, py + 6, 3.2, 0, TAU); g.fill(); }
+    g.restore();
+  });
+  if (brow === 'det') { pencil(g, TT(T, [[-64, -198], [-18, -183]]), { w: 6, a: .95, seed: 200, over: 5 }); pencil(g, TT(T, [[64, -198], [18, -183]]), { w: 6, a: .95, seed: 201, over: 5 }); }
+  // mouth
+  const my = -102;
+  if (mouth === 'smile') pencil(g, TT(T, [[-24, my - 4], [0, my + 12], [24, my - 4]]), { w: 5.6, a: .95, seed: 210, over: 4 });
+  else if (mouth === 'flat') pencil(g, TT(T, [[-18, my + 2], [18, my]]), { w: 5.6, a: .95, seed: 211, over: 4 });
+  else if (mouth === 'tiny') pencil(g, TT(T, ell(0, my + 2, 8, 10, 10)), { closed: true, w: 3.4, a: .9, seed: 212 });
+  else if (mouth === 'ouch') pencil(g, TT(T, [[-26, my], [-13, my - 8], [0, my + 2], [13, my - 8], [26, my]]), { w: 5, a: .95, seed: 213, over: 3, smooth: false });
+  else if (mouth === 'open' || mouth === 'wow') {
+    const w = mouth === 'wow' ? 30 : 16, h = mouth === 'wow' ? 28 : 20;
+    g.save(); T.apply(g); g.fillStyle = P.grd; g.globalAlpha = .88; g.beginPath();
+    if (mouth === 'wow') { g.moveTo(-w, my - 6); g.quadraticCurveTo(0, my + h * 1.6, w, my - 6); g.closePath(); } else g.ellipse(0, my + 4, w, h, 0, 0, TAU);
+    g.fill(); g.clip(); g.globalAlpha = .6; g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.ellipse(0, my + h, w * .8, h * .55, 0, 0, TAU); g.fill(); g.restore();
+    const mp = mouth === 'wow' ? [[-w, my - 6], [0, my + h * .82], [w, my - 6]] : ell(0, my + 4, w, h, 12);
+    pencil(g, TT(T, mp), { closed: mouth !== 'wow', w: 4, a: .92, seed: 214, over: 3 });
+  }
+}
+function groundShadow(g, s) {
+  let surf = GY;
+  const onTower = Math.abs(s.x - TOWER.x) < TOWER.w / 2 + 10;
+  for (let i = 0; i < 2; i++) { const b = blockState(i, Math.floor(s._t * 12) / 12); if (onTower && b.visible && b.landed && b.top >= s.y - 8 && b.top < surf) surf = b.top; }
+  const hgt = Math.max(0, surf - s.y), k = clamp(1 - hgt / 700), rx = 100 * (s.sx || 1) * (.45 + .55 * k), ry = 18 * (.5 + .5 * k);
+  if (k <= .05) return;
+  const cx = s.x, cy = surf + 2;
+  hatch(g, { box: [cx - rx, cy - ry, cx + rx, cy + ry], ang: .1, gap: 5, f: (x, y) => 1 - ((x - cx) / rx) ** 2 - ((y - cy) / ry) ** 2, th: .05, w: 1.8, a: .5 * k, seed: 230, maxL: 70 });
+}
+
+// ---------- props ----------
+function starS(t) {        // the star is already hanging at frame 0 (thumbnail), then settles into story.js
+  const st = starState(t);
+  if (t < .6) { const L = SLEN * eBack(prog(t, -.3, .6)), a = st.ang; return { ...st, visible: true, x: PIV[0] + L * Math.sin(a), y: PIV[1] + L * Math.cos(a) }; }
+  return st;
+}
+function drawStar(g, t) {
+  const st = starS(t), { x, y, ang: a, lit } = st;
+  pencil(g, [PIV, [lerp(PIV[0], x, .5) + 5 * Math.sin(t * 2), lerp(PIV[1], y, .5)], [x, y - 78]], { w: 3.4, a: .95, seed: 300, passes: 2, over: 0 });
+  const pulse = 1 + .03 * Math.sin(t * 5) + .12 * lit * Math.exp(-(t - LEAP.t1) * 3);
+  const cs = Math.cos(-a), sn = Math.sin(-a), M = p => [x + (p[0] * cs - p[1] * sn) * pulse, y + (p[0] * sn + p[1] * cs) * pulse];
+  const poly = starPoly(STAR_R);
+  if (lit > 0) {       // yellow-pencil rays + a loose scribbled halo
+    for (let i = 0; i < 14; i++) { const ra = i / 14 * TAU + t * .4, r0 = 132, r1 = 132 + 95 * lit * (i % 2 ? .55 : 1);
+      pencil(g, [[x + Math.cos(ra) * r0, y + Math.sin(ra) * r0], [x + Math.cos(ra) * r1, y + Math.sin(ra) * r1]], { w: i % 2 ? 3 : 6, a: .9, col: i % 2 ? P.gr : P.yel, seed: 310 + i, passes: i % 2 ? 1 : 2, over: 6 }); }
+    const halo = ell(x, y, 172, 168, 30, t, .12, 330 + BF);
+    pencil(g, halo, { closed: true, w: 4, a: .55 * lit, col: P.yel, seed: 331, passes: 2, amp: 5 });
+  }
+  erase(g, poly.map(M), .95);
+  blue(g, ell(x, y, 106, 106, 20).map(p => p), { closed: true, seed: 340 });
+  blue(g, ell(x, y, 52, 52, 14), { closed: true, seed: 341, a: .35 });
+  blue(g, [M([0, -118]), M([0, 118])], { seed: 342, a: .35 });
+  const inS = (px, py) => pip(poly, px, py);
+  const box = [-105, -105, 105, 105];
+  if (lit > 0) {
+    hatch(g, { box, ang: -.9, gap: 6, f: (px, py) => inS(px, py) ? 1 : -1, map: M, w: 7, a: .85 * Math.min(1, lit * 1.4), col: P.yel, seed: 350, maxL: 70 });
+    hatch(g, { box, ang: .55, gap: 8, f: (px, py) => inS(px, py) ? 1 : -1, map: M, w: 5, a: .55 * lit, col: P.yel, seed: 351, maxL: 60 });
+    hatch(g, { box, ang: -.9, gap: 7, f: (px, py) => inS(px, py) ? (px * .5 + py * .8) / STAR_R : -1, th: .2, map: M, w: 4, a: .75 * lit, col: P.yelD, seed: 352, maxL: 50 });
+  } else hatch(g, { box, ang: -.95, gap: 7.5, f: (px, py) => inS(px, py) ? (px * .5 + py * .8) / STAR_R : -1, th: .18, map: M, w: 2.8, a: .7, seed: 353, maxL: 60 });
+  pencil(g, poly.map(M), { closed: true, smooth: false, w: 8.5, a: 1, seed: 360, passes: 3, amp: 1.5 });
+  // face
+  if (lit > 0) {
+    g.save(); g.translate(x, y); g.rotate(-a); g.scale(pulse, pulse); g.fillStyle = P.grd; g.globalAlpha = .92;
+    g.beginPath(); g.arc(-20, -4, 7.5, 0, TAU); g.arc(20, -4, 7.5, 0, TAU); g.fill();
+    g.beginPath(); g.arc(0, 12, 13, 0, Math.PI); g.fill();
+    g.globalCompositeOperation = 'destination-out'; g.globalAlpha = 1; g.beginPath(); g.arc(-17, -7, 2.6, 0, TAU); g.arc(23, -7, 2.6, 0, TAU); g.fill(); g.restore();
+  } else if (st.dodge) {
+    g.save(); g.translate(x, y); g.rotate(-a); g.fillStyle = P.grd; g.globalAlpha = .9; g.beginPath(); g.arc(-12, -4, 6, 0, TAU); g.arc(28, -4, 6, 0, TAU); g.fill(); g.restore();
+    pencil(g, [M([-6, 16]), M([10, 12])], { w: 3, seed: 370, over: 2 });
+  } else {
+    pencil(g, [M([-29, -4]), M([-20, 3]), M([-11, -4])], { w: 3.2, seed: 371, over: 2 }); pencil(g, [M([11, -4]), M([20, 3]), M([29, -4])], { w: 3.2, seed: 372, over: 2 });
+    pencil(g, [M([-8, 14]), M([0, 20]), M([8, 14])], { w: 3, seed: 373, over: 2 });
+  }
+}
+const DEP = [-26, -21];      // box depth (we see the top and the left side)
+function drawBlock(g, i, t) {
+  const b = blockState(i, t); if (!b.visible) return;
+  const cs = Math.cos(b.rot), sn = Math.sin(b.rot), kx = 1 + b.sq * .6, ky = 1 - b.sq;
+  const M = p => { const X = p[0] * kx, Y = (p[1] - b.h / 2) * ky; return [b.x + X * cs - Y * sn, b.bottom + X * sn + Y * cs]; };
+  const w2 = b.w / 2, h2 = b.h / 2, [dx, dy] = DEP;
+  const A = [-w2, -h2], B = [w2, -h2], C2 = [w2, h2], D = [-w2, h2], A2 = [-w2 + dx, -h2 + dy], B2 = [w2 + dx, -h2 + dy], D2 = [-w2 + dx, h2 + dy];
+  erase(g, [A2, B2, B, C2, D, D2].map(M), .92);
+  if (!b.landed) for (let k = 0; k < 3; k++) { const sx = -80 + k * 80; pencil(g, [M([sx, -h2 - 60 - k * 12]), M([sx, -h2 - 190 - k * 20])], { w: 2.4, a: .6, seed: 400 + k + i * 9, passes: 1, over: 6 }); }
+  // hidden edges in blue, then graphite edges with overshoot, architect style
+  blue(g, [M([w2 + dx, -h2 + dy]), M([w2 + dx, h2 + dy])], { seed: 410 + i * 20, a: .42 });
+  blue(g, [M(D2), M([w2 + dx, h2 + dy])], { seed: 411 + i * 20, a: .42 });
+  blue(g, [M([0, -h2 - 4]), M([0, h2 + 4])], { seed: 412 + i * 20, a: .3 });
+  const E = (p, q, s, w = 7) => pencil(g, [M(p), M(q)], { w, a: 1, seed: s, passes: 2, over: 14, smooth: false });
+  E(A, B, 420 + i * 20); E(B, C2, 421 + i * 20); E(C2, D, 422 + i * 20); E(D, A, 423 + i * 20);
+  E(A, A2, 424 + i * 20, 5); E(B, B2, 425 + i * 20, 5); E(A2, B2, 426 + i * 20, 5); E(A2, D2, 427 + i * 20, 5); E(D, D2, 428 + i * 20, 5);
+  const left = [A, A2, D2, D], top = [A, B, B2, A2];
+  hatch(g, { box: [-w2 + dx - 2, -h2 + dy, -w2 + 2, h2 + 2], ang: 1.32, gap: 6.5, f: (x, y) => pip(left, x, y) ? 1 : -1, map: M, w: 2.6, a: .7, seed: 430 + i, maxL: 80 });
+  hatch(g, { box: [-w2 + dx - 2, -h2 + dy, -w2 + 2, h2 + 2], ang: -.35, gap: 8, f: (x, y) => pip(left, x, y) ? (y + h2) / b.h : -1, th: .45, map: M, w: 1.7, a: .5, seed: 431 + i, maxL: 40 });
+  hatch(g, { box: [-w2 + dx, -h2 + dy, w2, -h2], ang: .08, gap: 9, f: (x, y) => pip(top, x, y) ? 1 : -1, map: M, w: 1.4, a: .3, seed: 432 + i, maxL: 60 });
+  hatch(g, { box: [-w2, -h2, w2, h2], ang: -.85, gap: 8, f: (x, y) => (x / w2) * .6 + (y / h2) * .8, th: .9, map: M, w: 2.5, a: .6, seed: 433 + i, maxL: 60 });
+  // label: handwriting + a Heebo digit in a sketched circle
+  g.save(); g.translate(b.x, b.bottom); g.rotate(b.rot); g.scale(kx, ky); g.translate(0, -h2);
+  penText(g, b.label, 30, -12, 74, 'OHRonShemer', { a: 1, seed: 440 + i, bold: true });
+  penText(g, b.n, -92, -8, 50, '800 Heebo', { a: 1, seed: 441 + i, bold: true });
+  g.restore();
+  pencil(g, ell(-92, -10, 36, 35, 14, 1.2).map(M), { closed: true, w: 5.4, a: 1, seed: 442 + i, passes: 2 });
+  pencil(g, [M([-60, 50]), M([20, 46]), M([112, 52])], { w: 5.5, a: 1, seed: 443 + i, passes: 2, over: 8 });
+}
+function puffs(g, x, y, t, t0, seed) {
+  const d = t - t0; if (d < 0 || d > .55) return;
+  const k = d / .55;
+  for (let i = 0; i < 6; i++) { const sd = i % 2 ? 1 : -1, px = x + sd * (70 + i * 20) * eOut(k), py = y - 16 - 26 * Math.sin(k * Math.PI) - i * 4, R = (12 + i * 2.5) * (.6 + .7 * k);
+    pencil(g, ell(px, py, R, R * .8, 9, i, .25, seed + i), { closed: true, w: 2.4, a: .85 * (1 - k), seed: seed + i, passes: 1, amp: 1.2 });
+    pencil(g, [[px - sd * 30, py + 6], [px - sd * 60 * (1 + k), py + 8]], { w: 1.8, a: .6 * (1 - k), seed: seed + 10 + i, passes: 1, over: 2 }); }
+}
+function impact(g, x, y, t, t0, seed) {
+  const d = t - t0; if (d < 0 || d > .4) return;
+  const k = d / .4;
+  for (let i = 0; i < 9; i++) { const a = Math.PI + .15 + i / 8 * (Math.PI - .3), r0 = 150 + 70 * eOut(k), r1 = r0 + 45 * (1 - k) + 12;
+    pencil(g, [[x + Math.cos(a) * r0 * 1.2, y + Math.sin(a) * r0 * .7], [x + Math.cos(a) * r1 * 1.2, y + Math.sin(a) * r1 * .7]], { w: 3.4, a: .9 * (1 - k * .7), seed: seed + i, passes: 1, over: 4 }); }
+}
+function speed(g, s) {
+  const up = s.phase === 'fall', dn = s.phase === 'rise' || s.phase === 'leap' || s.phase === 'hop';
+  if (!up && !dn) return;
+  for (let i = 0; i < 3; i++) { const x = s.x - 50 + i * 50, y0 = up ? s.y - 250 * s.sy : s.y + 10, dir = up ? -1 : 1;
+    pencil(g, [[x, y0 + dir * (20 + i * 8)], [x, y0 + dir * (110 + i * 20)]], { w: 2.2, a: .55, seed: 500 + i, passes: 1, over: 4 }); }
+}
+function dizzyStars(g, x, y, t, k) {
+  if (k <= 0) return;
+  for (let i = 0; i < 3; i++) { const a = t * 5 + i / 3 * TAU, px = x + Math.cos(a) * 110, py = y + Math.sin(a) * 26, R = 20 * k * (Math.sin(a) > 0 ? 1.1 : .85);
+    pencil(g, starPoly(R, px, py, a), { closed: true, smooth: false, w: 2.6, a: .9, seed: 520 + i, passes: 2, over: 3 }); }
+}
+function bang(g, s, t) {
+  if (t < IDEA.t0 || t > IDEA.t1) return;
+  const k = eBack(prog(t, IDEA.t0, IDEA.t0 + .2)) * (1 - prog(t, IDEA.t1 - .12, IDEA.t1));
+  if (k <= 0) return;
+  const cx = s.x + 40, cy = s.y - 330 * s.sy, M = p => [cx + (p[0] * Math.cos(.12) - p[1] * Math.sin(.12)) * k, cy + (p[0] * Math.sin(.12) + p[1] * Math.cos(.12)) * k];
+  const wedge = [[-18, -62], [18, -62], [7, 22], [-7, 22]].map(M);
+  g.save(); g.fillStyle = P.grd; g.globalAlpha = .85; g.beginPath(); wedge.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.fill();
+  const dt = M([0, 50]); g.beginPath(); g.arc(dt[0], dt[1], 13 * k, 0, TAU); g.fill(); g.restore();
+  pencil(g, wedge, { closed: true, smooth: false, w: 3.4, a: .95, seed: 540, passes: 2 });
+  for (let i = 0; i < 6; i++) { const a = -Math.PI * .95 + i * .38; pencil(g, [M([Math.cos(a) * 88, Math.sin(a) * 88]), M([Math.cos(a) * 126, Math.sin(a) * 126])], { w: 3.2, a: .9, seed: 550 + i, passes: 1, over: 4 }); }
+}
+const SPARK = (() => { const r = rng(88), a = []; for (let i = 0; i < 18; i++) { const an = -Math.PI / 2 + (r() - .5) * 3.6, sp = 380 + r() * 700; a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, spin: (r() - .5) * 8, s: 12 + r() * 14, y: i % 3 !== 2 }); } return a; })();
+function sparkles(g, t) {
+  const d = t - LEAP.t1; if (d < 0 || d > 1.9) return;
+  const { x: x0, y: y0 } = starState(LEAP.t1);
+  SPARK.forEach((p, i) => { const px = x0 + p.vx * d * Math.exp(-d * 1.1), py = y0 + p.vy * d * Math.exp(-d * 1.1) + 420 * d * d, a = p.spin * d, s = p.s * (1 - d / 2.2);
+    if (py > GY) return;
+    const col = p.y ? P.yelD : P.gr, o = { w: p.y ? 4 : 2.6, a: .95, col, passes: 1, over: 2, seed: 600 + i };
+    pencil(g, [[px + Math.cos(a) * s, py + Math.sin(a) * s], [px - Math.cos(a) * s, py - Math.sin(a) * s]], o);
+    pencil(g, [[px - Math.sin(a) * s, py + Math.cos(a) * s], [px + Math.sin(a) * s, py - Math.cos(a) * s]], { ...o, seed: 640 + i }); });
+}
+
+// ---------- title: OHRonShemer to a mask, filled with graphite streaks ----------
+function buildTitle() {
+  const probe = mkCanvas(10, 10).getContext('2d'); let size = 176; probe.font = `${size}px OHRonShemer`;
+  const w0 = probe.measureText(TITLE.text).width; if (w0 > 900) size = Math.floor(size * 900 / w0);
+  probe.font = `${size}px OHRonShemer`; const tw = probe.measureText(TITLE.text).width;
+  const bw = tw + 80, bh = size * 1.7, c = mkCanvas(Math.ceil(bw * S), Math.ceil(bh * S)), g = c.getContext('2d'); g.setTransform(S, 0, 0, S, 0, 0);
+  g.font = `${size}px OHRonShemer`; g.direction = 'rtl'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = P.grd; g.fillText(TITLE.text, bw / 2, bh / 2);
+  const r = rng(700); g.lineCap = 'round';
+  g.globalCompositeOperation = 'destination-out';          // pencil striations inside the letters
+  for (let i = 0; i < 420; i++) { const x = r() * bw, y = r() * bh, l = 14 + r() * 40; g.globalAlpha = .12 + r() * .22; g.lineWidth = 1 + r() * 1.5; g.beginPath(); g.moveTo(x, y); g.lineTo(x + l * .55, y - l); g.stroke(); }
+  g.globalCompositeOperation = 'source-atop';
+  for (let i = 0; i < 260; i++) { const x = r() * bw, y = r() * bh, l = 12 + r() * 36; g.globalAlpha = .2 + r() * .3; g.strokeStyle = '#111'; g.lineWidth = 1 + r(); g.beginPath(); g.moveTo(x, y); g.lineTo(x + l * .55, y - l); g.stroke(); }
+  TITLE_CV = c; TITLE_M = { bw, bh, tw, size };
+}
+function drawTitle(g, t) {
+  if (t < TITLE.t0) return;
+  const { bw, bh, tw, size } = TITLE_M, x0 = W / 2 - bw / 2, y0 = TITLE.y - bh / 2, k = prog(t, TITLE.t0, TITLE.t0 + .5), r = rng(710 + BF);
+  // the artist rubs a clear patch first (string / halo stay readable behind)
+  g.save(); g.globalCompositeOperation = 'destination-out'; g.globalAlpha = .82 * clamp(k * 3); g.fillStyle = '#000'; g.beginPath(); g.roundRect(W / 2 - tw / 2 - 30, TITLE.y - size * .62, tw + 60, size * 1.24, 60); g.fill(); g.restore();
+  g.save(); g.beginPath(); const rx = W / 2 + tw / 2 + 20, span = tw + 50; g.rect(rx - span * k, y0, span * k + 10, bh); g.clip();
+  g.globalAlpha = .55; g.drawImage(TITLE_CV, x0 + 1.5 + (r() - .5) * 1.5, y0 + 2.5 + (r() - .5) * 1.5, bw, bh);   // darker pass underneath
+  g.globalAlpha = 1; g.drawImage(TITLE_CV, x0 + (r() - .5) * 1.2, y0 + (r() - .5) * 1.2, bw, bh);
+  g.restore();
+  const ku = prog(t, TITLE.t0 + .48, TITLE.t0 + .68);
+  if (ku > 0) { const uy = TITLE.y + size * .52;
+    pencil(g, [[W / 2 + tw / 2 + 10, uy - 6], [W / 2, uy + 6], [W / 2 - tw / 2 - 10, uy - 4]], { w: 5.5, a: .95, seed: 720, passes: 2, k: ku, over: 16 });
+    const k2 = prog(t, TITLE.t0 + .7, TITLE.t0 + .82);
+    if (k2 > 0) pencil(g, [[W / 2 + tw * .3, uy + 22], [W / 2 - tw * .28, uy + 26]], { w: 3, a: .7, seed: 721, passes: 1, k: k2, over: 10 }); }
+}
+
+// ============================================================
+film({
+  kit: { reverb: .3, musicGain: .6, sfxGain: .85, revSec: 2.2 },
+  setup() {
+    TOOTH = makeTooth();
+    G = mkCanvas(OUT_W, OUT_H); GX = G.getContext('2d');
+    TOOTHP = GX.createPattern(TOOTH, 'repeat');
+    buildPaper(); buildTitle();
+  },
+  draw(c, tf) {
+    const t = Math.floor(tf * 12) / 12;       // pencil test on twos
+    BF = Math.floor(tf * 12);
+    const z = zoom(t), sh = shake(tf);
+    const cam = g => { g.setTransform(S, 0, 0, S, 0, 0); g.translate(540 + sh * .6, 760 + sh); g.scale(z, z); g.translate(-540, -760); };
+    c.fillStyle = P.desk; c.fillRect(0, 0, W, H);
+    c.save(); cam(c); c.drawImage(L_PAPER, -40, -40, W + 80, H + 80); c.restore();
+    GX.setTransform(1, 0, 0, 1, 0, 0); GX.clearRect(0, 0, OUT_W, OUT_H); cam(GX);
+    const g = GX;
+    drawStar(g, t);
+    drawBlock(g, 0, t); drawBlock(g, 1, t);
+    puffs(g, TOWER.x, GY, t, BLOCKS[0].land, 800); puffs(g, TOWER.x, blockTop(0), t, BLOCKS[1].land, 820);
+    SPLATS.forEach((te, n) => { puffs(g, HX, GY, t, te, 840 + n * 20); impact(g, HX, GY - 40, t, te, 880 + n * 20); });
+    const s = pose(t); s._t = t;
+    if (t < .6) s.sc = t < .3 ? 1 : 1 + .1 * Math.sin(prog(t, .3, .6) * Math.PI);
+    groundShadow(g, s);
+    const sp = pose(Math.max(0, t - 1 / 12));
+    if (Math.hypot(sp.x - s.x, sp.y - s.y) > 24) pitz(g, { ...sp, sc: 1 }, t, { ghost: true });
+    speed(g, s);
+    const intro = t < .6 ? { con: clamp((t + .35) / .45), out: clamp((t + .5) / .6), limb: prog(t, -.2, .25), face: t >= .1 ? 1 : .9 } : null;
+    pitz(g, s, t, { intro });
+    dizzyStars(g, s.x, s.y - 250 * s.sy * s.sc, t, s.dizzy);
+    bang(g, s, t);
+    sparkles(g, t);
+    drawTitle(g, t);
+    // drawing number in the corner box
+    g.save(); g.font = '700 40px Heebo'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = P.grd; g.globalAlpha = .85; g.fillText(String(BF + 1), 981, 1850); g.restore();
+    toothPass(g);
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'multiply'; c.drawImage(G, 0, 0); c.restore();
+  },
+  voice: K => {
+    const R = rng(4242);
+    // felt piano: sine partials, gentle hammer thump, a slightly detuned unison
+    const pia = (t, m, v = .06, d = 1.4, out = K.music) => { const f = K.mf(m);
+      K.osc('sine', f, t, d, out, v, .004, d); K.osc('sine', f * 1.0015, t, d, out, v * .45, .006, d * .9);
+      K.osc('sine', f * 2, t, d * .45, out, v * .28, .003, d * .4); K.osc('triangle', f * 3, t, d * .15, out, v * .07, .002, d * .12, 2600);
+      K.noise(t, .03, out, v * .35, 'lowpass', 900 + m * 12, .7, .001); };
+    const scratch = (t, d = .14, v = .05, f0 = 2600, f1 = 3600) => { const n = Math.max(3, Math.round(d / .018));
+      for (let k = 0; k < n; k++) { const tt = t + k * d / n, f = f0 * Math.pow(f1 / f0, k / n) * (.85 + R() * .3); K.noise(tt, d / n * .9, K.sfx, v * (.5 + R() * .6), 'bandpass', f, 3.5, .002); } };
+    const rub = (t, n = 5, v = .12) => { for (let k = 0; k < n; k++) { K.noise(t + k * .065, .055, K.sfx, v * (k % 2 ? .7 : 1), 'bandpass', 520 + (k % 2) * 220, 1.1, .015); K.noise(t + k * .065, .05, K.sfx, v * .25, 'highpass', 3000, .7, .01); } };
+    const thump = (t, v = .5) => { const o = K.osc('sine', 96, t, .32, K.sfx, v, .003); o.frequency.exponentialRampToValueAtTime(40, K.at(t + .28)); K.noise(t, .22, K.sfx, v * .45, 'lowpass', 300, .7); K.noise(t, .05, K.sfx, v * .25, 'bandpass', 1200, 1.2); };
+    const flip = (t, v = .14) => { const f = K.noise(t, .38, K.sfx, v, 'bandpass', 500, 1.2, .14); f.frequency.exponentialRampToValueAtTime(4800, K.at(t + .38));
+      for (let k = 0; k < 6; k++) K.noise(t + .05 + k * .035, .025, K.sfx, v * .35, 'highpass', 2600, .8); thump(t + .36, v * .5); };
+    return {
+      groove(a, b, root, tri) {
+        for (let t = a, k = 0; t < b - .01; t += .25, k++) {
+          if (k % 2 === 0) pia(t, (k % 4 === 0 ? root : root + 7), .07, 1.0);
+          else pia(t, tri[((k - 1) >> 1) % 3], .038, .8);
+        }
+      },
+      motif(t) { [[0, 'E5'], [.25, 'G5'], [.5, 'C6'], [1.0, 'B5'], [1.25, 'G5'], [1.5, 'C6']].forEach(([d, n]) => pia(t + d, K.nm(n), .075, 1.4)); },
+      ending(t) { [36, 48, 55, 60, 64, 67, 72].forEach((m, j) => pia(t + j * .035, m, .055, 2.4)); pia(t + .4, 96, .035, 1.6); pia(t + .9, 91, .025, 1.4); },
+      cues: {
+        reveal: t => flip(t, .16),
+        star: t => { scratch(t, .3, .035, 3000, 2200); pia(t + .45, 96, .04, 1.2, K.sfx); },
+        pop: t => { K.noise(t, .02, K.sfx, .12, 'bandpass', 3200, 2); pia(t, 79, .04, .5, K.sfx); },
+        jump: (t, n) => { scratch(t, .12, .06, 2200, 4200); pia(t, 72 + n * 2, .035, .4, K.sfx); pia(t + .06, 79 + n * 2, .035, .5, K.sfx); },
+        fall: (t, n) => { rub(t, 3, .09); [88, 84, 81, 77, 74].forEach((m, j) => pia(t + j * .04, m - n * 2, .03, .35, K.sfx)); },
+        splat: t => { [36, 37, 38].forEach(m => pia(t, m, .05, .6, K.sfx)); thump(t, .45); rub(t + .12, 4, .1); },
+        dizzy: t => { [96, 95, 96, 95, 96].forEach((m, j) => pia(t + j * .08, m, .02, .3, K.sfx)); },
+        getup: t => { scratch(t, .1, .05, 2000, 3400); pia(t, 67, .04, .4, K.sfx); pia(t + .08, 72, .04, .5, K.sfx); },
+        drop: t => scratch(t, .25, .05, 3800, 1800),
+        thud: (t, n) => thump(t, .6 + n * .1),
+        idea: t => [84, 88, 91, 96].forEach((m, j) => pia(t + j * .05, m, .045, .9, K.sfx)),
+        hop: (t, n) => { scratch(t, .09, .05, 2400, 4000); pia(t, 76 + n * 3, .04, .4, K.sfx); },
+        land: t => { K.noise(t, .05, K.sfx, .12, 'lowpass', 500); pia(t, 55, .03, .25, K.sfx); },
+        leap: t => scratch(t, .42, .06, 1800, 5200),
+        grab: t => { [72, 74, 76, 77, 79, 81, 83, 84, 86, 88, 91, 96].forEach((m, j) => pia(t + j * .03, m, .042, .9, K.sfx)); thump(t, .3); K.noise(t, 1.2, K.sfx, .05, 'highpass', 6000, .5, .01); },
+        title: t => { flip(t, .12); for (let k = 0; k < 6; k++) scratch(t + .06 + k * .08, .06, .035, 2600 + k * 150, 3400); scratch(t + .5, .2, .045, 2200, 3800); },
+      },
+    };
+  },
+});
+</script>

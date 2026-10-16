@@ -1,0 +1,17 @@
+{
+  "channelName": "",
+  "language": "en",
+  "aspect": "9:16",
+  "fps": 30,
+  "durationSeconds": 60,
+  "tone": "clear, warm, energetic — a smart friend, not an announcer",
+  "targetPlatforms": ["instagram_reels", "tiktok", "youtube_shorts"],
+  "musicStyle": "upbeat modern background",
+  "colors": { "primary": "#FFFFFF", "accent": "#00E5FF", "background": "#0B0F19" },
+  "avoid": [
+    "greetings / \"welcome\" intros (open with a hook instead)",
+    "direct follow / like / subscribe CTAs (a soft engagement line is fine)",
+    "slow pacing",
+    "clickbait, fake quotes, invented numbers"
+  ]
+}

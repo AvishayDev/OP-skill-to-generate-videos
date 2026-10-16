@@ -1,0 +1,525 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>03 · פיקסל ארט 8-ביט</title>
+<body>
+<script src="fonts-data.js"></script>
+<script src="story.js"></script>
+<script src="audio.js"></script>
+<script src="runtime.js"></script>
+<script>
+'use strict';
+// ============================================================
+// 03 · 8-BIT PIXEL ART
+// Everything is drawn into a 180x320 buffer (1 px = 6 world px) with integer rects and
+// hand-made sprite maps (hex chars = palette index, '.' = transparent), then upscaled
+// with nearest-neighbour. Strict 16-colour PICO-8 palette, Bayer dithering for gradients.
+// Animation at 12 fps, positions snapped to the pixel grid, sprite swaps per story phase.
+// Voice: chiptune (pulse lead with real duty cycles, triangle bass, noise drums, arps).
+// ============================================================
+const P = ['#000000', '#1d2b53', '#7e2553', '#008751', '#ab5236', '#5f574f', '#c2c3c7', '#fff1e8',
+           '#ff004d', '#ffa300', '#ffec27', '#00e436', '#29adff', '#83769c', '#ff77a8', '#ffccaa'];
+const PX = 6, BW = 180, BH = 320, MG = 4, GROW = 263;       // GROW = ground row (GY / 6)
+let B, gb, OX = 0, OY = 0;
+const X = x => Math.round(x / PX) + OX, Y = y => Math.round(y / PX) + OY;
+const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+const bay = (x, y) => (BAYER[((y % 4) + 4) % 4][((x % 4) + 4) % 4] + .5) / 16;
+
+// ---------- sprite toolkit ----------
+const _spr = new Map();
+function sprOf(rows) {
+  const k = rows.join('|'); let s = _spr.get(k); if (s) return s;
+  const w = Math.max(...rows.map(r => r.length)), h = rows.length, c = mkCanvas(w, h), q = c.getContext('2d');
+  rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) { const ch = r[x]; if (ch === '.' || ch === ' ') continue; q.fillStyle = P[parseInt(ch, 16)]; q.fillRect(x, y, 1, 1); } });
+  s = { c, w, h }; _spr.set(k, s); return s;
+}
+function outl(rows, oc = '1', diag = false) {       // add a 1px outline around a sprite map
+  const h = rows.length, w = Math.max(...rows.map(r => r.length));
+  const on = (x, y) => y >= 0 && y < h && x >= 0 && x < rows[y].length && rows[y][x] !== '.';
+  const out = [];
+  for (let y = -1; y <= h; y++) { let r = ''; for (let x = -1; x <= w; x++) {
+    if (on(x, y)) { r += rows[y][x]; continue; }
+    let n = on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1);
+    if (diag) n = n || on(x - 1, y - 1) || on(x + 1, y - 1) || on(x - 1, y + 1) || on(x + 1, y + 1);
+    r += n ? oc : '.'; } out.push(r); }
+  return out;
+}
+const recolor = (rows, map) => rows.map(r => r.replace(/./g, ch => map[ch] ?? ch));
+const flipH = rows => rows.map(r => r.split('').reverse().join(''));
+function put(rows, x, y) { const s = sprOf(rows); gb.drawImage(s.c, Math.round(x), Math.round(y)); return s; }
+function putC(rows, cx, cy) { const s = sprOf(rows); gb.drawImage(s.c, Math.round(cx) - (s.w >> 1), Math.round(cy) - (s.h >> 1)); return s; }
+// mirrored pair about the centre column fx (side -1 = left, +1 = right)
+function sym(rows, off, y, fx, side) {
+  const s = sprOf(rows), o = Math.round(off);
+  const x0 = side < 0 ? fx - o - (s.w >> 1) : fx + o - (s.w - 1 - (s.w >> 1));
+  gb.drawImage(s.c, x0, Math.round(y)); return s;
+}
+function px(x, y, c) { gb.fillStyle = P[c]; gb.fillRect(Math.round(x), Math.round(y), 1, 1); }
+function rect(x, y, w, h, c) { gb.fillStyle = P[c]; gb.fillRect(Math.round(x), Math.round(y), w, h); }
+function line(x0, y0, x1, y1, c) {
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let e = dx + dy;
+  for (let n = 0; n < 2000; n++) { px(x0, y0, c); if (x0 === x1 && y0 === y1) break; const e2 = 2 * e; if (e2 >= dy) { e += dy; x0 += sx; } if (e2 <= dx) { e += dx; y0 += sy; } }
+}
+function ring(cx, cy, r, c) {                        // midpoint circle
+  let x = r, y = 0, e = 1 - r;
+  while (x >= y) { [[x, y], [y, x], [-y, x], [-x, y], [-x, -y], [-y, -x], [y, -x], [x, -y]].forEach(([a, b]) => px(cx + a, cy + b, c));
+    y++; if (e < 0) e += 2 * y + 1; else { x--; e += 2 * (y - x) + 1; } }
+}
+
+// ---------- hand-made sprite maps ----------
+const EYES = {
+  norm:  ['.111.', '17711', '17711', '11111', '11111', '.111.'],
+  big:   ['.111.', '17711', '17711', '11111', '11111', '11111', '.111.'],
+  spark: ['.111.', '17711', '17711', '11111', '11171', '11111', '.111.'],
+  x:     ['11...11', '.11.11.', '..111..', '.11.11.', '11...11'],
+  happy: ['.111.', '1...1', '1...1'],
+  blink: ['11111'],
+};
+const MOUTH = {
+  smile: ['1...1', '.111.'],
+  flat:  ['111'],
+  open:  ['.111.', '12221', '12881', '.111.'],
+  wow:   ['.11111.', '1222221', '1228821', '.11111.'],
+  ouch:  ['.1.1.1.', '1.1.1.1'],
+  tiny:  ['.1.', '121', '.1.'],
+};
+const BROW_L = ['11...', '.111.'], BROW_R = ['...11', '.111.'];
+const HAND = outl(['.ee.', 'eeee', 'eee2', '.22.']);
+const FOOT = outl(['.88888.', '8888888', '.22222.']);
+const BAND = outl(['fffff', 'f9f9f', 'fffff']);
+const SSTAR = outl(['..a..', '.aaa.', 'aaaaa', '.aaa.', '.a.a.']);
+const HEART = outl(['.88.88.', '8878888', '8888888', '.88888.', '..888..', '...8...']);
+const HEART0 = recolor(HEART, { 8: '5', 7: '5' });
+const SP = [['.7.', '777', '.7.'], ['..7..', '..7..', '77777', '..7..', '..7..'], ['7.7', '.7.', '7.7'],
+            ['...7...', '...7...', '..777..', '7777777', '..777..', '...7...', '...7...']];
+const SPY = SP.map(r => recolor(r, { 7: 'a' }));
+const PUFF = [outl(['.77.', '7777', '7777', '.77.'], '6'), outl(['.777.', '77777', '77.77', '77777', '.777.'], '6'), ['7...7', '..7..', '7...7']];
+const BANG = ['.1111111.', '177777771', '177888771', '177888771', '177888771', '177787771', '177787771', '177777771',
+              '177888771', '177888771', '177777771', '.1111111.', '..171....', '..11.....'];
+// Hebrew pixel glyphs (2 ascender rows + 6), for the block label
+const HEB = {
+  'נ': ['...', '...', '.11', '..1', '..1', '..1', '..1', '111'],
+  'פ': ['.....', '.....', '11111', '1...1', '11..1', '....1', '....1', '11111'],
+  'י': ['..', '..', '11', '.1', '.1', '..', '..', '..'],
+  'ל': ['1....', '1....', '11111', '....1', '....1', '....1', '...1.', '..1..'],
+  'ה': ['.....', '.....', '11111', '....1', '....1', '1...1', '1...1', '1...1'],
+};
+function hebWord(str, col) {                     // lays glyphs right-to-left
+  const gl = [...str].map(ch => HEB[ch]), w = gl.reduce((a, g) => a + g[0].length, 0) + gl.length - 1, rows = Array(8).fill('');
+  for (let y = 0; y < 8; y++) { let r = ''; for (let k = gl.length - 1; k >= 0; k--) { r += gl[k][y]; if (k) r += '.'; } rows[y] = r.replace(/1/g, col); }
+  return rows;
+}
+const DIG = {
+  1: ['...111..', '..1111..', '.11111..', '...111..', '...111..', '...111..', '...111..', '...111..', '...111..', '...111..', '...111..', '.1111111', '.1111111'],
+  2: ['.111111.', '11111111', '111..111', '.....111', '.....111', '....111.', '...111..', '..111...', '.111....', '111.....', '111.....', '11111111', '11111111'],
+};
+// 3x5 latin font for the HUD
+const LAT = {
+  0: ['111', '101', '101', '101', '111'], 1: ['010', '110', '010', '010', '111'], 2: ['111', '001', '111', '100', '111'], 3: ['111', '001', '111', '001', '111'],
+  4: ['101', '101', '111', '001', '001'], 5: ['111', '100', '111', '001', '111'], 6: ['111', '100', '111', '101', '111'], 7: ['111', '001', '010', '010', '010'],
+  8: ['111', '101', '111', '101', '111'], 9: ['111', '101', '111', '001', '111'],
+  S: ['111', '100', '111', '001', '111'], C: ['111', '100', '100', '100', '111'], O: ['111', '101', '101', '101', '111'], R: ['110', '101', '110', '101', '101'],
+  E: ['111', '100', '110', '100', '111'], L: ['100', '100', '100', '100', '111'], V: ['101', '101', '101', '101', '010'], A: ['010', '101', '111', '101', '101'],
+  U: ['101', '101', '101', '101', '111'], P: ['110', '101', '110', '100', '100'], D: ['110', '101', '101', '101', '110'],
+  W: ['10001', '10001', '10101', '10101', '01010'], '!': ['1', '1', '1', '0', '1'], '-': ['000', '000', '111', '000', '000'], '+': ['000', '010', '111', '010', '000'], ' ': ['0', '0', '0', '0', '0'],
+};
+const latW = s => [...s].reduce((a, ch) => a + LAT[ch][0].length + 1, -1);
+function latin(s, x, y, col, sh = 0) {
+  for (const [dx, dy, c] of sh >= 0 ? [[1, 1, sh], [0, 0, col]] : [[0, 0, col]]) {
+    let cx = Math.round(x) + dx;
+    for (const ch of s) { const g = LAT[ch]; for (let r = 0; r < 5; r++) for (let q = 0; q < g[r].length; q++) if (g[r][q] === '1') px(cx + q, Math.round(y) + dy + r, c); cx += g[0].length + 1; }
+  }
+}
+
+// ---------- procedural sprite builders (rasterised, cached) ----------
+const _rows = new Map();
+const memo = (k, f) => { if (!_rows.has(k)) _rows.set(k, f()); return _rows.get(k); };
+// פיצי's body: chubby superellipse, flat-ish bottom, dithered rim shade, pixel highlight
+function bodyRows(w, h) {
+  return memo(`b${w}x${h}`, () => {
+    const cx = (w - 1) / 2, cy = (h - 1) / 2, rx = w / 2, ry = h / 2;
+    const inside = (x, y) => { if (x < 0 || y < 0 || x >= w || y >= h) return false; const nx = (x - cx) / rx, ny = (y - cy) / ry;
+      return Math.pow(Math.abs(nx), 2.2) + Math.pow(Math.abs(ny), ny > 0 ? 3.4 : 2.1) <= 1; };
+    const rows = [];
+    for (let y = 0; y < h; y++) { let r = ''; for (let x = 0; x < w; x++) {
+      if (!inside(x, y)) { r += '.'; continue; }
+      if (!inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1)) { r += '1'; continue; }
+      const nx = (x - cx) / rx, ny = (y - cy) / ry, sh = nx * .5 + ny * .86;
+      const hl = Math.hypot((nx + .5) / 1.2, ny + .52);
+      if (h > 8 && hl < .1) r += '7';
+      else if (h > 8 && hl < .17) r += 'f';
+      else if (sh > .86 || (sh > .66 && (x + y) % 2 === 0)) r += '2';
+      else r += 'e';
+    } rows.push(r); }
+    return rows;
+  });
+}
+// the star: 10-point polygon rasterised at pixel centres
+function starRows(R, mode) {
+  return memo(`s${R}${mode}`, () => {
+    const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU, rr = i % 2 ? R * .5 : R; pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
+    const inPoly = (x, y) => { let c = false; for (let i = 0, j = 9; i < 10; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+    const N = R + 1, on = (x, y) => inPoly(x, y + 1.5);        // +1.5: optical centre a bit lower
+    const rows = [];
+    for (let y = -N; y <= N; y++) { let r = ''; for (let x = -N; x <= N; x++) {
+      if (!on(x, y)) { r += '.'; continue; }
+      if (!on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1)) { r += '1'; continue; }
+      if (mode === 'flash') { r += '7'; continue; }
+      const nx = x / R, ny = (y + 1.5) / R, sh = nx * .45 + ny * .9;
+      if (Math.hypot(nx + .28, ny + .42) < .13) r += '7';
+      else if (sh > .5 || (sh > .34 && (x + y) % 2 === 0)) r += mode === 'lit' ? 'a' : '9';
+      else r += mode === 'lit' ? (Math.hypot(nx, ny) < .3 ? '7' : 'a') : 'a';
+    } rows.push(r); }
+    return rows;
+  });
+}
+// blocks: "?"-block (1) and a brick with a plaque (2), label + big digit in pixels
+function blockRows(w, h, i, n) {
+  return memo(`k${w}x${h}${i}`, () => {
+    const g = []; for (let y = 0; y < h; y++) g.push(Array(w).fill('.'));
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let c;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) c = '1';
+      else if (i === 0) c = (x === 1 || y === 1) ? 'a' : (x === w - 2 || y === h - 2) ? '4' : '9';
+      else { const course = Math.floor((y - 1) / 7), my = (y - 1) % 7 === 6, mx = (x + (course % 2) * 6) % 12 === 0;
+        c = my || mx ? '2' : (y - 1) % 7 === 0 ? '9' : '4'; }
+      g[y][x] = c;
+    }
+    const stamp = (rows, x0, y0, dx = 0, dy = 0, col = null) => rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (r[x] !== '.') { const yy = y0 + y + dy, xx = x0 + x + dx; if (yy > 0 && yy < h - 1 && xx > 0 && xx < w - 1) g[yy][xx] = col || r[x]; } });
+    const cx = w >> 1;
+    if (i === 0) { [[3, 3], [w - 4, 3], [3, h - 4], [w - 4, h - 4]].forEach(([x, y]) => { g[y][x] = '4'; g[y - 1][x - 1] = 'a'; }); }
+    else { const px0 = 4, py0 = 4, pw = w - 8, ph = h - 8;                      // plaque
+      for (let y = py0; y < py0 + ph; y++) for (let x = px0; x < px0 + pw; x++) g[y][x] = (x === px0 || y === py0 || x === px0 + pw - 1 || y === py0 + ph - 1) ? '1' : (y === py0 + ph - 2 || x === px0 + pw - 2) ? '6' : '7'; }
+    const lab = hebWord('נפילה', '1'), lw = lab[0].length;
+    stamp(lab, cx - (lw >> 1), i === 0 ? 6 : 7);
+    const d = DIG[n];
+    if (i === 0) { stamp(d, cx - 4, 18, 1, 1, '4'); stamp(d, cx - 4, 18, 0, 0, '7'); }
+    else { stamp(d, cx - 4, 18, 1, 1, '2'); stamp(d, cx - 4, 18, 0, 0, '8'); }
+    return g.map(r => r.join(''));
+  });
+}
+function blobRows(circles, fill, shade, outline, key) {        // cloud / bush: union of circles
+  return memo(key, () => {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [cx, cy, r] of circles) { x0 = Math.min(x0, cx - r); y0 = Math.min(y0, cy - r); x1 = Math.max(x1, cx + r); y1 = Math.max(y1, cy + r); }
+    x0 = Math.floor(x0) - 1; y0 = Math.floor(y0) - 1; x1 = Math.ceil(x1) + 1; y1 = Math.ceil(y1) + 1;
+    const on = (x, y) => circles.some(([cx, cy, r]) => (x + x0 - cx) ** 2 + (y + y0 - cy) ** 2 <= r * r);
+    const rows = [];
+    for (let y = 0; y <= y1 - y0; y++) { let r = ''; for (let x = 0; x <= x1 - x0; x++) {
+      if (!on(x, y)) { r += '.'; continue; }
+      if (outline && (!on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1))) { r += outline; continue; }
+      r += (!on(x, y + 2) || (!on(x, y + 3) && (x + y) % 2)) ? shade : fill;
+    } rows.push(r); }
+    return rows;
+  });
+}
+
+// ---------- static layers (buffer resolution, with MG margin for screen shake) ----------
+let L_SKY, L_FRONT, L_SCAN;
+function buildLayers() {
+  const mk = () => { const c = mkCanvas(BW + MG * 2, BH + MG * 2), q = c.getContext('2d'); return [c, q]; };
+  const [cs, qs] = mk(), dot = (q, x, y, c) => { q.fillStyle = P[c]; q.fillRect(x + MG, y + MG, 1, 1); };
+  for (let y = -MG; y < BH + MG; y++) for (let x = -MG; x < BW + MG; x++) {
+    let c;
+    if (y < 64) c = (Math.max(0, y) / 64) > bay(x, y) ? 12 : 1;
+    else if (y < 158) c = 12;
+    else c = clamp((y - 158) / 80) > bay(x, y) ? 7 : 12;
+    dot(qs, x, y, c);
+  }
+  // far mountains (lavender, snow caps, dithered shade side)
+  const peaks = [[-8, 176], [32, 160], [78, 184], [122, 150], [168, 170], [196, 182]];
+  for (let x = -MG; x < BW + MG; x++) {
+    let top = 1e9, pk = null; for (const p of peaks) { const v = p[1] + Math.abs(x - p[0]) * 1.05; if (v < top) { top = v; pk = p; } }
+    for (let y = Math.round(top); y < GROW; y++) {
+      let c = 13; const right = x > pk[0];
+      if (y - pk[1] < 7 + (x % 3 === 0 ? 1 : 0)) c = right ? 6 : 7;
+      else if (right && (x + y) % 2 === 0) c = 5;
+      if (y === Math.round(top)) c = y - pk[1] < 7 ? 7 : 6;
+      dot(qs, x, y, c);
+    }
+  }
+  L_SKY = cs;
+  const [cf, qf] = mk();
+  // near hills
+  for (let x = -MG; x < BW + MG; x++) {
+    const top = Math.round(238 - 9 * Math.sin(x * .045 + 1.2) - 6 * Math.sin(x * .11 + 2.1));
+    for (let y = top; y < GROW; y++) { let c = 3; if (y === top) c = 11; else if (y < top + 3 && (x + y) % 2 === 0) c = 11; else if ((x * 7 + y * 3) % 23 === 0) c = 11; dot(qf, x, y, c); }
+  }
+  // ground: grass lip + tiled dirt
+  const TILE = ['44444444', '44944444', '44444424', '44444444', '24444444', '44449444', '44444444', '44424444'];
+  for (let x = -MG; x < BW + MG; x++) {
+    if (((x % 7) + 7) % 7 === 2 || ((x % 11) + 11) % 11 === 5) dot(qf, x, GROW - 1, 11);
+    for (let y = GROW; y < BH + MG; y++) {
+      const d = y - GROW; let c;
+      if (d === 0) c = 11; else if (d < 3) c = (x + y) % 2 && d === 2 ? 3 : 11; else if (d < 5) c = d === 3 ? 3 : ((x + y) % 2 ? 3 : 4);
+      else c = +TILE[((d - 5) % 8)][((x % 8) + 8) % 8];
+      dot(qf, x, y, c);
+    }
+  }
+  const stamp = (q, rows, x0, y0) => rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (r[x] !== '.') dot(q, x0 + x, y0 + y, parseInt(r[x], 16)); });
+  const bushL = blobRows([[8, 8, 7], [17, 5, 8], [26, 9, 6]], 'b', '3', '1', 'bushL'), bushR = blobRows([[6, 7, 6], [14, 5, 7]], 'b', '3', '1', 'bushR');
+  stamp(qf, bushL, -6, GROW - bushL.length + 3); stamp(qf, bushR, BW - 20, GROW - bushR.length + 3);
+  [[40, 8], [95, 10], [104, 8], [30, 10]].forEach(([x, c]) => { dot(qf, x, GROW - 2, c); dot(qf, x - 1, GROW - 3, c); dot(qf, x + 1, GROW - 3, c); dot(qf, x, GROW - 4, c); dot(qf, x, GROW - 3, 10); dot(qf, x, GROW - 1, 3); });
+  L_FRONT = cf;
+  // subtle CRT: darker gap between pixel rows + soft vignette
+  L_SCAN = layer(g => {
+    g.fillStyle = 'rgba(0,0,20,.16)'; for (let y = 0; y < H; y += PX) g.fillRect(0, y + 4.6, W, 1.4);
+    const v = g.createRadialGradient(W / 2, H / 2, H * .35, W / 2, H / 2, H * .72); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,30,.28)');
+    g.fillStyle = v; g.fillRect(0, 0, W, H);
+  });
+}
+const CLOUDS = [
+  { x: 30, y: 74, sp: 1.6, c: [[0, 0, 5], [7, -3, 7], [15, 0, 5], [22, 1, 4]] },
+  { x: 150, y: 118, sp: 2.4, c: [[0, 0, 4], [6, -2, 6], [13, 0, 4]] },
+  { x: 95, y: 150, sp: 1.0, c: [[0, 0, 3], [5, -2, 4], [10, 0, 3]] },
+];
+function drawClouds(t) {
+  CLOUDS.forEach((cl, k) => { const rows = blobRows(cl.c, '7', '6', null, 'cloud' + k), w = rows[0].length;
+    let x = cl.x - Math.floor(t * cl.sp); x = ((x + w) % (BW + w) + BW + w) % (BW + w) - w;
+    put(rows, x + OX, cl.y + OY); });
+}
+
+// ---------- title (Heebo 900 thresholded into chunky pixels) ----------
+let TITLE_M = [];
+function textMask(str, size) {
+  const cw = 300, ch = Math.ceil(size * 2), c = mkCanvas(cw, ch), q = c.getContext('2d');
+  q.font = `900 ${size}px Heebo`; q.direction = 'rtl'; q.textAlign = 'center'; q.textBaseline = 'middle'; q.fillStyle = '#fff'; q.fillText(str, cw / 2, ch / 2);
+  const d = q.getImageData(0, 0, cw, ch).data; let x0 = cw, y0 = ch, x1 = -1, y1 = -1;
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (d[(y * cw + x) * 4 + 3] >= 118) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, m = [];
+  for (let y = 0; y < h; y++) { m.push([]); for (let x = 0; x < w; x++) m[y].push(d[((y + y0) * cw + x + x0) * 4 + 3] >= 118); }
+  return { w, h, m };
+}
+function titleRows(M, shine, k) {
+  return memo(`t${k}|${shine}`, () => {
+    const on = (x, y) => y >= 0 && y < M.h && x >= 0 && x < M.w && M.m[y][x];
+    const dil = (x, y) => { for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if (on(x + a, y + b)) return true; return false; };
+    const rows = [];
+    for (let y = -2; y < M.h + 4; y++) { let r = ''; for (let x = -2; x < M.w + 3; x++) {
+      if (on(x, y)) { const sh = x + y * .7 - shine; r += (sh >= 0 && sh < 4) || !on(x, y - 1) ? '7' : y / M.h < .5 ? 'a' : '9'; }
+      else if (dil(x, y) || dil(x, y + 1)) r += '1';                // outline (a touch thicker below)
+      else if (dil(x - 1, y - 2)) r += '0';                         // pixel drop shadow
+      else r += '.';
+    } rows.push(r); }
+    return rows;
+  });
+}
+function drawTitle(t) {
+  if (t < TITLE.t0) return;
+  let yy = 17;
+  TITLE_M.forEach((M, k) => {
+    const t0 = TITLE.t0 + k * .24, q = prog(t, t0, t0 + .24); if (q <= 0) { yy += M.h + 8; return; }
+    const s = prog(t, 7.25 + k * .12, 7.75 + k * .12), shine = s > 0 && s < 1 ? Math.round(lerp(-16, M.w + 8, s)) : -999;
+    const rows = titleRows(M, shine, k), sp = sprOf(rows), x0 = 90 - (sp.w >> 1);
+    const d = t - t0 - .24, bump = d >= 0 && d < .25 ? Math.round(3 * Math.sin(d / .25 * Math.PI)) : 0;
+    if (k === 0) put(rows, x0, yy - 2 + Math.round(-90 * (1 - q) * (1 - q)) - bump);        // word 1 drops in from the top
+    else { const vw = Math.ceil(sp.w * q);                                                   // word 2 is "typed" right-to-left
+      gb.drawImage(sp.c, sp.w - vw, 0, vw, sp.h, x0 + sp.w - vw, yy - 2 - bump, vw, sp.h);
+      if (q < 1) rect(x0 + sp.w - vw - 1, yy + 1, 2, M.h - 2, 7); }                        // blinking cursor bar
+    yy += M.h + 8;
+  });
+}
+
+// ---------- characters + props ----------
+const AIR = new Set(['rise', 'apex', 'fall', 'hop', 'leap', 'hang']);
+function hero(s, t, fi) {
+  let fx = X(s.x), fy = Y(s.y);
+  if (s.phase === 'hang') fy -= 5;
+  const sc = s.sc ?? 1;
+  const bw = Math.max(5, 2 * Math.round(15 * s.sx * sc) + 1), bh = Math.max(5, Math.round(27 * s.sy * sc));
+  const bot = fy - 3, top = bot - bh + 1, air = AIR.has(s.phase), k = bw / 31;
+  // feet (dangle + paddle in the air)
+  const lp = Math.floor(s.legs || 0) % 2;
+  [-1, 1].forEach((sd, n) => { const dy = air ? (lp === n ? 1 : -1) + 1 : 0; sym(FOOT, Math.round(7 * Math.min(k, 1.3)), fy - 5 + dy, fx, sd); });
+  put(bodyRows(bw, bh), fx - (bw >> 1), top);
+  if (s.band) put(BAND, fx + Math.round(6 * k), top - 1);
+  // face
+  const eyeY = top + Math.round(bh * .42), dx = Math.max(3, Math.round(6.5 * k));
+  let lx = Math.round(clamp(s.look[0], -1, 1)), ly = s.look[1] < -.5 && bh > 12 ? -1 : 0;
+  if (s.jig > .3) lx += fi % 2 ? 1 : -1;
+  const blink = s.eyes === 'norm' && (s.phase === 'perch' || s.phase === 'set') && fi % 26 === 0;
+  const eye = EYES[blink ? 'blink' : s.eyes] || EYES.norm;
+  [-1, 1].forEach(sd => sym(eye, dx + sd * lx, eyeY - (eye.length >> 1) + ly, fx, sd));   // both eyes slide 1px to look
+  if (s.eyes !== 'x') [-1, 1].forEach(sd => sym(['888'], Math.round(11 * k), eyeY + 4, fx, sd));
+  if (s.brow === 'det') { sym(BROW_L, dx, eyeY - 6, fx, -1); sym(BROW_R, dx, eyeY - 6, fx, 1); }
+  const mo = MOUTH[s.mouth] || MOUTH.smile;
+  put(mo, fx - (mo[0].length >> 1), top + Math.round(bh * .72) - (mo.length >> 1));
+  // hands
+  [[-1, s.armL], [1, s.armR]].forEach(([sd, a]) => {
+    const up = clamp((a - 1.7) / 1.3), r = 5 + 10 * up, sy = top + Math.round(bh * .55);
+    const off = (bw >> 1) + 1 - up * ((bw >> 1) - 4) + Math.sin(a) * 1.5, hy = sy + Math.cos(a) * r;
+    sym(HAND, off, Math.round(hy) - 3, fx, sd);
+  });
+  return { fx, fy, top };
+}
+function dizzyStars(cx, cy, t, k) {
+  if (k <= 0) return;
+  for (let i = 0; i < 3; i++) { const a = t * 6 + i / 3 * TAU; putC(SSTAR, cx + Math.cos(a) * 15, cy + Math.sin(a) * 3); }
+}
+function dust(x, y, t, t0, n = 3, spread = 1) {
+  const d = t - t0; if (d < 0 || d >= .5) return;
+  const f = Math.min(2, Math.floor(d * 12 / 2)), k = d / .5;
+  for (let i = 0; i < n; i++) [-1, 1].forEach(sd => putC(PUFF[f], x + sd * (4 + (6 + i * 7) * eOut(k) * spread), y - 2 - Math.round(3 * Math.sin(k * Math.PI)) - i));
+}
+function drawStar(t, fi) {
+  const st = starState(t); let { x, y } = st;
+  if (t < .6) { const L = SLEN * (1 - .08 * Math.exp(-t * 4) * Math.cos(t * 16)); x = PIV[0] + L * Math.sin(st.ang); y = PIV[1] + L * Math.cos(st.ang); }   // frame 0 already shows it
+  const cx = X(x), cy = Y(y), lit = st.lit, R = 16;
+  line(X(PIV[0]), Y(PIV[1]), cx, cy - R + 1, 6);
+  if (lit > 0) {
+    const Rg = Math.round(lit * (23 + (fi % 2) * 2));
+    for (let yy = -Rg; yy <= Rg; yy++) for (let xx = -Rg; xx <= Rg; xx++) { const d = Math.hypot(xx, yy) / Rg; if (d >= 1) continue;
+      const v = 1 - d; if (v * 1.15 > bay(cx + xx, cy + yy)) px(cx + xx, cy + yy, v > .62 ? 7 : 10); }
+    const d = t - LEAP.t1; if (d < .45) { ring(cx, cy, Math.round(12 + d * 80), 7); if (d > .08) ring(cx, cy, Math.round(6 + d * 60), 10); }
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + t * 1.4, r = 29 + (i % 2) * 4; putC((i + fi) % 2 ? SP[1] : SPY[0], cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  }
+  const mode = lit > 0 ? (t - LEAP.t1 < .17 ? 'flash' : 'lit') : 'n';
+  putC(starRows(R, mode), cx, cy);
+  // face
+  if (lit > 0) { sym(['.1.', '171', '111', '.1.'], 4, cy - 3, cx, -1); sym(['.1.', '171', '111', '.1.'], 4, cy - 3, cx, 1); put(['11111', '12881', '.111.'], cx - 2, cy + 3); }
+  else if (st.dodge) { put(['11', '11'], cx - 3, cy - 2); put(['11', '11'], cx + 5, cy - 2); put(['1111'], cx, cy + 4); }
+  else { sym(['.1.', '1.1'], 4, cy - 1, cx, -1); sym(['.1.', '1.1'], 4, cy - 1, cx, 1); put(['1...1', '.111.'], cx - 2, cy + 3); }
+  sym(['88'], 7, cy + 2, cx, -1); sym(['88'], 7, cy + 2, cx, 1);
+  // twinkles while waiting
+  if (lit <= 0) [[-21, -12], [20, -5], [-15, 17]].forEach(([ox, oy], k) => { const ph = (fi + k * 3) % 9;
+    if (ph < 4) putC([SP[2], SP[0], SP[1], SP[0]][ph], cx + ox, cy + oy); });
+  return { cx, cy };
+}
+function drawBlock(i, t) {
+  const b = blockState(i, t); if (!b.visible) return;
+  const top = Y(b.top), bot = Y(b.bottom), h0 = bot - top;
+  const w = Math.round(43 * (1 + b.sq * .6)) | 1, h = Math.max(8, Math.round(h0 * (1 - b.sq)));
+  put(blockRows(w, h, i, b.n), X(b.x) - (w >> 1), bot - h);
+}
+const CONF = (() => { const r = rng(77), a = []; for (let i = 0; i < 60; i++) { const an = -Math.PI / 2 + (r() - .5) * 3.4, sp = 80 + r() * 150;
+  a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, col: [8, 9, 10, 11, 12, 14, 7][i % 7], big: r() < .45, ph: Math.floor(r() * 4) }); } return a; })();
+function confetti(t, fi, sx, sy) {
+  const d = t - LEAP.t1; if (d < 0 || d > 2.5) return;
+  for (const p of CONF) { const x = sx + p.vx * d * Math.exp(-d * .9), y = sy + p.vy * d * Math.exp(-d * .9) + 110 * d * d;
+    if (y > GROW - 1) continue; const f = (fi + p.ph) % 4;
+    if (!p.big) px(x, y, p.col); else if (f === 0) rect(x, y, 2, 1, p.col); else if (f === 2) rect(x, y, 1, 2, p.col); else px(x, y, p.col); }
+}
+// ---------- HUD ----------
+function lives(t) { let n = 3; if (t >= SPLATS[0]) n--; if (t >= SPLATS[1]) n--; if (t >= LEAP.t1) n++; if (t >= LEAP.t1 + .17) n++; return n; }
+function score(t) { let s = 0; for (const h of HOPS) if (t >= h.t1) s += 100; if (t >= LEAP.t1) s += Math.floor(prog(t, LEAP.t1, LEAP.t1 + .6) * 50) * 100; return s; }
+function hud(t, fi) {
+  const n = lives(t);
+  for (let i = 0; i < 3; i++) {
+    let full = i < n;
+    const lost = SPLATS.findIndex(te => t >= te && t < te + .6 && i === (SPLATS.indexOf(te) === 0 ? 2 : 1));
+    if (lost >= 0 && fi % 2 === 0) full = true;                        // the lost heart blinks out
+    const pop = (t >= LEAP.t1 && t < LEAP.t1 + .3 && i === 1) || (t >= LEAP.t1 + .17 && t < LEAP.t1 + .47 && i === 2) ? -2 : 0;
+    put(full ? HEART : HEART0, 3 + i * 10, 3 + pop);
+  }
+  latin('WORLD 1-1', 90 - (latW('WORLD 1-1') >> 1), 5, 7, 1);
+  const sc = String(score(t)).padStart(6, '0'); latin(sc, BW - 3 - latW(sc), 5, 7, 1);
+}
+
+// ============================================================
+film({
+  setup() {
+    B = mkCanvas(BW, BH); gb = B.getContext('2d'); gb.imageSmoothingEnabled = false;
+    buildLayers();
+    TITLE_M = TITLE.words.map(w => { let s = 40, M = textMask(w, s); while (M.w > 164) { s -= 1; M = textMask(w, s); } return M; });
+  },
+  draw(c, tf) {
+    const fi = Math.floor(tf * 12 + 1e-6), t = fi / 12;                // 12 fps, like the old consoles
+    const sh = shake(t); OX = Math.round(sh * .6 / PX); OY = Math.round(sh / PX);
+    gb.fillStyle = P[1]; gb.fillRect(0, 0, BW, BH);
+    gb.drawImage(L_SKY, OX - MG, OY - MG);
+    drawClouds(t);
+    gb.drawImage(L_FRONT, OX - MG, OY - MG);
+    const S0 = drawStar(t, fi);
+    drawBlock(0, t); drawBlock(1, t);
+    dust(X(TOWER.x), GROW + OY, t, BLOCKS[0].land, 3, 1.4); dust(X(TOWER.x), Y(blockTop(0)), t, BLOCKS[1].land, 3, 1.4);
+    SPLATS.forEach(te => dust(X(HX), GROW + OY, t, te, 2, 1.2));
+    HOPS.forEach(h => dust(X(h.to[0]), Y(h.to[1]), t, h.t1, 1, .6));
+    const s = pose(t);
+    if (t < TRIES[0].T0) { s.sc = 1; const k = prog(t, .3, .6); if (k > 0 && k < 1) { s.y -= 36 * Math.sin(k * Math.PI); s.sy = 1 + .1 * Math.sin(k * Math.PI); s.sx = 1 - .06 * Math.sin(k * Math.PI); } }
+    if (t >= IDEA.t0 && t < IDEA.t1) s.brow = null;                     // the "!" is pure delight
+    const hp = hero(s, t, fi);
+    dizzyStars(hp.fx, hp.top - 4, t, s.dizzy);
+    if (t >= IDEA.t0 && t < IDEA.t1) put(BANG, hp.fx + 6, hp.top - 18 - (fi % 2));
+    confetti(t, fi, S0.cx, S0.cy);
+    HOPS.forEach(h => { const d = t - h.t1; if (d >= 0 && d < .42) latin('100', X(h.to[0]) + 10, Y(h.to[1]) - 20 - Math.round(d * 16), 7, 1); });
+    { const d = t - LEAP.t1; if (d >= .1 && d < 1.3) latin('1UP', S0.cx + 16, S0.cy - 16 - Math.round(d * 12), 11, 1); }
+    OX = OY = 0;
+    hud(t, fi);
+    drawTitle(t);
+    if (t >= 7.0 && fi % 6 < 4) latin('LEVEL CLEAR!', 90 - (latW('LEVEL CLEAR!') >> 1), 296, 10, 1);
+    c.imageSmoothingEnabled = false;
+    c.drawImage(B, 0, 0, W, H);
+    c.drawImage(L_SCAN, 0, 0, W, H);
+  },
+  // ---------------- chiptune voice ----------------
+  voice: K => {
+    const { ac, at, mf, nm } = K, waves = {};
+    const pw = d => waves[d] || (waves[d] = (() => { const N = 64, re = new Float32Array(N), im = new Float32Array(N);
+      for (let n = 1; n < N; n++) re[n] = 2 / (n * Math.PI) * Math.sin(n * Math.PI * d); return ac.createPeriodicWave(re, im); })());
+    // pulse channel: real duty cycle, NES-ish stepped volume envelope, optional stepped pitch sweep + vibrato
+    const pulse = (t, f, dur, v = .08, duty = .25, out = K.music, f1 = null, vib = 0) => {
+      const o = ac.createOscillator(), g = ac.createGain(); o.setPeriodicWave(pw(duty)); o.frequency.setValueAtTime(f, at(t));
+      if (f1) { const n = Math.max(3, Math.round(dur * 60)); for (let k = 1; k <= n; k++) o.frequency.setValueAtTime(f * Math.pow(f1 / f, k / n), at(t + dur * k / n)); }
+      if (vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 6.5; lg.gain.value = f * vib; l.connect(lg); lg.connect(o.frequency); l.start(at(t + .12)); l.stop(at(t + dur + .05)); }
+      g.gain.setValueAtTime(0, at(t)); g.gain.linearRampToValueAtTime(v, at(t + .003));
+      const n = 6; for (let k = 1; k < n; k++) g.gain.setValueAtTime(v * (1 - .7 * k / n), at(t + dur * k / n));
+      g.gain.linearRampToValueAtTime(0, at(t + dur)); o.connect(g); g.connect(out); o.start(at(t)); o.stop(at(t + dur + .02));
+    };
+    const tri = (t, f, d, v = .2, out = K.music, f1 = null) => {           // triangle channel: flat gate, no envelope
+      const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(f, at(t));
+      if (f1) { const n = Math.max(3, Math.round(d * 60)); for (let k = 1; k <= n; k++) o.frequency.setValueAtTime(f * Math.pow(f1 / f, k / n), at(t + d * k / n)); }
+      g.gain.setValueAtTime(0, at(t)); g.gain.linearRampToValueAtTime(v, at(t + .004)); g.gain.setValueAtTime(v, at(t + d - .012)); g.gain.linearRampToValueAtTime(0, at(t + d));
+      o.connect(g); g.connect(out); o.start(at(t)); o.stop(at(t + d + .02));
+    };
+    const kick = (t, v = .32, out = K.music) => { tri(t, 190, .09, v, out, 45); K.noise(t, .03, out, v * .25, 'lowpass', 900); };
+    const snare = (t, v = .1, out = K.music) => { K.noise(t, .11, out, v, 'bandpass', 2300, .6); K.noise(t, .05, out, v * .5, 'highpass', 6000); };
+    const hat = (t, v = .028) => K.noise(t, .028, K.music, v, 'highpass', 8000);
+    const arpNotes = (tri3, t0, t1, v = .022) => { for (let t = t0, i = 0; t < t1 - .01; t += 1 / 16, i++) pulse(t, mf(tri3[i % 3] + 12), .055, v, .125); };
+    return {
+      groove(a, b, root, tri3) {
+        arpNotes(tri3, a, b);
+        for (let t = a, i = 0; t < b - .01; t += .25, i++) {
+          tri(t, mf(root + [0, 12, 7, 12][i % 4] - 12), .2, .22);
+          if (i % 4 === 0) kick(t); else if (i % 4 === 2) snare(t);
+          hat(t + .125, i % 2 ? .02 : .03);
+        }
+      },
+      motif(t) {
+        if (t > 6) return;                                                   // the ending plays its own fanfare
+        [[0, 'E5', .11], [.125, 'G5', .11], [.25, 'C6', .22], [.5, 'B5', .11], [.625, 'G5', .11], [.75, 'E5', .11], [.875, 'G5', .11], [1.0, 'C6', .42]]
+          .forEach(([d, n, du], k) => { pulse(t + d, mf(nm(n)), du, .075, .25, K.music, null, k === 7 ? .012 : 0); pulse(t + d + .02, mf(nm(n) - 12) * 1.004, du, .02, .5); });
+      },
+      ending(t) {                                                            // LEVEL CLEAR fanfare
+        ['C5', 'E5', 'G5', 'C6', 'E6', 'G6'].forEach((n, k) => pulse(t + k * .07, mf(nm(n)), k === 5 ? .32 : .07, .08, .25));
+        ['G4', 'C5', 'E5', 'G5', 'C6', 'E6'].forEach((n, k) => pulse(t + k * .07 + .01, mf(nm(n)), k === 5 ? .32 : .07, .03, .5));
+        [[.7, 'A5', .12], [.85, 'B5', .12], [1.0, 'C6', .7]].forEach(([d, n, du]) => { pulse(t + d, mf(nm(n)), du, .085, .25, K.music, null, du > .5 ? .014 : 0); pulse(t + d, mf(nm(n) - 4), du, .03, .5); });
+        tri(t, mf(36), .3, .24); tri(t + .35, mf(31), .3, .24); tri(t + .7, mf(33), .15, .24); tri(t + .85, mf(35), .15, .24); tri(t + 1.0, mf(36), .6, .24);
+        for (let k = 0; k < 8; k++) snare(t + .1 + k * .06, .03 + k * .01);
+        kick(t + 1.0, .35); K.noise(t + 1.0, .5, K.music, .05, 'highpass', 5000);
+        arpNotes([60, 64, 67], t + 1.0, t + 1.6, .018);
+      },
+      cues: {
+        reveal: t => { pulse(t, 220, .16, .06, .5, K.sfx, 880); pulse(t + .16, 660, .08, .05, .25, K.sfx); },
+        star: t => { pulse(t + .3, mf(nm('E7')), .05, .04, .25, K.sfx); pulse(t + .38, mf(nm('B7')), .12, .035, .25, K.sfx); },
+        pop: t => { pulse(t, 330, .09, .09, .5, K.sfx, 780); },
+        jump: (t, n) => pulse(t, 240, .24, .1, .25, K.sfx, n ? 1150 : 900),
+        fall: (t, n) => pulse(t, n ? 1500 : 1300, .26, .07, .125, K.sfx, 190),
+        splat: t => { ['B4', 'F4', 'C4', 'F3'].forEach((n, k) => pulse(t + k * .045, mf(nm(n)), .05, .1, .5, K.sfx)); tri(t, 150, .16, .35, K.sfx, 40); K.noise(t, .16, K.sfx, .28, 'lowpass', 700); },
+        dizzy: t => { for (let k = 0; k < 8; k++) pulse(t + k * .06, mf(k % 2 ? 88 : 84), .05, .03, .125, K.sfx); },
+        getup: t => ['C5', 'E5', 'G5'].forEach((n, k) => pulse(t + k * .05, mf(nm(n)), .05, .06, .25, K.sfx)),
+        drop: t => pulse(t, 1700, .24, .05, .125, K.sfx, 420),
+        thud: (t, n) => { tri(t, 170, .16, .45 + n * .05, K.sfx, 38); K.noise(t, .2, K.sfx, .35 + n * .05, 'lowpass', 650, .8); K.noise(t, .05, K.sfx, .12, 'bandpass', 2600, 1.2); },
+        idea: t => ['C6', 'E6', 'G6', 'C7', 'E7'].forEach((n, k) => pulse(t + k * .05, mf(nm(n)), .08, .05, .5, K.sfx)),
+        hop: (t, n) => pulse(t, 300 + n * 60, .16, .08, .25, K.sfx, 900 + n * 200),
+        land: t => { tri(t, 120, .05, .3, K.sfx, 60); K.noise(t, .03, K.sfx, .06, 'lowpass', 1400); },
+        leap: t => { pulse(t, 200, .38, .1, .25, K.sfx, 1600); pulse(t + .02, 100, .38, .03, .5, K.sfx, 800); },
+        grab: t => { pulse(t, mf(nm('B5')), .08, .1, .5, K.sfx); pulse(t + .08, mf(nm('E6')), .45, .1, .5, K.sfx);            // coin
+          ['C6', 'E6', 'G6', 'C7', 'E7', 'G7'].forEach((n, k) => pulse(t + .3 + k * .075, mf(nm(n)), .07, .05, .25, K.sfx));       // 1UP arp
+          for (let k = 0; k < 6; k++) K.noise(t + .05 + k * .09, .03, K.sfx, .025, 'highpass', 9000); },
+        title: t => { ['C5', 'E5', 'G5'].forEach(n => pulse(t, mf(nm(n)), .14, .04, .5, K.sfx)); K.noise(t, .12, K.sfx, .06, 'highpass', 4000); },
+      },
+    };
+  },
+  kit: { reverb: .05, musicGain: .5, sfxGain: .75, revSec: .6 },
+});
+</script>

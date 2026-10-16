@@ -1,0 +1,23 @@
+{
+  "images": [],
+  "videos": [
+    { "id": "octopus", "source": { "type": "pixabay", "url": "https://cdn.pixabay.com/video/2026/01/23/329847_large.mp4" }, "start": 0.5,
+      "license": "Pixabay licence", "credit": "TonyDias7 / Pixabay", "page": "https://pixabay.com/videos/id-329847/" }
+  ],
+  "shots": [
+    { "id": "open", "segment": "hearts", "skill": "footage", "video": "octopus", "motif": false,
+      "intent": "Hook: a real octopus, so 'alien' lands", "description": "Portrait footage of an octopus, natural colour, white caption plate" },
+    { "id": "hearts", "segment": "hearts", "words": "it has three", "skill": "reelkit", "component": "ThreeHearts",
+      "cues": { "three": { "word": "three", "sfx": "pop" }, "gills": { "word": "gills", "sfx": "click" }, "body": { "word": "body", "sfx": "click" } },
+      "intent": "3 hearts: 2 for the gills, 1 for the body", "description": "'3 HEARTS' headline; three coral hearts pop, two tagged GILLS, one tagged BODY" },
+    { "id": "blood", "segment": "blood", "skill": "reelkit", "component": "BlueBlood",
+      "cues": { "blue": { "word": "blue", "sfx": "whoosh" }, "copper": { "word": "copper", "sfx": "pop" }, "iron": { "word": "iron", "sfx": "stamp" } },
+      "intent": "blue blood, copper not iron", "description": "'BLUE BLOOD' headline turns blue; Cu tile pops with a tick; Fe tile gets a NOPE stamp" },
+    { "id": "brains", "segment": "brains", "skill": "canvas", "file": "shots/brains.js",
+      "cues": { "nine": "nine", "head": "head", "mini": "mini", "arm": "arm" },
+      "intent": "9 brains: 1 head + 8 arms", "description": "a hand-drawn octopus; a big 9 counts in; the head brain lights, then one per arm" },
+    { "id": "cta", "segment": "brains", "words": "Tell me", "skill": "reelkit", "component": "AskBubble",
+      "cues": { "ask": { "word": "Tell", "sfx": "pop" } },
+      "intent": "soft CTA", "description": "speech bubble 'Which fact got you?' with 3 / Cu / 9 chips" }
+  ]
+}

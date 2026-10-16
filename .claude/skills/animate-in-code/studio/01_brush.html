@@ -1,0 +1,565 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>01 · משיכות מכחול</title>
+<body>
+<script src="fonts-data.js"></script>
+<script src="story.js"></script>
+<script src="audio.js"></script>
+<script src="runtime.js"></script>
+<script>
+'use strict';
+// ============================================================
+// 01 · BRUSH STROKES - thick painterly gouache / oil impasto, Loving-Vincent energy.
+// Everything is built from ONE primitive: brush() = a tapered ribbon along a path, filled with
+// parallel bristle lines of drifting colour/alpha, dry-brush breakup at the tail, and an impasto
+// ridge (light edge + dark edge). Sky = strokes following a swirling flow field (3 pre-painted
+// variants that boil), foreground re-painted on twos. Voice: felt piano, string pad, brushed snare.
+// ============================================================
+let BF = 0;                                              // boil frame (changes every 2 frames)
+const bs = k => (k * 7919 + BF * 104729) | 0;           // boiling seed
+const hsl = (h, s, l) => `hsl(${h | 0},${clamp(s, 0, 100) | 0}%,${clamp(l, 0, 100) | 0}%)`;
+
+// ---------- palette (hsl triplets) ----------
+const P_ = {
+  verm: [8, 82, 50], vermD: [4, 72, 38], peach: [18, 95, 68], crim: [350, 62, 36],
+  outl: [228, 62, 16], cream: [45, 70, 93], yel: [48, 96, 56], yelD: [36, 95, 48], blush: [345, 85, 72],
+  ultra: [228, 64, 22], cobalt: [218, 60, 40], teal: [192, 45, 48], white: [205, 45, 88],
+};
+
+// ---------- the brush ----------
+function crSample(P, n) {
+  const out = [], segs = P.length - 1;
+  for (let i = 0; i <= n; i++) {
+    const u = i / n * segs, s = Math.min(segs - 1, Math.floor(u)), f = u - s, f2 = f * f, f3 = f2 * f;
+    const p0 = P[Math.max(0, s - 1)], p1 = P[s], p2 = P[s + 1], p3 = P[Math.min(segs, s + 2)];
+    const cr = k => .5 * (2 * p1[k] + (-p0[k] + p2[k]) * f + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * f2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * f3);
+    out.push([cr(0), cr(1)]);
+  }
+  return out;
+}
+// brush(g, points, width, [h,s,l], seed, opts). Points are control points (Catmull-Rom) or raw samples.
+function brush(g, P, w, col, seed, o = {}) {
+  const { a = 1, nb = 0, dry = .35, tin = .15, tout = .32, hi = .8, upto = 1, raw = false, jit = 0, lj = 8, hj = 6, sj = 10, base = .9 } = o;
+  const r = rng(seed);
+  let Q = P;
+  if (jit) { const rj = rng(seed * 13 + 5); Q = P.map(p => [p[0] + (rj() - .5) * 2 * jit, p[1] + (rj() - .5) * 2 * jit]); }
+  let S_;
+  if (raw) S_ = Q;
+  else {
+    let L = 0; for (let i = 1; i < Q.length; i++) L += Math.hypot(Q[i][0] - Q[i - 1][0], Q[i][1] - Q[i - 1][1]);
+    S_ = crSample(Q.length > 2 ? Q : [Q[0], [(Q[0][0] + Q[1][0]) / 2, (Q[0][1] + Q[1][1]) / 2], Q[1]], clamp(Math.round(L / 9), 4, 40));
+  }
+  const n = S_.length - 1; if (n < 1) return;
+  const N = [], WW = [];
+  for (let i = 0; i <= n; i++) {
+    const p = S_[Math.max(0, i - 1)], q = S_[Math.min(n, i + 1)], tx = q[0] - p[0], ty = q[1] - p[1], l = Math.hypot(tx, ty) || 1;
+    N.push([-ty / l, tx / l]);
+    const u = i / n; WW.push(w * (.55 + .45 * clamp(u / tin)) * (u > 1 - tout ? .2 + .8 * Math.pow(Math.max(0, (1 - u) / tout), .6) : 1));
+  }
+  const mN = N[n >> 1], ls = (mN[0] * -.6 + mN[1] * -.8) >= 0 ? 1 : -1;     // which side faces the light (upper left)
+  const m = Math.max(1, Math.round(n * clamp(upto)));
+  const edge = (off, i) => [S_[i][0] + N[i][0] * WW[i] * off, S_[i][1] + N[i][1] * WW[i] * off];
+  if (base) {                                              // body of paint
+    g.globalAlpha = a * base; g.fillStyle = hsl(col[0], col[1], col[2]); g.beginPath();
+    for (let i = 0; i <= m; i++) { const e = edge(.42, i); g.lineTo(e[0], e[1]); }
+    for (let i = m; i >= 0; i--) { const e = edge(-.42, i); g.lineTo(e[0], e[1]); }
+    g.closePath(); g.fill();
+  }
+  const cnt = nb || clamp(Math.round(w / 3.2), 3, 14);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (let j = 0; j < cnt; j++) {                          // bristles
+    const off = (((j + .5) / cnt) * 2 - 1) * .5 * .94 + (r() - .5) * .05;
+    g.strokeStyle = hsl(col[0] + (r() - .5) * 2 * hj, col[1] + (r() - .5) * sj, col[2] + (r() - .5) * 2 * lj + off * 2 * ls * lj * .5);
+    g.globalAlpha = a * (.5 + r() * .5);
+    g.lineWidth = Math.max(.8, w / cnt * (1 + r() * .9));
+    const uEnd = 1 - r() * dry * (.5 + Math.abs(off)), u0 = r() * .05;
+    g.beginPath(); let on = false;
+    for (let i = 0; i <= m; i++) {
+      const u = i / n; if (u < u0 || u > uEnd) { on = false; continue; }
+      if (u > .55 && r() < dry * .45) { on = false; continue; }      // dry-brush skips
+      const e = edge(off, i); if (on) g.lineTo(e[0], e[1]); else { g.moveTo(e[0], e[1]); on = true; }
+    }
+    g.stroke();
+  }
+  if (hi > 0) {                                            // impasto ridge: light edge + dark edge
+    const ridge = (off, dl, al, lw, end) => {
+      g.strokeStyle = hsl(col[0], col[1] - 8, col[2] + dl); g.globalAlpha = a * al; g.lineWidth = Math.max(1, lw);
+      g.beginPath(); let on = false;
+      for (let i = 0; i <= Math.min(m, Math.round(n * end)); i++) { const e = edge(off, i); if (on) g.lineTo(e[0], e[1]); else { g.moveTo(e[0], e[1]); on = true; } }
+      g.stroke();
+    };
+    ridge(.3 * ls, 24, .75 * hi, w * .09, .7 + r() * .2);
+    ridge(-.4 * ls, -16, .45 * hi, w * .08, .85);
+  }
+  g.globalAlpha = 1;
+}
+// ring of arcs around an ellipse (painted outline)
+function ring(g, cx, cy, rx, ry, w, col, seed, n = 6, o = {}) {
+  const r = rng(seed);
+  for (let k = 0; k < n; k++) {
+    const a0 = k / n * TAU + (r() - .5) * .3, da = TAU / n * 1.3, P = [];
+    for (let q = 0; q < 4; q++) { const a = a0 + da * q / 3; P.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]); }
+    brush(g, P, w, col, bs(seed * 17 + k), { nb: 3, hi: 0, dry: .15, tin: .1, tout: .2, jit: .8, lj: 5, ...o });
+  }
+}
+// dab: a small painted oval (underpaint + two strokes + outline)
+function dab(g, x, y, rx, ry, col, seed, outline = true, ow = 4) {
+  g.fillStyle = hsl(...col); g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, TAU); g.fill();
+  brush(g, [[x - rx * .8, y - ry * .2], [x, y - ry * .45], [x + rx * .8, y - ry * .1]], ry * .9, [col[0], col[1], col[2] + 8], bs(seed), { hi: .6, dry: .2 });
+  brush(g, [[x - rx * .7, y + ry * .35], [x + rx * .6, y + ry * .4]], ry * .7, [col[0], col[1], col[2] - 7], bs(seed + 1), { hi: 0, dry: .2 });
+  if (outline) ring(g, x, y, rx + 1, ry + 1, ow, P_.outl, seed + 2, 4);
+}
+function starPts(R, r, seed) { const q = rng(seed), pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU, rr = (i % 2 ? r : R) * (1 + (q() - .5) * .06); pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); } return pts; }
+function polyPath(pts) { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); return p; }
+
+// ---------- painted text (mask filled with strokes) ----------
+function paintedText(str, size, family, fill, seed, o = {}) {
+  const { fat = 8, edgeW = 0, edge = P_.outl, sw = 12, pad = 26, lj = 12, hj = 8, weight = '' } = o;
+  const font = `${weight} ${size}px ${family}`.trim();
+  ctx.save(); ctx.font = font; const tw = ctx.measureText(str).width; ctx.restore();
+  const w = Math.ceil(tw + pad * 2 + fat + edgeW), h = Math.ceil(size * 1.6 + pad * 2);
+  const txt = (g, lw, col) => { g.font = font; g.direction = 'rtl'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = g.strokeStyle = col; g.lineJoin = 'round';
+    g.fillText(str, w / 2, h / 2); if (lw) { g.lineWidth = lw; g.strokeText(str, w / 2, h / 2); } };
+  const mask = layer(g => txt(g, fat, '#fff'), w, h);
+  const paint = layer(g => {
+    g.fillStyle = hsl(...fill); g.fillRect(0, 0, w, h); const r = rng(seed);
+    for (let y = 0; y < h; y += sw * .75) for (let x = -20; x < w; x += sw * 2) {
+      const x0 = x + r() * sw, y0 = y + r() * sw * .6, an = -.55 + (r() - .5) * .6, L = sw * (2.2 + r() * 1.6);
+      brush(g, [[x0, y0], [x0 + Math.cos(an) * L * .5, y0 + Math.sin(an) * L * .5 + (r() - .5) * 4], [x0 + Math.cos(an) * L, y0 + Math.sin(an) * L]], sw, fill,
+        (seed * 1000 + x * 7 + y * 131) | 0, { lj, hj, base: .5, dry: .25, hi: .7 });
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'destination-in'; g.drawImage(mask, 0, 0);
+  }, w, h);
+  const cv = layer(g => { if (edgeW) txt(g, fat + edgeW, hsl(...edge)); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(paint, 0, 0); }, w, h);
+  return { cv, w, h };
+}
+
+// ============================================================
+// BACKGROUND: swirling night sky, moon, stars, hills, cypress, meadow (3 boil variants)
+// ============================================================
+const VORT = [{ x: 290, y: 1010, R: 250, s: 1.7, d: 1 }, { x: 730, y: 1240, R: 190, s: 1.5, d: -1 }, { x: 905, y: 700, R: 170, s: 1.3, d: 1 }, { x: 540, y: 150, R: 260, s: .7, d: -1 }];
+function field(x, y) {
+  let vx = 1, vy = .35 * Math.sin(x * .004 + y * .007) + .15 * Math.sin(y * .013);
+  for (const v of VORT) { const dx = x - v.x, dy = y - v.y, d = Math.hypot(dx, dy) + 1, e = Math.exp(-((d / v.R) ** 2)) * v.s * 2.2; vx += -dy / d * e * v.d; vy += dx / d * e * v.d; }
+  const l = Math.hypot(vx, vy) || 1; return [vx / l, vy / l];
+}
+const MOON = [905, 700], SMALL_STARS = [[150, 640, 24], [330, 480, 18], [1010, 960, 20], [640, 930, 15], [60, 300, 16], [1030, 250, 16], [210, 1330, 14], [960, 1330, 13]];
+const hillY = x => 1455 + 38 * Math.sin(x * .006 + 1) + 22 * Math.sin(x * .017 + 2);
+function paintBG(g, v) {
+  BF = v * 3 + 1;
+  const P = rng(1000);                                    // positions: same in every variant
+  // --- sky underpaint
+  const gr = g.createLinearGradient(0, 0, 0, 1500);
+  gr.addColorStop(0, hsl(230, 62, 17)); gr.addColorStop(.45, hsl(222, 58, 32)); gr.addColorStop(1, hsl(205, 45, 50));
+  g.fillStyle = gr; g.fillRect(0, 0, W, 1520);
+  // --- flow-field sky strokes (two passes: broad, then fine + light swirl bands)
+  const skyCol = (x, y, rr) => {
+    let white = .06;
+    for (const vv of VORT) { const d = Math.hypot(x - vv.x, y - vv.y), e = Math.exp(-((d / vv.R) ** 2) * 1.1); white += .6 * e * clamp(Math.sin(d / vv.R * 10) * 1.4 - .2); }
+    const k = clamp(y / 1480);
+    if (rr() < white) return rr() < .5 ? [205 + rr() * 15, 50, 80 + rr() * 12] : [190, 45, 66];
+    if (rr() < .1) return [175, 40, 44];
+    return [lerp(230, 205, k) + (rr() - .5) * 10, lerp(62, 48, k), lerp(20, 50, k) + (rr() - .5) * 14];
+  };
+  for (let pass = 0; pass < 2; pass++) {
+    const count = pass ? 1300 : 2300, cr = rng(2000 + pass * 17 + v * 3);
+    for (let k = 0; k < count; k++) {
+      let x = P() * (W + 60) - 30, y = P() * 1520 - 20;
+      x += (cr() - .5) * 5; y += (cr() - .5) * 5;
+      const pts = [[x, y]], steps = 6 + (P() * 4 | 0), st = pass ? 8 : 10;
+      for (let s = 0; s < steps; s++) { const f = field(pts[s][0], pts[s][1]); pts.push([pts[s][0] + f[0] * st, pts[s][1] + f[1] * st]); }
+      brush(g, pts, pass ? 11 + P() * 5 : 18 + P() * 9, skyCol(x, y, cr), bs(k + pass * 5000), { raw: true, dry: .45, hi: .7 });
+    }
+  }
+  // --- moon + halo rings, small stars with halos
+  const halo = (x, y, r0, nR, gap, seed, w) => {
+    for (let j = 0; j < nR; j++) { const rr = r0 + j * gap, n = Math.max(4, Math.round(rr / 16));
+      ring(g, x, y, rr, rr, w, j % 2 ? [55, 90, 86] : [50, 85, 62], seed + j * 11, n, { nb: 6, hi: .7, dry: .55, a: .9, lj: 12, base: .5, jit: 2.5 }); }
+  };
+  halo(MOON[0], MOON[1], 78, 4, 24, 3100, 16);
+  g.fillStyle = hsl(44, 95, 58); g.beginPath(); g.arc(MOON[0], MOON[1], 56, 0, TAU); g.fill();
+  for (let k = 0; k < 7; k++) { const a = -1.2 + k * .38; brush(g, [[MOON[0] + Math.cos(a) * 48, MOON[1] + Math.sin(a) * 48], [MOON[0] + Math.cos(a + 1.3) * 30, MOON[1] + Math.sin(a + 1.3) * 30], [MOON[0] + Math.cos(a + 2.4) * 44, MOON[1] + Math.sin(a + 2.4) * 44]], 18, k % 2 ? [48, 95, 70] : [38, 95, 52], bs(3200 + k)); }
+  // crescent shadow
+  g.fillStyle = hsl(222, 55, 30); g.globalAlpha = .9; g.beginPath(); g.arc(MOON[0] + 30, MOON[1] - 18, 46, 0, TAU); g.fill(); g.globalAlpha = 1;
+  for (let k = 0; k < 4; k++) brush(g, [[MOON[0] + 4, MOON[1] - 50 + k * 22], [MOON[0] + 40, MOON[1] - 40 + k * 22], [MOON[0] + 70, MOON[1] - 30 + k * 18]], 16, [222, 55, 30 + k * 3], bs(3300 + k), { hi: .4 });
+  SMALL_STARS.forEach(([x, y, s], i) => {
+    halo(x, y, s * 1.7, 2, s * .9, 3400 + i * 30, 9);
+    g.fillStyle = hsl(52, 95, 80); g.beginPath(); g.arc(x, y, s * .8, 0, TAU); g.fill();
+    for (let k = 0; k < 4; k++) { const a = k * .8 + i; brush(g, [[x - Math.cos(a) * s, y - Math.sin(a) * s], [x + Math.cos(a) * s, y + Math.sin(a) * s]], s * .6, k % 2 ? [55, 90, 94] : [48, 95, 66], bs(3500 + i * 9 + k), { hi: .3 }); }
+  });
+  // --- distant hills
+  g.fillStyle = hsl(232, 32, 30); g.beginPath(); g.moveTo(0, GY); for (let x = 0; x <= W; x += 20) g.lineTo(x, hillY(x)); g.lineTo(W, GY + 10); g.lineTo(0, GY + 10); g.fill();
+  for (let k = 0; k < 150; k++) {
+    const x = P() * (W + 80) - 40, y0 = hillY(x), y = y0 + 8 + P() * (GY - y0), L = 60 + P() * 70, P1 = [];
+    for (let q = 0; q < 3; q++) { const xx = x + q * L / 2; P1.push([xx, y + (hillY(xx) - y0) * (1 - (y - y0) / (GY - y0 + 1))]); }
+    const top = y - y0 < 22;
+    brush(g, P1, 16 + P() * 6, top ? [245, 30, 50] : [228 + P() * 12, 35, 24 + P() * 12], bs(4000 + k), { hi: .5 });
+  }
+  // --- cypress (flame of dark green vertical strokes)
+  const CX = 108, CT = 790, hw = y => { const u = (GY - y) / (GY - CT); return 78 * Math.pow(1 - u, .7) * Math.min(1, u * 5 + .35); };
+  g.fillStyle = hsl(150, 40, 12); g.beginPath();
+  for (let y = GY; y >= CT; y -= 20) g.lineTo(CX - hw(y) + 8 * Math.sin(y * .03), y);
+  for (let y = CT; y <= GY; y += 20) g.lineTo(CX + hw(y) + 8 * Math.sin(y * .03 + 1), y);
+  g.fill();
+  for (let k = 0; k < 170; k++) {
+    const y = CT + 20 + P() * (GY - CT - 10), hwy = hw(y), x = CX + (P() * 2 - 1) * hwy * .9, L = 70 + P() * 60, sd = P() < .5 ? 1 : -1, P1 = [];
+    for (let q = 0; q < 4; q++) { const yy = y - L * q / 3; P1.push([x + sd * 10 * Math.sin(q * 1.4) + (CX - x) * .25 * q / 3, yy]); }
+    const pick = P(); const col = pick < .12 ? [210, 40, 26] : pick < .3 ? [95, 38, 34] : [148 + P() * 20, 38, 12 + P() * 16];
+    brush(g, P1, 13 + P() * 6, col, bs(4500 + k), { hi: .7, tin: .3 });
+  }
+  // --- meadow
+  g.fillStyle = hsl(84, 42, 30); g.fillRect(0, GY - 8, W, H - GY + 8);
+  for (let y = GY - 4, row = 0; y < H + 20; y += 15, row++) {
+    for (let x = -60 + P() * 60; x < W + 40; x += 70 + P() * 50) {
+      const L = 90 + P() * 70, sl = (P() - .5) * .18, P1 = [[x, y], [x + L * .5, y + L * sl * .5 - 5 * Math.sin(x * .02)], [x + L, y + L * sl]];
+      const pick = P(), dk = clamp((y - GY) / 340);
+      const col = pick < .1 ? [44, 62, 56] : pick < .22 ? [70, 55, 52 - dk * 10] : pick < .45 ? [110, 40, 24 - dk * 5] : [80 + P() * 14, 44, 36 - dk * 10];
+      brush(g, P1, 17 + P() * 8, col, bs(5000 + row * 40 + (x | 0)), { hi: .7 });
+    }
+  }
+  for (let k = 0; k < 140; k++) {                         // grass flicks on the horizon
+    const x = P() * W, y = GY + 6 + P() * 14, L = 22 + P() * 30, lean = (P() - .5) * 20;
+    brush(g, [[x, y], [x + lean * .5, y - L * .6], [x + lean, y - L]], 7 + P() * 3, P() < .3 ? [75, 55, 56] : [95, 45, 36], bs(6000 + k), { hi: .5, tin: .05 });
+  }
+  [[90, GY + 150], [990, GY + 110], [600, GY + 250], [300, GY + 290], [820, GY + 290], [470, GY + 120]].forEach(([x, y], i) => {
+    for (let p = 0; p < 5; p++) { const a = p / 5 * TAU + i; brush(g, [[x, y], [x + Math.cos(a) * 22, y + Math.sin(a) * 16]], 12, i % 2 ? [50, 95, 64] : [40, 30, 94], bs(6500 + i * 9 + p), { hi: .4, tin: .05 }); }
+    g.fillStyle = hsl(20, 80, 45); g.beginPath(); g.arc(x, y, 7, 0, TAU); g.fill();
+  });
+}
+// canvas-weave texture (pixel space, overlay blend)
+const WEAVE = (() => {
+  const n = 180, c = mkCanvas(n, n), g = c.getContext('2d'), r = rng(55);
+  g.fillStyle = 'rgb(128,128,128)'; g.fillRect(0, 0, n, n);
+  for (let y = 0; y < n; y += 3) { const v = r() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${.05 + r() * .08})`; g.fillRect(0, y, n, 1.3); }
+  for (let x = 0; x < n; x += 3) { const v = r() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${.04 + r() * .07})`; g.fillRect(x, 0, 1.3, n); }
+  for (let i = 0; i < 1400; i++) { const v = r() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${.05 + r() * .1})`; g.fillRect(r() * n, r() * n, 1 + r() * 2, 1); }
+  return c;
+})();
+
+// ============================================================
+// פיצי - painted with strokes that wrap the round body
+// ============================================================
+const BODYS = (() => {
+  const r = rng(501), out = [];
+  for (let k = 0; k < 46; k++) {
+    const rr = .16 + .86 * Math.sqrt(r()), a0 = r() * TAU, len = 70 + r() * 55, da = Math.min(2.2, len / (rr * 100)) * (r() < .5 ? 1 : -1), P = [];
+    for (let q = 0; q < 4; q++) { const a = a0 + da * q / 3, rq = rr * (1 + (r() - .5) * .08); P.push([Math.cos(a) * BODY.rx * rq, BODY.cy + Math.sin(a) * BODY.ry * rq]); }
+    const am = a0 + da / 2, sh = -.55 * Math.cos(am) * rr - .8 * Math.sin(am) * rr;
+    let col, ord;
+    if (sh > .38) { col = [18 + r() * 10, 96, 66 + sh * 8]; ord = 2; }
+    else if (sh < -.3) { col = r() < .4 ? P_.crim : [3, 76, 37]; ord = 0; }
+    else { col = [6 + r() * 8, 86, 50 + sh * 8 + (r() - .5) * 8]; ord = 1; }
+    out.push({ P, w: 25 + r() * 11, col, ord, seed: 520 + k, a: 1 });
+  }
+  for (let k = 0; k < 5; k++) { const cx = -44 + (r() - .5) * 40, cy = -186 + (r() - .5) * 20, a = -.5 + r() * .4;
+    out.push({ P: [[cx - 18, cy + 8 * a], [cx, cy - 2], [cx + 18, cy - 8 * a]], w: 10 + r() * 4, col: [28, 95, 86], ord: 3, seed: 580 + k, a: .95 }); }
+  for (let k = 0; k < 3; k++) { const a0 = .2 + k * .45, P = []; for (let q = 0; q < 4; q++) { const a = a0 + q * .2; P.push([Math.cos(a) * BODY.rx * .95, BODY.cy + Math.sin(a) * BODY.ry * .95]); }
+    out.push({ P, w: 13, col: [222, 55, 48], ord: 1.5, seed: 590 + k, a: .55 }); }
+  return out.sort((a, b) => a.ord - b.ord);
+})();
+function mouthLine(c, pts, w, seed) { brush(c, pts, w, [350, 55, 18], bs(seed), { nb: 3, hi: 0, dry: .1, tin: .2, tout: .3, jit: .6 }); }
+function pitz(c, s, t) {
+  const { x, y, sx = 1, sy = 1, rot = 0, sc = 1, eyes = 'norm', mouth = 'smile', brow = null, look = [0, 0], armL = .35, armR = .35, band = 0, jig = 0, legs = 0 } = s;
+  if (sc <= 0) return;
+  c.save(); c.translate(x, y); c.rotate(rot); c.scale(sx * sc, sy * sc);
+  // arms (behind the body)
+  [[-1, armL], [1, armR]].forEach(([sd, a], n) => {
+    const sh = [sd * 72, -118], hd = [sh[0] + sd * Math.sin(a) * 96, sh[1] + Math.cos(a) * 96], el = [lerp(sh[0], hd[0], .5) + sd * 8, lerp(sh[1], hd[1], .5) + 6];
+    brush(c, [sh, el, hd], 22, P_.outl, bs(20 + n), { jit: 1.2, hi: 0, tout: .1, dry: .05, nb: 4 });
+    brush(c, [sh, el, hd], 13, P_.vermD, bs(22 + n), { jit: 1.2, hi: .6, tout: .1, dry: .1 });
+    dab(c, hd[0], hd[1], 17, 16, P_.verm, 24 + n * 3);
+  });
+  // legs + feet
+  [[-1, 0], [1, 1]].forEach(([sd, n]) => {
+    const sw = Math.sin(legs * 1.0 + n * Math.PI) * 18 * (legs ? 1 : 0), hip = [sd * 34, -34], ft = [sd * 42 + sw, -2 + Math.abs(sw) * .2];
+    brush(c, [hip, [lerp(hip[0], ft[0], .5) + sd * 4, -18], ft], 20, P_.outl, bs(30 + n), { jit: 1, hi: 0, tout: .1, nb: 4, dry: .05 });
+    brush(c, [hip, [lerp(hip[0], ft[0], .5) + sd * 4, -18], ft], 11, P_.vermD, bs(32 + n), { jit: 1, hi: .4, tout: .1 });
+    dab(c, ft[0] + sd * 8, ft[1] - 2, 28, 14, P_.vermD, 34 + n * 3);
+  });
+  // body: underpaint, wrapping strokes clipped to the silhouette, blue painted contour
+  const bp = new Path2D(); bp.ellipse(0, BODY.cy, BODY.rx + 3, BODY.ry + 3, 0, 0, TAU);
+  c.fillStyle = hsl(...P_.verm); c.fill(bp);
+  c.save(); c.clip(bp);
+  for (const st of BODYS) brush(c, st.P, st.w, st.col, bs(st.seed), { jit: 2, a: st.a, hi: 1, lj: 10, dry: .45 });
+  c.restore();
+  ring(c, 0, BODY.cy, BODY.rx + 2, BODY.ry + 2, 10, P_.outl, 60, 7);
+  // band-aid
+  if (band > 0) {
+    c.save(); c.translate(-40, -210); c.rotate(-.45); const k = eBack(band); c.scale(k, k);
+    brush(c, [[-48, 0], [0, -2], [48, 0]], 30, [30, 60, 76], bs(90), { tin: .02, tout: .05, hi: .6, dry: .05 });
+    c.fillStyle = hsl(28, 55, 62); c.fillRect(-14, -11, 28, 22);
+    c.fillStyle = hsl(20, 40, 40); for (let i = 0; i < 6; i++) { c.beginPath(); c.arc(-8 + (i % 3) * 8, -4 + Math.floor(i / 3) * 8, 1.8, 0, TAU); c.fill(); }
+    c.restore();
+  }
+  // cheeks: two soft pink dabs
+  [-1, 1].forEach((sd, n) => { brush(c, [[sd * 66 - 16, -106], [sd * 66, -110], [sd * 66 + 16, -106]], 17, P_.blush, bs(64 + n), { a: .8, hi: .5, dry: .2 }); });
+  // eyes
+  const jx = Math.sin(t * 37) * jig * 7, jy = Math.cos(t * 29) * jig * 6;
+  [-1, 1].forEach((sd, n) => {
+    const ex = sd * 38, ey = -152;
+    if (eyes === 'x') { mouthLine(c, [[ex - 15, ey - 15], [ex + 15, ey + 15]], 9, 40 + n); mouthLine(c, [[ex + 15, ey - 15], [ex - 15, ey + 15]], 9, 42 + n); return; }
+    if (eyes === 'happy') { mouthLine(c, [[ex - 19, ey + 7], [ex, ey - 12], [ex + 19, ey + 7]], 10, 44 + n); return; }
+    const R = eyes === 'big' || eyes === 'spark' ? 34 : 30;
+    const ep = new Path2D(); ep.ellipse(ex, ey, R, R * 1.05, 0, 0, TAU);
+    c.fillStyle = hsl(45, 60, 96); c.fill(ep);
+    c.save(); c.clip(ep);
+    brush(c, [[ex - R, ey + R * .45], [ex, ey + R * .6], [ex + R, ey + R * .4]], R * .6, [212, 35, 84], bs(46 + n), { hi: 0, a: .8 });
+    brush(c, [[ex - R * .8, ey - R * .35], [ex + R * .7, ey - R * .5]], R * .5, [48, 70, 98], bs(48 + n), { hi: .3, a: .9 });
+    c.restore();
+    ring(c, ex, ey, R, R * 1.05, 5.5, P_.outl, 50 + n, 4);
+    const pr = eyes === 'spark' ? 19 : eyes === 'big' ? 13 : 15;
+    const px = ex + clamp(look[0] * 11 + jx, -12, 12), py = ey + clamp(look[1] * 11 + jy, -12, 12);
+    c.fillStyle = hsl(232, 55, 11); c.beginPath(); c.arc(px, py, pr, 0, TAU); c.fill();
+    c.fillStyle = hsl(50, 40, 98); c.beginPath(); c.arc(px + 5, py - 6, eyes === 'spark' ? 6.5 : 4.5, 0, TAU); c.fill();
+    if (eyes === 'spark') { c.beginPath(); c.arc(px - 6, py + 6, 3, 0, TAU); c.fill(); }
+  });
+  if (brow === 'det') { mouthLine(c, [[-64, -198], [-40, -191], [-17, -182]], 10, 60); mouthLine(c, [[64, -198], [40, -191], [17, -182]], 10, 61); }
+  // mouth
+  const my = -102;
+  if (mouth === 'smile') mouthLine(c, [[-25, my - 5], [0, my + 12], [25, my - 5]], 9, 70);
+  else if (mouth === 'flat') mouthLine(c, [[-19, my + 2], [0, my + 2], [19, my]], 9, 71);
+  else if (mouth === 'tiny') { c.fillStyle = hsl(350, 55, 18); c.beginPath(); c.ellipse(0, my + 2, 9, 11, 0, 0, TAU); c.fill(); }
+  else if (mouth === 'ouch') mouthLine(c, [[-27, my], [-13, my - 9], [0, my + 2], [13, my - 9], [27, my]], 8, 73);
+  else if (mouth === 'open' || mouth === 'wow') {
+    const w = mouth === 'wow' ? 30 : 16, h = mouth === 'wow' ? 28 : 20;
+    c.fillStyle = hsl(350, 55, 18); c.beginPath();
+    if (mouth === 'wow') { c.moveTo(-w, my - 6); c.quadraticCurveTo(0, my + h * 1.6, w, my - 6); c.closePath(); } else c.ellipse(0, my + 4, w, h, 0, 0, TAU);
+    c.fill(); c.save(); c.clip(); brush(c, [[-w * .7, my + h * .95], [w * .7, my + h * .95]], h * .7, [350, 80, 62], bs(74), { hi: .4 }); c.restore();
+  }
+  c.restore();
+}
+
+// ============================================================
+// STAR, BLOCKS, FX
+// ============================================================
+function starBody(c, R, seed, lit, face, t) {
+  const pts = starPts(R, R / 2, 11), p = polyPath(pts);
+  c.fillStyle = hsl(46, 96, 55 + lit * 12); c.fill(p);
+  c.save(); c.clip(p);
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + i * TAU / 5, ai = a + Math.PI / 5, P = (an, rr) => [Math.cos(an) * R * rr, Math.sin(an) * R * rr];
+    brush(c, [P(ai, 0), P(ai, .3), P(ai, .58)], R * .34, [36, 95, 49 + lit * 12], bs(seed + i * 10), { hi: .6 });
+    for (let q = 0; q < 3; q++) { const da = (q - 1) * .12;
+      brush(c, [P(a + da * 2, .06), P(a + da, .5), P(a + da * .4, 1.04)], R * .25, q === 1 ? [52, 100, 70 + lit * 16] : [46, 96, 57 + lit * 12], bs(seed + i * 10 + q + 1), { hi: .9, jit: 1 }); }
+  }
+  c.restore();
+  for (let i = 0; i < 10; i++) { const A = pts[i], B = pts[(i + 1) % 10];
+    brush(c, [A, [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], B], Math.max(4, R * .08), [22, 70, 22], bs(seed + 60 + i), { nb: 3, hi: 0, dry: .15, tin: .05, tout: .15, jit: .8 }); }
+  if (face === 0) return;
+  const ink = hsl(232, 55, 12);
+  c.fillStyle = hsl(...P_.blush); c.globalAlpha = .75; c.beginPath(); c.ellipse(-30, 14, 12, 7, 0, 0, TAU); c.ellipse(30, 14, 12, 7, 0, 0, TAU); c.fill(); c.globalAlpha = 1;
+  if (lit > 0) {
+    c.fillStyle = ink; c.beginPath(); c.arc(-20, -4, 8, 0, TAU); c.arc(20, -4, 8, 0, TAU); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(-18, -7, 2.8, 0, TAU); c.arc(22, -7, 2.8, 0, TAU); c.fill();
+    c.fillStyle = ink; c.beginPath(); c.arc(0, 12, 13, 0, Math.PI); c.fill();
+  } else if (face === 2) {
+    c.fillStyle = ink; c.beginPath(); c.arc(-12, -4, 7, 0, TAU); c.arc(28, -4, 7, 0, TAU); c.fill(); mouthLine(c, [[-4, 17], [10, 12]], 5, 16);
+  } else {
+    mouthLine(c, [[-30, -4], [-20, 3], [-10, -4]], 5.5, 13); mouthLine(c, [[10, -4], [20, 3], [30, -4]], 5.5, 14); mouthLine(c, [[-9, 14], [0, 20], [9, 14]], 5, 15);
+  }
+}
+// the star swings on its string; before .6 s it is already hanging (frame 0 = thumbnail), with a little bounce
+function starS(t) {
+  if (t >= .6) return starState(t);
+  const a = starAng(t), L = SLEN * (1 - .05 * Math.sin(t * 16) * Math.exp(-t * 3));
+  return { visible: true, x: PIV[0] + L * Math.sin(a), y: PIV[1] + L * Math.cos(a), ang: a, pivot: PIV, lit: 0, grabbed: false, dodge: false };
+}
+function drawStar(c, t) {
+  const st = starS(t), { x, y, ang: a, lit } = st;
+  brush(c, [PIV, [lerp(PIV[0], x, .5) + 5 * Math.sin(t * 2), lerp(PIV[1], y, .5)], [x, y - 80]], 6, [30, 30, 20], bs(71), { nb: 2, hi: 0, dry: 0, tin: .01, tout: .02 });
+  c.save(); c.translate(x, y); c.rotate(-a);
+  if (lit > 0) {
+    const d = t - LEAP.t1, L = eOut(clamp(lit)), g = c.createRadialGradient(0, 0, 30, 0, 0, 380 * L);
+    g.addColorStop(0, 'rgba(255,236,140,.85)'); g.addColorStop(.5, 'rgba(255,214,90,.35)'); g.addColorStop(1, 'rgba(255,214,90,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(0, 0, 380 * L, 0, TAU); c.fill();
+    for (let j = 0; j < 3; j++) { const rr = (170 + j * 48) * L, n = 7 + j * 2;           // Van Gogh halo rings
+      ring(c, 0, 0, rr, rr, 22 - j * 3, j % 2 ? [55, 95, 90] : [50, 100, 64], 900 + j * 20, n, { nb: 7, hi: .8, dry: .55, a: .9 - j * .15, lj: 12, base: .5 }); }
+    for (let i = 0; i < 20; i++) { const an = i / 20 * TAU + d * .5, r0 = 118, r1 = r0 + (80 + (i % 2) * 70 + (i % 3) * 20) * L, bend = .18;   // radiating strokes
+      brush(c, [[Math.cos(an) * r0, Math.sin(an) * r0], [Math.cos(an + bend * .5) * (r0 + r1) / 2, Math.sin(an + bend * .5) * (r0 + r1) / 2], [Math.cos(an + bend) * r1, Math.sin(an + bend) * r1]],
+        22 - (i % 2) * 6, i % 2 ? [56, 90, 93] : [48, 100, 62], bs(950 + i), { hi: .8, tin: .08 }); }
+  }
+  const pulse = 1 + .03 * Math.sin(t * 5) + .14 * lit * Math.exp(-Math.max(0, t - LEAP.t1) * 3);
+  c.scale(pulse, pulse);
+  starBody(c, STAR_R, 100, lit, st.dodge ? 2 : 1, t);
+  c.restore();
+}
+const BLK = [{ col: [40, 72, 56], dark: [28, 65, 38], lite: [48, 85, 74] }, { col: [290, 28, 60], dark: [265, 30, 40], lite: [300, 45, 80] }];
+const BLKS = BLK.map((B, i) => {
+  const r = rng(700 + i), out = [], w = TOWER.w, h = TOWER.h;
+  for (let y = -h / 2 + 12, row = 0; y < h / 2; y += 22, row++) {
+    for (let x = -w / 2 - 6 + r() * 20; x < w / 2; x += 80 + r() * 40) {
+      const L = 90 + r() * 50, yy = y + (r() - .5) * 6, P = [[x, yy], [x + L / 2, yy + (r() - .5) * 8], [x + L, yy + (r() - .5) * 6]];
+      const ky = (y + h / 2) / h, kx = (x + L / 2) / w;
+      const col = kx > .3 ? B.dark : ky < .15 ? B.lite : r() < .2 ? B.lite : B.col;
+      out.push({ P, w: 22 + r() * 6, col: [col[0] + (r() - .5) * 10, col[1], col[2] + (r() - .5) * 8], seed: 710 + i * 100 + out.length });
+    }
+  }
+  for (let k = 0; k < 3; k++) out.push({ P: [[w / 2 - 14 - k * 12, -h / 2 + 10], [w / 2 - 12 - k * 12, 0], [w / 2 - 14 - k * 12, h / 2 - 8]], w: 16, col: B.dark, seed: 790 + i * 100 + k });
+  return out;
+});
+let LABELS = [], DIGITS = [];
+function drawBlock(c, i, t) {
+  const b = blockState(i, t); if (!b.visible) return;
+  c.save(); c.translate(b.x, b.bottom); c.rotate(b.rot); c.scale(1 + b.sq * .6, 1 - b.sq); c.translate(0, -b.h / 2);
+  const w = b.w, h = b.h, B = BLK[i];
+  c.fillStyle = hsl(...B.col); c.fillRect(-w / 2, -h / 2, w, h);
+  c.save(); c.beginPath(); c.rect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8); c.clip();
+  for (const st of BLKS[i]) brush(c, st.P, st.w, st.col, bs(st.seed), { jit: 1.5, hi: .9 });
+  c.restore();
+  const E = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
+  for (let e = 0; e < 4; e++) { const A = E[e], Bq = E[(e + 1) % 4], dx = (Bq[0] - A[0]) * .04, dy = (Bq[1] - A[1]) * .04;
+    brush(c, [[A[0] - dx, A[1] - dy], [(A[0] + Bq[0]) / 2, (A[1] + Bq[1]) / 2], [Bq[0] + dx, Bq[1] + dy]], 11, P_.outl, bs(800 + i * 10 + e), { nb: 4, hi: 0, dry: .25, tin: .05, tout: .2, jit: 1.2 }); }
+  const L = LABELS[BF % 3], D = DIGITS[i][BF % 3];
+  c.drawImage(L.cv, 34 - L.w / 2, -18 - L.h / 2, L.w, L.h);
+  dab(c, -92, -14, 38, 36, [48, 90, 90], 830 + i * 7, true, 5);
+  c.drawImage(D.cv, -92 - D.w / 2, -10 - D.h / 2, D.w, D.h);
+  mouthLine(c, [[-85, 64], [0, 58], [85, 62]], 8, 850 + i);
+  c.restore();
+}
+function paintDust(c, x, y, t, t0, big = 1) {
+  const d = t - t0; if (d < 0 || d > .6) return;
+  const k = d / .6, r = rng(t0 * 1000 | 0);
+  for (let i = 0; i < 10; i++) { const sd = i % 2 ? 1 : -1, sp = (70 + r() * 150) * big, px = x + sd * sp * eOut(k), py = y - (30 + r() * 60) * Math.sin(k * Math.PI) * big - 6;
+    const len = 26 * (1 - k * .5) * big, an = sd > 0 ? -.3 : Math.PI + .3;
+    c.globalAlpha = 1; brush(c, [[px - Math.cos(an) * len, py - Math.sin(an) * len * .4], [px, py]], 15 * (1 - k * .6) * big, i % 3 ? [42, 50, 76] : [80, 38, 58], bs(1200 + i + (t0 * 10 | 0)), { a: 1 - k, hi: .5 }); }
+}
+function splash(c, x, y, t, t0) {                         // wet paint slap: radial flicks of cream + green paint
+  const d = t - t0; if (d < 0 || d > .35) return;
+  const k = d / .35, r = rng(t0 * 100 | 0);
+  for (let i = 0; i < 11; i++) { const an = Math.PI + .15 + i / 10 * (Math.PI - .3), r0 = 150 + 60 * eOut(k), r1 = r0 + (50 + r() * 50) * (1 - k * .5);
+    brush(c, [[x + Math.cos(an) * r0, y + Math.sin(an) * r0 * .55], [x + Math.cos(an) * r1, y + Math.sin(an) * r1 * .55]], 20 - k * 8, i % 3 ? [45, 70, 88] : [70, 55, 56], bs(1250 + i), { a: 1 - k * k, hi: .6, tin: .05 }); }
+}
+function dizzy(c, x, y, t, k) {
+  if (k <= 0) return;
+  for (let i = 0; i < 3; i++) { const a = t * 5 + i / 3 * TAU, px = x + Math.cos(a) * 110, py = y + Math.sin(a) * 26;
+    c.save(); c.translate(px, py); c.rotate(a); const s = .3 * k * (Math.sin(a) > 0 ? 1.1 : .85); c.scale(s, s); starBody(c, 60, 200 + i * 70, 0, 0, t); c.restore(); }
+}
+function bang(c, s, t) {
+  if (t < IDEA.t0 || t > IDEA.t1) return;
+  const k = eBack(prog(t, IDEA.t0, IDEA.t0 + .2)), out = 1 - prog(t, IDEA.t1 - .15, IDEA.t1);
+  c.save(); c.translate(s.x + 30, s.y - 330 * s.sy); c.rotate(.12); c.scale(k * out, k * out);
+  for (let i = 0; i < 7; i++) { const a = -Math.PI / 2 + (i - 3) * .42; brush(c, [[Math.cos(a) * 20, Math.sin(a) * 20], [Math.cos(a) * 70, Math.sin(a) * 70]], 40, i % 2 ? [48, 100, 60] : [50, 100, 72], bs(1300 + i), { hi: .7 }); }
+  dab(c, 0, 0, 52, 62, [48, 100, 62], 1320, true, 6);
+  brush(c, [[2, -44], [0, -14], [-1, 16]], 20, P_.outl, bs(1330), { nb: 5, hi: .3, tin: .02, tout: .6, dry: .1 });
+  c.fillStyle = hsl(...P_.outl); c.beginPath(); c.arc(-1, 36, 10, 0, TAU); c.fill();
+  for (let i = 0; i < 5; i++) { const a = -Math.PI * .9 + i * .45; brush(c, [[Math.cos(a) * 92, Math.sin(a) * 92], [Math.cos(a) * 128, Math.sin(a) * 128]], 9, P_.cream, bs(1340 + i), { nb: 3, hi: 0 }); }
+  c.restore();
+}
+const CONF = (() => { const r = rng(77), a = []; for (let i = 0; i < 64; i++) { const an = -Math.PI / 2 + (r() - .5) * 3.4, sp = 500 + r() * 900;
+  a.push({ vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, w: 11 + r() * 9, len: 18 + r() * 18, col: [P_.yel, P_.verm, P_.cobalt, [100, 45, 45], P_.cream, [192, 55, 55], [50, 100, 75]][i % 7] }); } return a; })();
+function flecks(c, t) {
+  const d = t - LEAP.t1; if (d < 0 || d > 3) return;
+  const { x: x0, y: y0 } = starState(LEAP.t1);
+  CONF.forEach((p, i) => { const f = Math.exp(-d * .9), px = x0 + p.vx * d * f, py = y0 + p.vy * d * f + 700 * d * d; if (py > GY + 30) return;
+    const vx = p.vx * f, vy = p.vy * f + 1400 * d, l = Math.hypot(vx, vy) || 1, ux = vx / l, uy = vy / l;
+    brush(c, [[px - ux * p.len, py - uy * p.len], [px, py]], p.w, p.col, bs(1400 + i), { nb: 3, hi: .6, tin: .05 }); });
+}
+// title: painted letters on a dark ultramarine swash, revealed right-to-left by the brush
+let TITLES = [];
+function drawTitle(c, t) {
+  if (t < TITLE.t0 - .05) return;
+  const T = TITLES[BF % 3], x1 = W / 2 + T.w / 2, x0 = W / 2 - T.w / 2, y = TITLE.y;
+  const k = eOut(prog(t, TITLE.t0 - .05, TITLE.t0 + .3));
+  if (k < .08) return;
+  [[-44, 150, 0], [34, 140, 1], [-6, 120, 2]].forEach(([dy, ww, n]) =>
+    brush(c, [[x1 + 30, y + dy + 6], [W / 2, y + dy - 6], [x0 - 30, y + dy + 4]], ww, n === 2 ? [226, 58, 24] : [228, 64, 15], bs(1500 + n), { upto: k, hi: .6, dry: .25, lj: 5, nb: 14 }));
+  const kt = eIO(prog(t, TITLE.t0 + .08, TITLE.t0 + .62)); if (kt <= 0) return;
+  c.save(); c.beginPath(); c.rect(x1 - T.w * kt, y - T.h, T.w * kt + 20, T.h * 2); c.clip();
+  c.drawImage(T.cv, x0, y - T.h / 2, T.w, T.h); c.restore();
+}
+
+// ============================================================
+let L_BG = [];
+film({
+  setup() {
+    for (let v = 0; v < 3; v++) L_BG.push(layer(g => paintBG(g, v)));
+    for (let v = 0; v < 3; v++) {
+      BF = v * 5 + 2;
+      TITLES.push(paintedText(TITLE.text, 156, 'OHRonShemer', [47, 92, 76], 1600 + v, { fat: 13, edgeW: 12, edge: [228, 70, 10], sw: 11, lj: 13, hj: 9 }));
+      LABELS.push(paintedText('נפילה', 70, 'OHRonShemer', [228, 62, 20], 1700 + v, { fat: 7, sw: 7, lj: 8, pad: 14 }));
+    }
+    DIGITS = [0, 1].map(i => [0, 1, 2].map(v => { BF = v * 5 + 3; return paintedText(BLOCKS[i].n, 58, 'Heebo', [228, 62, 20], 1800 + i * 10 + v, { weight: 900, fat: 3, sw: 6, lj: 8, pad: 10 }); }));
+    BF = 0;
+  },
+  draw(c, tf, i) {
+    const t = Math.floor(tf * 12) / 12;                     // repainted on twos
+    BF = Math.floor(tf * 12);
+    const z = zoom(t), sh = shake(tf);
+    c.fillStyle = hsl(228, 60, 18); c.fillRect(0, 0, W, H);
+    c.save(); c.translate(540 + sh * .6, 760 + sh); c.scale(z, z); c.translate(-540, -760);
+    c.drawImage(L_BG[Math.floor(i / 3) % 3], -12, -12, W + 24, H + 24);   // painted world boils on threes
+    drawStar(c, t);
+    drawBlock(c, 0, t); drawBlock(c, 1, t);
+    paintDust(c, TOWER.x, GY, t, BLOCKS[0].land, 1.2); paintDust(c, TOWER.x, blockTop(0), t, BLOCKS[1].land, 1.2);
+    SPLATS.forEach(te => { paintDust(c, HX, GY, t, te, 1.4); splash(c, HX, GY - 10, t, te); });
+    const s = pose(t);
+    pitz(c, s, t);
+    dizzy(c, s.x, s.y - 250 * s.sy * s.sc, t, s.dizzy);
+    bang(c, s, t);
+    flecks(c, t);
+    c.restore();
+    drawTitle(c, t);
+    // canvas weave + soft vignette, in pixel space
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = 'overlay'; c.globalAlpha = .55; c.fillStyle = c.createPattern(WEAVE, 'repeat'); c.fillRect(0, 0, OUT_W, OUT_H);
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+    const vg = c.createRadialGradient(OUT_W / 2, OUT_H * .45, OUT_W * .45, OUT_W / 2, OUT_H * .5, OUT_H * .75);
+    vg.addColorStop(0, 'rgba(10,12,30,0)'); vg.addColorStop(1, 'rgba(10,12,30,.35)'); c.fillStyle = vg; c.fillRect(0, 0, OUT_W, OUT_H);
+    c.restore();
+  },
+  kit: { reverb: .32, musicGain: .55, sfxGain: .8, revSec: 2.2 },
+  voice: K => {
+    const { osc, noise, mf, nm, at } = K;
+    const piano = (t, m, v = .1, d = 1.2, out = K.music) => { const f = mf(m);            // felt piano: detuned sines, fast decay, hammer thump
+      osc('sine', f, t, d, out, v, .004, d); osc('sine', f * 1.0035, t, d * .8, out, v * .5, .004, d * .8);
+      osc('triangle', f * 2, t, d * .3, out, v * .16, .003, d * .3, 2000); osc('sine', f * 3.01, t, d * .1, out, v * .05, .002, d * .1);
+      noise(t, .035, out, v * .3, 'lowpass', 420, .7, .001); };
+    const harp = (t, m, v = .06) => { osc('triangle', mf(m), t, .9, K.sfx, v, .002, .9, 3200); osc('sine', mf(m) * 2, t, .35, K.sfx, v * .3, .002, .35); };
+    const SC = [0, 2, 4, 5, 7, 9, 11];
+    const gliss = (t, base, n, step, up = 1, v = .05) => { for (let k = 0; k < n; k++) { const j = up ? k : n - 1 - k; harp(t + k * step, base + 12 * Math.floor(j / 7) + SC[j % 7], v); } };
+    const strings = (t, dur, notes, v = .016) => { K.pad(t, dur, notes, v, 'sawtooth', 850); K.pad(t, dur, notes.map(m => m + .09), v * .8, 'sawtooth', 700); };
+    const brushSn = (t, v = .05) => { noise(t, .17, K.music, v, 'bandpass', 3200, .7, .014); noise(t, .05, K.music, v * .45, 'highpass', 6500, .5, .002); };
+    const ubass = (t, m, v = .2) => { osc('sine', mf(m), t, .5, K.music, v, .008); osc('triangle', mf(m), t, .25, K.music, v * .35, .01, .25, 600); };
+    const tom = (t, f0 = 95, v = .7, d = .5) => { const o = osc('sine', f0, t, d, K.sfx, v, .003); o.frequency.exponentialRampToValueAtTime(f0 * .5, at(t + d * .9));
+      const o2 = osc('triangle', f0 * 1.6, t, d * .5, K.sfx, v * .2, .003); o2.frequency.exponentialRampToValueAtTime(f0 * .7, at(t + d * .45)); noise(t, d * .6, K.sfx, v * .35, 'lowpass', 360, .7); };
+    const sweep = (t, d, v, f0, f1) => { const f = noise(t, d, K.sfx, v, 'bandpass', f0, 1.2, d * .4); f.frequency.exponentialRampToValueAtTime(f1, at(t + d)); };
+    return {
+      groove(a, b, root, tri) {
+        strings(a, b - a, tri.map(m => m - 12));
+        for (let t = a, beat = 0; t < b - .01; t += .5, beat++) {
+          if (beat % 2 === 0) { ubass(t, root); K.kick(t, .12); tri.forEach((m, j) => piano(t + j * .025, m - 12, .035, .9)); }
+          else { ubass(t, root + 7, .13); brushSn(t, .05); }
+          piano(t + .25, tri[(beat + 1) % 3], .03, .6);
+          noise(t + .25, .09, K.music, .012, 'bandpass', 5000, .6, .02);
+        }
+      },
+      motif(t) { [[0, 'E5'], [.25, 'G5'], [.5, 'C6'], [1.0, 'B5'], [1.25, 'G5'], [1.5, 'C6']].forEach(([d, n]) => piano(t + d, nm(n), .085, 1.3)); },
+      ending(t, root, tri) {
+        strings(t, 1.6, [48, 55, 60, 64, 67], .022);
+        [36, 48, 55, 60, 64, 67, 72].forEach((m, j) => piano(t + j * .035, m, .06, 2.2));
+        piano(t + .3, nm('E6'), .06, 1.8); piano(t + .55, nm('G6'), .05, 1.8); ubass(t, 36, .22);
+      },
+      cues: {
+        reveal: t => { sweep(t, .7, .1, 700, 3200); piano(t, 48, .08, 1.6); },
+        star: t => { gliss(t, 84, 6, .05, 0, .045); piano(t + .5, 84, .06, 1.2); },
+        pop: t => { piano(t, 79, .09, .5); K.pop(t, .05); },
+        jump: (t, n) => { gliss(t, 67 + n * 2, 4, .045, 1, .05); K.slide(t, 280, n ? 760 : 620, .38, .05, 'triangle'); },
+        fall: (t, n) => K.slide(t, n ? 1300 : 1100, 260, .25, .045, 'sine'),
+        splat: t => { noise(t, .22, K.sfx, .5, 'lowpass', 750, .8, .002); sweep(t, .2, .35, 2000, 320); const o = osc('sine', 150, t, .22, K.sfx, .4, .002); o.frequency.exponentialRampToValueAtTime(48, at(t + .2));
+          const pl = osc('sine', 900, t + .2, .06, K.sfx, .05, .003); pl.frequency.exponentialRampToValueAtTime(1500, at(t + .25)); },
+        dizzy: t => [91, 88, 91, 86].forEach((m, k) => piano(t + k * .13, m, .045, .4)),
+        getup: t => { piano(t, 67, .06, .5); piano(t + .12, 72, .07, .7); },
+        drop: t => sweep(t, .26, .1, 3000, 600),
+        thud: (t, n) => { tom(t, 92 - n * 6, .75 + n * .08, .55); brushSn(t + .01, .06); },
+        idea: t => [84, 88, 91, 96].forEach((m, k) => piano(t + k * .05, m, .06, 1.0)),
+        hop: (t, n) => { harp(t, 72 + n * 4, .06); harp(t + .06, 76 + n * 4, .06); },
+        land: t => tom(t, 130, .3, .22),
+        leap: t => { gliss(t, 72, 8, .035, 1, .055); sweep(t, .45, .08, 500, 3500); },
+        grab: t => { gliss(t, 84, 10, .025, 1, .06); tom(t, 80, .45, .6); [96, 100, 103].forEach((m, k) => osc('sine', mf(m), t + .05 + k * .05, 1.2, K.sfx, .025, .15, 1.2));
+          noise(t, 1.2, K.sfx, .07, 'highpass', 5500, .5, .3); },
+        title: t => { sweep(t, .4, .06, 900, 2600); piano(t + .05, 76, .05, 1.2); piano(t + .1, 79, .05, 1.2); },
+      },
+    };
+  },
+});
+</script>

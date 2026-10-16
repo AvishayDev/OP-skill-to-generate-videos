@@ -1,0 +1,150 @@
+{
+  "reelkit": {
+    "version": "0.19.1",
+    "exportPreset": "iphone",
+    "previewPreset": "chat",
+    "captions": {
+      "maxWords": 3,
+      "size": 62,
+      "bottom": 0.19
+    },
+    "focus": {
+      "blur": 14,
+      "dim": 0.55
+    }
+  },
+  "clips": {
+    "minShotSeconds": 3,
+    "maxShotSeconds": 7
+  },
+  "captions": {
+    "enabled": true,
+    "minWords": 2,
+    "maxWords": 9,
+    "maxChars": 52
+  },
+  "music": {
+    "volume": 0.17,
+    "effect": "fadeInFadeOut",
+    "query": "upbeat minimal electronic background music",
+    "minSeconds": 20,
+    "tailSeconds": 1,
+    "fadeIn": 1,
+    "fadeOut": 2.5
+  },
+  "sfx": {
+    "enabled": true,
+    "volume": 0.7,
+    "maxSeconds": 1.2,
+    "maxSourceSeconds": 4,
+    "offsetSeconds": 0,
+    "byType": {
+      "logo": "logo",
+      "image": "image",
+      "stat": "stat",
+      "title": "title"
+    },
+    "queries": {
+      "logo": "pop ui notification",
+      "image": "whoosh swoosh short",
+      "stat": "counter ticks",
+      "title": "cinematic whoosh short",
+      "pop": "pop ui short",
+      "glass": "glass crack short",
+      "ding": "ding bell short",
+      "click": "mouse click",
+      "tick": "clock tick fast",
+      "stamp": "rubber stamp",
+      "whoosh": "whoosh short",
+      "type": "keyboard typing short"
+    }
+  },
+  "overlays": {
+    "enabled": true,
+    "defaultLength": 2.5,
+    "leadSeconds": 0.15,
+    "minGapSeconds": 0.3,
+    "box": {
+      "logo": {
+        "width": 520,
+        "height": 260
+      },
+      "image": {
+        "width": 700,
+        "height": 560
+      },
+      "icon": {
+        "width": 240,
+        "height": 240
+      }
+    },
+    "card": {
+      "color": "white",
+      "padding": 36,
+      "radius": 36
+    },
+    "zones": {
+      "upper": {
+        "x": 0,
+        "y": 0.17
+      },
+      "upperRight": {
+        "x": 0.24,
+        "y": 0.17
+      },
+      "upperLeft": {
+        "x": -0.24,
+        "y": 0.17
+      },
+      "middle": {
+        "x": 0,
+        "y": 0.03
+      }
+    },
+    "defaults": {
+      "logo": {
+        "zone": "upper",
+        "in": "fade",
+        "out": "fade"
+      },
+      "image": {
+        "zone": "upper",
+        "in": "slideLeft",
+        "out": "fade"
+      },
+      "stat": {
+        "zone": "upper",
+        "in": "zoom",
+        "out": "fade"
+      },
+      "title": {
+        "zone": "upper",
+        "in": "slideLeft",
+        "out": "fade"
+      },
+      "icon": {
+        "zone": "upper",
+        "in": "fade",
+        "out": "fade"
+      }
+    },
+    "stat": {
+      "fontSize": 190,
+      "labelFontSize": 66,
+      "width": 900,
+      "height": 210,
+      "labelOffsetY": -0.08,
+      "strokeWidth": 4
+    },
+    "title": {
+      "fontSize": 140,
+      "width": 900,
+      "height": 150,
+      "strokeWidth": 4,
+      "subtitleFontSize": 72
+    }
+  },
+  "licenses": {
+    "allowShareAlike": true
+  }
+}

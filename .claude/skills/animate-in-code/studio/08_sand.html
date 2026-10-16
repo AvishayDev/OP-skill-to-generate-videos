@@ -1,0 +1,422 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>08 · אנימציית חול על שולחן אור</title>
+<body>
+<script src="fonts-data.js"></script>
+<script src="story.js"></script>
+<script src="audio.js"></script>
+<script src="runtime.js"></script>
+<script>
+'use strict';
+// ============================================================
+// 08 · SAND ANIMATION ON A LIGHTBOX
+// The picture is a field of sand thickness on backlit glass (GW x GH cells, CELL world units each).
+// Every sim step the story rasterises a TARGET density (sky, dunes, ground, פיצי as dark sand with
+// finger-carved eyes/smile, a star wiped out of the sky, blocks with carved labels, the carved title)
+// and the real sand RELAXES toward it: grainy per-cell rates + diffusion of the excess, so shapes
+// flow, morph and leave trails instead of cutting. A second "loose" layer holds flicked grains that
+// fly across the glass and settle. Fixed step (2 per frame), checkpoints every 8 frames: a cold seek
+// re-simulates from the nearest checkpoint and gives the same bytes as a sequential render.
+// Look: light = lamp * exp(-k * density) per channel (thin sand glows amber, thick is black),
+// stable per-grain speckle sampled in world space, soft hand shadow, warm halation.
+// ============================================================
+const CELL = 3, GW = W / CELL, GH = H / CELL, NC = GW * GH, DMAX = 4;
+const hash = (i, s = 0) => { let x = Math.imul(i ^ (s * 0x9E3779B1), 0x85EBCA6B); x ^= x >>> 13; x = Math.imul(x, 0xC2B2AE35); x ^= x >>> 16; return (x >>> 0) / 4294967296; };
+function vnoise(x, y, s = 0) { const xi = Math.floor(x), yi = Math.floor(y), tx = x - xi, ty = y - yi, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+  const h = (a, b) => hash(Math.imul(a, 374761393) + Math.imul(b, 668265263), s);
+  return lerp(lerp(h(xi, yi), h(xi + 1, yi), sx), lerp(h(xi, yi + 1), h(xi + 1, yi + 1), sx), sy); }
+const fbm = (x, y, s = 0) => vnoise(x, y, s) * .55 + vnoise(x * 2.1, y * 2.1, s + 1) * .3 + vnoise(x * 4.3, y * 4.3, s + 2) * .15;
+// density -> target colour. R = sand thickness (0..DMAX), G = how eagerly the sand obeys (1 = the character, snaps fast)
+const col = (d, r = .3) => `rgb(${Math.round(clamp(d / DMAX) * 255)},${Math.round(clamp(r) * 255)},0)`;
+const D = { body: 2.7, block: 2.6, ground: 2.9, line: 2.4 };
+
+// ---------- the star, the pour, the camera ----------
+function myStar(t) {           // the story hides the star before .1 s; on the lightbox it is already on the table at frame 0
+  if (t >= .6) return starState(t);
+  const a = starState(t).ang, L = SLEN * lerp(.9, 1, eBack(prog(t, 0, .55)));
+  return { visible: true, x: PIV[0] + L * Math.sin(a), y: PIV[1] + L * Math.cos(a), ang: a, lit: 0, dodge: false };
+}
+const sweepX = t => lerp(-220, 1400, eIO(prog(t, 0, .55)));        // a palm sweeps the heap into dunes, left to right
+const cam = t => { const z = zoom(t), sh = shake(t); return { z, cx: 540 + sh * .6, cy: 760 + sh }; };
+const toScreen = (C, x, y) => [C.cx + (x - 540) * C.z, C.cy + (y - 760) * C.z];
+
+// ---------- static background target (sky, moon, dunes, ground) ----------
+let BGT, TG, tg, T, RT, GM, JIT, h, L, E, F, GT;
+function buildBackground() {
+  BGT = mkCanvas(GW, GH); const g = BGT.getContext('2d'), im = g.createImageData(GW, GH), d = im.data;
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+    const wx = (i + .5) * CELL, wy = (j + .5) * CELL, k = clamp(1 - wy / 1215);
+    let s = 2.15 * Math.pow(k, 1.55) * (.78 + .44 * fbm(wx / 260, wy / 200, 3));
+    s += .12 * Math.max(0, fbm(wx / 90, wy / 60, 7) - .55) * k;                 // sprinkled clouds
+    const q = (j * GW + i) * 4; d[q] = clamp(s / DMAX) * 255; d[q + 1] = 70; d[q + 3] = 255;
+  }
+  g.putImageData(im, 0, 0); g.setTransform(1 / CELL, 0, 0, 1 / CELL, 0, 0); g.lineCap = 'round'; g.lineJoin = 'round';
+  // moon: a crescent wiped out of the sky
+  g.fillStyle = col(0, .5); g.beginPath(); g.arc(880, 470, 62, 0, TAU); g.fill();
+  g.fillStyle = col(1.35, .5); g.beginPath(); g.arc(905, 450, 55, 0, TAU); g.fill();
+  // pin-hole stars (fingertip dabs)
+  const r = rng(51);
+  for (let n = 0; n < 26; n++) { const x = 40 + r() * 1000, y = 60 + r() * 1000; if (y > 170 && y < 440) continue; if (Math.hypot(x - 540, y - 640) < 190) continue; if (Math.hypot(x - 880, y - 470) < 90) continue;
+    const s = 3 + r() * 5; g.fillStyle = col(0, .5); g.beginPath(); g.arc(x, y, s, 0, TAU); g.fill();
+    if (s > 6) { g.strokeStyle = col(0, .5); g.lineWidth = 3; g.beginPath(); g.moveTo(x - s * 2.6, y); g.lineTo(x + s * 2.6, y); g.moveTo(x, y - s * 2.6); g.lineTo(x, y + s * 2.6); g.stroke(); } }
+  // wind curls drawn with a finger
+  const curl = (cx, cy, R, turns, dir) => { g.strokeStyle = col(0, .5); g.lineWidth = 7; g.beginPath(); for (let u = 0; u <= 1; u += .01) { const a = u * turns * TAU * dir, rr = R * (1 - u * .8); const x = cx + Math.cos(a) * rr - (1 - u) * R * 1.6 * dir, y = cy + Math.sin(a) * rr * .8; u ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); };
+  curl(190, 830, 60, 1.2, 1); curl(930, 760, 48, 1.1, -1);
+  // back dune, front dune, ground
+  const hill = (pts, dens, crest) => { g.fillStyle = col(dens, .35); g.beginPath(); g.moveTo(-30, GY + 20); pts.forEach(([x, y]) => g.lineTo(x, y)); g.lineTo(W + 30, GY + 20); g.closePath(); g.fill();
+    if (crest) { g.strokeStyle = col(crest, .35); g.lineWidth = 9; g.beginPath(); pts.forEach(([x, y], k) => k ? g.lineTo(x, y + 5) : g.moveTo(x, y + 5)); g.stroke(); } };
+  const curve = (f) => { const p = []; for (let x = -30; x <= W + 30; x += 12) p.push([x, f(x)]); return p; };
+  hill(curve(x => 1262 - 48 * Math.sin(x / 190 + .6) - 22 * Math.sin(x / 71 + 2)), .85, 1.7);
+  hill(curve(x => 1420 - 40 * Math.sin(x / 160 + 2.4) - 12 * Math.sin(x / 47)), 1.35, 2.1);
+  g.fillStyle = col(D.ground, .35); g.beginPath(); g.moveTo(-30, H + 30);
+  for (let x = -30; x <= W + 30; x += 10) g.lineTo(x, GY + 4 * Math.sin(x / 23) + 3 * Math.sin(x / 7.3)); g.lineTo(W + 30, H + 30); g.closePath(); g.fill();
+  // furrows combed into the ground
+  g.strokeStyle = col(0, .35);
+  [[GY + 75, 8, 0], [GY + 150, 7, 1.7], [GY + 238, 6, 3.1]].forEach(([y0, lw, ph]) => { g.lineWidth = lw; g.beginPath(); for (let x = 20; x <= W - 20; x += 10) { const y = y0 + 9 * Math.sin(x / 95 + ph); x > 20 ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); });
+  const r2 = rng(61); for (let n = 0; n < 9; n++) { const x = 60 + r2() * 960, y = GY + 110 + r2() * 250; g.lineWidth = 5; g.beginPath(); g.arc(x, y, 6 + r2() * 9, 0, TAU); g.stroke(); }
+}
+
+// ---------- target: everything the story wants on the glass at time t ----------
+const rrect = (w, hh, r) => { const p = new Path2D(); p.roundRect(-w / 2, -hh / 2, w, hh, r); return p; };
+function starPath(R, r) { const p = new Path2D(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU, rr = i % 2 ? r : R; i ? p.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : p.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); } p.closePath(); return p; }
+const STARP = starPath(STAR_R, STAR_R * .5), DIZP = starPath(34, 16);
+function starT(g, t) {
+  const st = myStar(t), { x, y, ang: a } = st, lit = st.lit || 0;
+  g.strokeStyle = col(D.line, .9); g.lineWidth = 7; g.beginPath(); g.moveTo(PIV[0], PIV[1]);
+  g.quadraticCurveTo(lerp(PIV[0], x, .5) + 8 * Math.sin(t * 2), lerp(PIV[1], y, .5), x + 80 * Math.sin(a), y - 80 * Math.cos(a)); g.stroke();
+  g.save(); g.translate(x, y); g.rotate(-a);
+  if (lit > 0) {                                                       // the burst: sand rushes out into a dark ring, rays wiped through it
+    const R1 = 300 * eOut(lit);
+    g.fillStyle = col(1.75, .7); g.beginPath(); g.arc(0, 0, R1, 0, TAU); g.fill();
+    g.strokeStyle = col(0, .8); g.lineCap = 'round';
+    for (let i = 0; i < 14; i++) { const ra = i / 14 * TAU + t * .35, r1 = R1 * (i % 2 ? .82 : .97); g.lineWidth = i % 2 ? 10 : 16; g.beginPath(); g.moveTo(Math.cos(ra) * 140, Math.sin(ra) * 140); g.lineTo(Math.cos(ra) * r1, Math.sin(ra) * r1); g.stroke(); }
+    g.fillStyle = col(0, .8); g.beginPath(); g.arc(0, 0, 160 * eOut(lit), 0, TAU); g.fill();
+    const rr = rng(Math.floor(t * 12) + 5);                            // pin-hole sparkles in the ring
+    for (let i = 0; i < 10; i++) { const aa = rr() * TAU, dd = 180 + rr() * (R1 - 180); if (dd > R1 - 20) continue; const px = Math.cos(aa) * dd, py = Math.sin(aa) * dd, s = 5 + rr() * 7;
+      g.lineWidth = 4; g.beginPath(); g.moveTo(px - s * 2, py); g.lineTo(px + s * 2, py); g.moveTo(px, py - s * 2); g.lineTo(px, py + s * 2); g.stroke(); }
+  }
+  const pulse = 1 + .04 * Math.sin(t * 5) + .14 * lit * Math.exp(-Math.max(0, t - LEAP.t1) * 3); g.scale(pulse, pulse);
+  g.lineJoin = 'round'; g.fillStyle = col(0, .9); g.fill(STARP);
+  g.strokeStyle = col(2.7, .9); g.lineWidth = 15; g.stroke(STARP);
+  g.fillStyle = col(1.0, .9); g.beginPath(); g.ellipse(-31, 16, 12, 7, 0, 0, TAU); g.ellipse(31, 16, 12, 7, 0, 0, TAU); g.fill();   // blush: thin sand glows amber
+  g.strokeStyle = col(2.6, .9); g.fillStyle = col(2.7, .9); g.lineCap = 'round'; g.lineWidth = 10;
+  if (lit > 0) { g.beginPath(); g.arc(-20, -6, 9, 0, TAU); g.arc(20, -6, 9, 0, TAU); g.fill(); g.fillStyle = col(0, .9); g.beginPath(); g.arc(-17, -9, 3.5, 0, TAU); g.arc(23, -9, 3.5, 0, TAU); g.fill();
+    g.fillStyle = col(2.7, .9); g.beginPath(); g.arc(0, 12, 14, 0, Math.PI); g.fill(); }
+  else if (st.dodge) { g.beginPath(); g.arc(-12, -5, 8, 0, TAU); g.arc(28, -5, 8, 0, TAU); g.fill(); g.beginPath(); g.moveTo(-4, 18); g.lineTo(12, 13); g.stroke(); }
+  else { g.beginPath(); g.moveTo(-34, -6); g.quadraticCurveTo(-21, 7, -8, -6); g.moveTo(8, -6); g.quadraticCurveTo(21, 7, 34, -6); g.moveTo(-12, 16); g.quadraticCurveTo(0, 28, 12, 16); g.stroke(); }
+  g.restore();
+}
+function blockT(g, i, t) {
+  const b = blockState(i, t); if (!b.visible) return;
+  g.save(); g.translate(b.x, b.bottom); g.rotate(b.rot); g.scale(1 + b.sq * .6, 1 - b.sq); g.translate(0, -b.h / 2);
+  g.fillStyle = col(0, 1); g.fill(rrect(b.w + 26, b.h + 26, 32));
+  g.fillStyle = col(D.block, 1); g.fill(rrect(b.w, b.h, 22));
+  g.strokeStyle = col(0, 1); g.lineWidth = 6; g.stroke(rrect(b.w - 36, b.h - 36, 12));
+  g.direction = 'rtl'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '800 78px Heebo'; g.fillStyle = col(0, 1); g.fillText(b.label, 0, -46);
+  g.beginPath(); g.arc(0, 50, 46, 0, TAU); g.fill();
+  g.font = '900 72px Heebo'; g.fillStyle = col(2.9, 1); g.fillText(b.n, 0, 55);
+  g.strokeStyle = col(0, 1); g.lineWidth = 6; g.lineCap = 'round';
+  [-1, 1].forEach(sd => { g.beginPath(); for (let x = 62; x <= 96; x += 4) { const y = 50 + 5 * Math.sin(x / 6); x > 62 ? g.lineTo(sd * x, y) : g.moveTo(sd * x, y); } g.stroke(); });
+  g.restore();
+}
+function pitzT(g, s, t) {
+  const sc = s.sc; if (sc <= 0) return;
+  g.save(); g.translate(s.x, s.y); g.rotate(s.rot); g.scale(s.sx * sc, s.sy * sc); g.lineCap = 'round'; g.lineJoin = 'round';
+  const arms = [[-1, s.armL], [1, s.armR]].map(([sd, a]) => { const sh = [sd * 72, -118], hd = [sh[0] + sd * Math.sin(a) * 96, sh[1] + Math.cos(a) * 96]; return { sh, hd, el: [lerp(sh[0], hd[0], .5) + sd * 8, lerp(sh[1], hd[1], .5) + 6] }; });
+  const legs = [[-1, 0], [1, 1]].map(([sd, n]) => { const sw = s.legs ? Math.sin(s.legs + n * Math.PI) * 18 : 0; return { sd, hip: [sd * 34, -34], ft: [sd * 42 + sw, -2 + Math.abs(sw) * .2] }; });
+  const body = new Path2D(); body.ellipse(0, -128, 102, 94, 0, 0, TAU);
+  for (const pass of [0, 1]) {          // pass 0: a finger wipes a halo of light around the figure; pass 1: the sand figure
+    const c = pass ? col(D.body, 1) : col(0, 1), ex = pass ? 0 : 13;
+    g.strokeStyle = c; g.fillStyle = c;
+    for (const A of arms) { g.lineWidth = 16 + ex * 2; g.beginPath(); g.moveTo(...A.sh); g.quadraticCurveTo(...A.el, ...A.hd); g.stroke(); g.beginPath(); g.arc(A.hd[0], A.hd[1], 18 + ex, 0, TAU); g.fill(); }
+    for (const Lg of legs) { g.lineWidth = 16 + ex * 2; g.beginPath(); g.moveTo(...Lg.hip); g.lineTo(...Lg.ft); g.stroke(); g.beginPath(); g.ellipse(Lg.ft[0] + Lg.sd * 8, Lg.ft[1], 28 + ex, 14 + ex, 0, 0, TAU); g.fill(); }
+    if (!pass) { g.lineWidth = ex * 2; g.stroke(body); }
+    g.fill(body);
+  }
+  // thinner sand = form: a glowing rim-light crescent and amber cheeks
+  g.fillStyle = col(1.55, 1); g.beginPath(); g.ellipse(-48, -178, 36, 15, -.62, 0, TAU); g.fill();
+  g.fillStyle = col(.95, 1); g.beginPath(); g.ellipse(-66, -106, 19, 11, 0, 0, TAU); g.ellipse(66, -106, 19, 11, 0, 0, TAU); g.fill();
+  if (false && s.band > 0) { g.save(); g.translate(-40, -196); g.rotate(-.45); const bs = eBack(s.band); g.scale(bs, bs); g.fillStyle = col(0, 1); g.fill(rrect(96, 38, 12)); g.fillStyle = col(1.2, 1); g.fill(rrect(82, 26, 8)); g.fillStyle = col(0, 1); g.fill(rrect(26, 26, 4)); g.restore(); }
+  // eyes: wiped down to the glass, pupils dropped back in
+  const jx = Math.sin(t * 37) * s.jig * 7, jy = Math.cos(t * 29) * s.jig * 6, cv = col(0, 1), dk = col(2.9, 1);
+  g.strokeStyle = cv; g.fillStyle = cv;
+  [-1, 1].forEach(sd => {
+    const ex = sd * 38, ey = -152;
+    if (s.eyes === 'x') { g.lineWidth = 10; g.beginPath(); g.moveTo(ex - 15, ey - 15); g.lineTo(ex + 15, ey + 15); g.moveTo(ex + 15, ey - 15); g.lineTo(ex - 15, ey + 15); g.stroke(); return; }
+    if (s.eyes === 'happy') { g.lineWidth = 10; g.beginPath(); g.moveTo(ex - 19, ey + 7); g.quadraticCurveTo(ex, ey - 22, ex + 19, ey + 7); g.stroke(); return; }
+    const R = s.eyes === 'big' || s.eyes === 'spark' ? 34 : 30, pr = s.eyes === 'spark' ? 19 : s.eyes === 'big' ? 13 : 15;
+    g.fillStyle = cv; g.beginPath(); g.arc(ex, ey, R, 0, TAU); g.fill();
+    const px = ex + clamp(s.look[0] * 11 + jx, -12, 12), py = ey + clamp(s.look[1] * 11 + jy, -12, 12);
+    g.fillStyle = dk; g.beginPath(); g.arc(px, py, pr, 0, TAU); g.fill();
+    g.fillStyle = cv; g.beginPath(); g.arc(px + 5, py - 6, s.eyes === 'spark' ? 7 : 5.5, 0, TAU); g.fill();
+    if (s.eyes === 'spark') { g.beginPath(); g.arc(px - 7, py + 7, 3.5, 0, TAU); g.fill(); }
+  });
+  g.strokeStyle = cv; g.lineWidth = 9;
+  if (s.brow === 'det') { g.beginPath(); g.moveTo(-64, -200); g.lineTo(-20, -188); g.moveTo(64, -200); g.lineTo(20, -188); g.stroke(); }
+  const my = -100; g.lineWidth = 9; g.fillStyle = cv; g.beginPath();
+  if (s.mouth === 'smile') { g.moveTo(-26, my - 5); g.quadraticCurveTo(0, my + 22, 26, my - 5); g.stroke(); }
+  else if (s.mouth === 'flat') { g.moveTo(-18, my + 2); g.lineTo(18, my); g.stroke(); }
+  else if (s.mouth === 'tiny') { g.ellipse(0, my + 2, 10, 12, 0, 0, TAU); g.fill(); }
+  else if (s.mouth === 'ouch') { g.moveTo(-27, my); g.lineTo(-13, my - 9); g.lineTo(0, my + 2); g.lineTo(13, my - 9); g.lineTo(27, my); g.stroke(); }
+  else if (s.mouth === 'open' || s.mouth === 'wow') {
+    const w = s.mouth === 'wow' ? 31 : 17, hh = s.mouth === 'wow' ? 30 : 21;
+    if (s.mouth === 'wow') { g.moveTo(-w, my - 7); g.quadraticCurveTo(0, my + hh * 1.7, w, my - 7); g.closePath(); } else g.ellipse(0, my + 4, w, hh, 0, 0, TAU);
+    g.fill(); g.fillStyle = col(1.1, 1); g.beginPath(); g.ellipse(0, my + hh * .95, w * .6, hh * .38, 0, 0, TAU); g.fill();
+  }
+  g.restore();
+}
+function dizzyT(g, x, y, t, k) {
+  if (k <= 0) return;
+  for (let i = 0; i < 3; i++) { const a = t * 5 + i / 3 * TAU, px = x + Math.cos(a) * 118, py = y + Math.sin(a) * 28, s = k * (Math.sin(a) > 0 ? 1.1 : .85);
+    g.save(); g.translate(px, py); g.rotate(a); g.scale(s, s); g.lineJoin = 'round';
+    g.strokeStyle = col(0, 1); g.lineWidth = 16; g.stroke(DIZP); g.fillStyle = col(2.6, 1); g.fill(DIZP); g.restore(); }
+}
+function bangT(g, s, t) {
+  if (t < IDEA.t0 || t > IDEA.t1) return;
+  const k = eBack(prog(t, IDEA.t0, IDEA.t0 + .2)) * (1 - prog(t, IDEA.t1 - .15, IDEA.t1));
+  g.save(); g.translate(s.x + 40, s.y - 330 * s.sy); g.rotate(.12); g.scale(k, k);
+  g.fillStyle = col(0, 1); g.beginPath(); g.arc(0, 0, 84, 0, TAU); g.fill();
+  g.fillStyle = col(2.7, 1); g.beginPath(); g.arc(0, 0, 70, 0, TAU); g.fill();
+  g.font = '900 112px Heebo'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col(0, 1); g.fillText('!', 0, 6);
+  g.strokeStyle = col(2.5, 1); g.lineWidth = 11; g.lineCap = 'round';
+  for (let i = 0; i < 5; i++) { const a = -Math.PI * .92 + i * .46; g.beginPath(); g.moveTo(Math.cos(a) * 100, Math.sin(a) * 100); g.lineTo(Math.cos(a) * 134, Math.sin(a) * 134); g.stroke(); }
+  g.restore();
+}
+// title: sand flows into a band, then a fingertip writes the words out of it, right to left
+let TT = null;
+function titleGeom() {
+  if (TT) return TT; tg.save(); let size = 150; tg.font = `800 ${size}px Heebo`; const w0 = tg.measureText(TITLE.text).width; size = Math.min(150, size * 840 / w0);
+  tg.font = `800 ${size}px Heebo`; const tw = tg.measureText(TITLE.text).width; tg.restore(); TT = { size, tw }; return TT;
+}
+const TW0 = TITLE.t0 + .06, TW1 = TITLE.t0 + .72;
+function titleT(g, t) {
+  const kb = eOut(prog(t, TITLE.t0 - .1, TITLE.t0 + .18)); if (kb <= 0) return;
+  const { size, tw } = titleGeom(), y = TITLE.y;
+  g.save(); g.fillStyle = col(2.55, .8); g.beginPath(); g.ellipse(540, y, (tw / 2 + 95) * (.35 + .65 * kb), 118 * kb, 0, 0, TAU); g.fill();
+  const kw = prog(t, TW0, TW1); if (kw > 0) {
+    const xr = 540 + tw / 2 + 20; g.beginPath(); g.rect(xr - (tw + 40) * kw, y - size, (tw + 40) * kw + 30, size * 2); g.clip();
+    g.font = `800 ${size}px Heebo`; g.direction = 'rtl'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col(0, 1); g.fillText(TITLE.text, 540, y + size * .04);
+  }
+  g.restore();
+  const ku = prog(t, TW1, TW1 + .3); if (ku > 0) { g.strokeStyle = col(0, 1); g.lineWidth = 8; g.lineCap = 'round'; g.beginPath(); const x0 = 540 + tw * .42, x1 = lerp(x0, 540 - tw * .42, eOut(ku));
+    for (let k = 0; k <= 30; k++) { const x = lerp(x0, x1, k / 30), yy = y + size * .62 + 7 * Math.sin(x / 40); k ? g.lineTo(x, yy) : g.moveTo(x, yy); } g.stroke(); }
+}
+function buildTarget(t) {
+  tg.setTransform(1, 0, 0, 1, 0, 0); tg.globalAlpha = 1; tg.drawImage(BGT, 0, 0);
+  tg.setTransform(1 / CELL, 0, 0, 1 / CELL, 0, 0); tg.lineCap = 'round'; tg.lineJoin = 'round';
+  starT(tg, t);
+  blockT(tg, 0, t); blockT(tg, 1, t);
+  const s = pose(t);
+  if (t < .62) {                                      // sand gathers into a heap, the heap stands up as פיצי
+    const k = eOut(prog(t, .1, .34)) * (1 - prog(t, .4, .6));
+    if (k > 0) { tg.fillStyle = col(2.4, .8); tg.beginPath(); tg.ellipse(HX, GY - 10, 125 * k, 60 * k, 0, Math.PI, TAU); tg.fill(); }
+  }
+  pitzT(tg, s, t);
+  dizzyT(tg, s.x, s.y - 250 * s.sy * s.sc, t, s.dizzy);
+  bangT(tg, s, t);
+  titleT(tg, t);
+  const d = tg.getImageData(0, 0, GW, GH).data;
+  for (let p = 0, q = 0; p < NC; p++, q += 4) { T[p] = d[q] * (DMAX / 255) * GM[p]; RT[p] = d[q + 1] / 255; }
+  if (t < .62) {                                     // the palm has not shaped this part of the heap yet: it holds still
+    const f = sweepX(t);
+    for (let j = Math.floor(1120 / CELL); j < GH; j++) { const wy = j * CELL, fx = f - (wy - 1120) * .22 + 40 * Math.sin(wy / 53); const i0 = Math.max(0, Math.ceil(fx / CELL));
+      for (let i = i0, p = j * GW + i0; i < GW; i++, p++) { const m = clamp((i * CELL - fx) / 60); RT[p] *= 1 - m; if (m >= 1) RT[p] = -.08; } }
+  }
+}
+
+// ---------- flicked grains: fly across the glass, slow down, settle into the loose layer ----------
+const SPRAY = (() => {
+  const out = [], add = (t0, x, y, n, seed, o) => { const r = rng(seed); for (let k = 0; k < n; k++) {
+    const a = o.a0 + r() * (o.a1 - o.a0), sp = o.s0 + r() * (o.s1 - o.s0), dr = o.drag * (.8 + .4 * r());
+    out.push({ t0: t0 + r() * (o.jit || 0), x: x + (r() - .5) * (o.dx || 0), y: y + (r() - .5) * (o.dy || 0), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, dr, life: o.l0 + r() * (o.l1 - o.l0), sz: 1.6 + r() * 2.6 }); } };
+  SPLATS.forEach((te, n) => { add(te, HX - 60, GY - 30, 55, 11 + n, { a0: -Math.PI * 1.02, a1: -Math.PI * .55, s0: 500, s1: 1500, drag: 5, l0: .25, l1: .6, dx: 60, dy: 20 });
+    add(te, HX + 60, GY - 30, 55, 21 + n, { a0: -Math.PI * .45, a1: .02, s0: 500, s1: 1500, drag: 5, l0: .25, l1: .6, dx: 60, dy: 20 }); });
+  BLOCKS.forEach((b, n) => { const y = n ? blockTop(0) : GY; add(b.land, TOWER.x - 140, y - 8, 30, 31 + n, { a0: -Math.PI * 1.05, a1: -Math.PI * .75, s0: 400, s1: 1200, drag: 5.5, l0: .2, l1: .5, dy: 20 });
+    add(b.land, TOWER.x + 140, y - 8, 30, 41 + n, { a0: -Math.PI * .25, a1: .05, s0: 400, s1: 1200, drag: 5.5, l0: .2, l1: .5, dy: 20 }); });
+  HOPS.forEach((hp, n) => add(hp.t1, hp.to[0], hp.to[1] - 6, 16, 51 + n, { a0: -Math.PI * 1.05, a1: .05, s0: 250, s1: 700, drag: 6, l0: .15, l1: .35, dx: 100 }));
+  TRIES.forEach((tr, n) => add(tr.getup, HX, GY - 20, 14, 61 + n, { a0: -Math.PI, a1: 0, s0: 200, s1: 600, drag: 6, l0: .15, l1: .3, dx: 120 }));
+  const st = starState(LEAP.t1); add(LEAP.t1, st.x, st.y, 110, 71, { a0: 0, a1: TAU, s0: 900, s1: 2300, drag: 3.2, l0: .35, l1: .9, jit: .08, dx: 80, dy: 80 });
+  add(LEAP.t0, HOPS[1].to[0], HOPS[1].to[1] - 5, 18, 81, { a0: -Math.PI * .1, a1: .2, s0: 300, s1: 800, drag: 6, l0: .15, l1: .3, dx: 120 });
+  return out;
+})();
+const sprayAt = (p, d) => { const e = (1 - Math.exp(-p.dr * d)) / p.dr; return [p.x + p.vx * e, p.y + p.vy * e]; };
+function deposit(x, y, a) { const i = Math.round(x / CELL - .5), j = Math.round(y / CELL - .5); if (i < 1 || j < 1 || i >= GW - 1 || j >= GH - 1) return; const p = j * GW + i;
+  L[p] += a; L[p - 1] += a * .3; L[p + 1] += a * .3; L[p - GW] += a * .3; L[p + GW] += a * .3; }
+
+// ---------- the sand itself ----------
+const SIM = { k: -1, ck: new Map() }, CK = 8, SUB = 3, SDT = 1 / (FPS * SUB);
+function relax(tPrev, tNow) {
+  for (let p = 0; p < NC; p++) {
+    const g = RT[p]; if (g < 0) continue;
+    const e = h[p] - T[p], r = (e < 0 ? .08 + .5 * g : .2 + .4 * g) * JIT[p];
+    h[p] -= e * (r > .95 ? .95 : r);
+  }
+  for (let p = 0; p < NC; p++) E[p] = RT[p] < 0 ? 0 : h[p] - T[p];
+  for (let j = 1; j < GH - 1; j++) for (let i = 1, p = j * GW + 1; i < GW - 1; i++, p++) {        // the excess flows into the deficit next door
+    const v = h[p] + .16 * (E[p - 1] + E[p + 1] + E[p - GW] + E[p + GW] - 4 * E[p]); h[p] = v > 0 ? v : 0;
+  }
+  for (let p = 0; p < NC; p++) L[p] *= .982;
+  for (const s of SPRAY) { const te = s.t0 + s.life; if (te > tPrev && te <= tNow) { const [x, y] = sprayAt(s, s.life); deposit(x, y, .55 + s.sz * .18); } }
+}
+function simInit() {
+  buildTarget(0); h.set(T); L.fill(0);
+  const j0 = Math.floor(1090 / CELL), tmp = new Float32Array(NC);                      // the lower half is still a loose heap of sand
+  for (let pass = 0; pass < 2; pass++) { tmp.set(h); const R = 5;
+    for (let j = j0; j < GH; j++) for (let i = 0; i < GW; i++) { let a = 0, n = 0; for (let k = -R; k <= R; k += 1) { const ii = i + k; if (ii >= 0 && ii < GW) { a += tmp[j * GW + ii]; n++; } } h[j * GW + i] = a / n; }
+    tmp.set(h); for (let j = j0; j < GH; j++) for (let i = 0; i < GW; i++) { let a = 0, n = 0; for (let k = -R; k <= R; k++) { const jj = j + k; if (jj >= j0 && jj < GH) { a += tmp[jj * GW + i]; n++; } } h[j * GW + i] = a / n; } }
+  for (let j = j0; j < GH; j++) for (let i = 0; i < GW; i++) { const p = j * GW + i, wx = i * CELL, wy = j * CELL; h[p] *= .7 + .6 * fbm(wx / 120, wy / 90, 33); h[p] += 1.1 * Math.max(0, fbm(wx / 200, wy / 140, 44) - .45) * clamp((wy - 1150) / 200); }
+ SIM.k = 0; SIM.ck.set(0, { h: h.slice(), L: L.slice() });
+}
+function simTo(i) {
+  if (SIM.k < 0 || i < SIM.k) {
+    let best = -1; for (const k of SIM.ck.keys()) if (k <= i && k > best) best = k;
+    if (best < 0) simInit(); else { const c = SIM.ck.get(best); h.set(c.h); L.set(c.L); SIM.k = best; }
+  }
+  while (SIM.k < i) {
+    const k = SIM.k + 1;
+    for (let s = 0; s < SUB; s++) { const tN = (k - 1) / FPS + (s + 1) * SDT; buildTarget(tN); relax(tN - SDT, tN); }
+    SIM.k = k; if (k % CK === 0 && !SIM.ck.has(k)) SIM.ck.set(k, { h: h.slice(), L: L.slice() });
+  }
+}
+
+// ---------- the light table ----------
+let IMG, LR, LG, LB, TRr, TRg, TRb, B1, B2, B3, HCV;
+const GS = .52;                                           // grain frequency (grains per world unit)
+function buildLook() {
+  IMG = ctx.createImageData(OUT_W, OUT_H);
+  const n = OUT_W * OUT_H; LR = new Float32Array(n); LG = new Float32Array(n); LB = new Float32Array(n);
+  for (let y = 0, p = 0; y < OUT_H; y++) for (let x = 0; x < OUT_W; x++, p++) {
+    const dx = (x / S - 540) / 700, dy = (y / S - 830) / 1050, r = Math.sqrt(dx * dx + dy * dy);
+    const w = clamp((r - .1) / .85), m = w * w * (3 - 2 * w), v = 1 - .5 * clamp((r - .62) / .7) ** 1.4;
+    LR[p] = (255 * (1 - m) + 250 * m) * v; LG[p] = (246 * (1 - m) + 196 * m) * v; LB[p] = (222 * (1 - m) + 122 * m) * v;
+  }
+  TRr = new Float32Array(1024); TRg = new Float32Array(1024); TRb = new Float32Array(1024);
+  for (let k = 0; k < 1024; k++) { const d = k / 96; TRr[k] = Math.exp(-.92 * d); TRg[k] = Math.exp(-1.38 * d); TRb[k] = Math.exp(-2.1 * d); }
+  GT = new Float32Array(512 * 512); for (let k = 0; k < GT.length; k++) GT[k] = hash(k, 99);
+  B1 = mkCanvas(OUT_W >> 1, OUT_H >> 1); B2 = mkCanvas(OUT_W >> 2, OUT_H >> 2); B3 = mkCanvas(OUT_W >> 3, OUT_H >> 3);
+  HCV = mkCanvas(Math.ceil(W / 6), Math.ceil(H / 6));
+}
+function renderSand(t, i, C) {
+  for (let p = 0; p < NC; p++) F[p] = h[p] + L[p];
+  const d = IMG.data, OW = OUT_W, OH = OUT_H, iz = 1 / C.z, st = myStar(t), lit = st.lit || 0;
+  const flash = 1 + .16 * (t > LEAP.t1 ? Math.exp(-(t - LEAP.t1) * 3.5) : 0), flick = 1 + (rng(i + 7)() - .5) * .018;
+  const base = flash * flick, [sx, sy] = toScreen(C, st.x, st.y), gA = .38 * lit, sig2 = 1 / (2 * 240 * 240);
+  for (let y = 0, pi = 0; y < OH; y++) {
+    const wy = ((y + .5) / S - C.cy) * iz + 760; let fy = wy / CELL - .5; fy = fy < 0 ? 0 : fy > GH - 1.001 ? GH - 1.001 : fy;
+    const j = fy | 0, ty = fy - j, row = j * GW;
+    const gyv = wy * GS, gyi = Math.floor(gyv), gty = gyv - gyi, r0 = (gyi & 511) << 9, r1 = ((gyi + 1) & 511) << 9;
+    const sdy = (y + .5) / S - sy, glowRow = gA > 0 && Math.abs(sdy) < 750;
+    for (let x = 0; x < OW; x++, pi++) {
+      const wx = ((x + .5) / S - C.cx) * iz + 540; let fx = wx / CELL - .5; fx = fx < 0 ? 0 : fx > GW - 1.001 ? GW - 1.001 : fx;
+      const ii = fx | 0, tx = fx - ii, p = row + ii;
+      const a0 = F[p] + (F[p + 1] - F[p]) * tx, a1 = F[p + GW] + (F[p + GW + 1] - F[p + GW]) * tx, rho = a0 + (a1 - a0) * ty;
+      const gxv = wx * GS, gxi = Math.floor(gxv), gtx = gxv - gxi, c0 = gxi & 511, c1 = (gxi + 1) & 511;
+      const q0 = GT[r0 + c0] + (GT[r0 + c1] - GT[r0 + c0]) * gtx, q1 = GT[r1 + c0] + (GT[r1 + c1] - GT[r1 + c0]) * gtx;
+      const g = ((q0 + (q1 - q0) * gty) - .5) * 1.8 + .5;                    // stable grain value in world space
+      const pz = rho * 2.4 / (1 + rho * 2.4);                                   // chance a grain sits here
+      let cv = (pz - g) * 6 + .5; cv = cv < 0 ? 0 : cv > 1 ? 1 : cv;
+      const hp = rho * (.5 + .5 * cv / (pz > .1 ? pz : .1)) * (.9 + .2 * g);
+      let k = (hp * 96) | 0; if (k > 1023) k = 1023;
+      let gain = base; if (glowRow) { const sdx = (x + .5) / S - sx; if (sdx > -750 && sdx < 750) gain *= 1 + gA * Math.exp(-(sdx * sdx + sdy * sdy) * sig2); }
+      const tr = TRr[k], tgv = TRg[k], tb = TRb[k], q = pi << 2;
+      d[q] = LR[pi] * gain * tr + 44 * (1 - tr); d[q + 1] = LG[pi] * gain * tgv + 25 * (1 - tgv); d[q + 2] = LB[pi] * gain * tb + 12 * (1 - tb); d[q + 3] = 255;
+    }
+  }
+  ctx.putImageData(IMG, 0, 0);
+}
+function drawAirGrains(c, t, C) {
+  c.save(); c.setTransform(S * C.z, 0, 0, S * C.z, S * (C.cx - 540 * C.z), S * (C.cy - 760 * C.z));
+  for (const s of SPRAY) { const dd = t - s.t0; if (dd < 0 || dd >= s.life) continue;
+    const [x, y] = sprayAt(s, dd), sp = Math.exp(-s.dr * dd), vx = s.vx * sp, vy = s.vy * sp, v = Math.hypot(vx, vy) + 1e-6, len = Math.min(26, v * .012) + s.sz;
+    c.fillStyle = `rgba(40,22,9,${.9 - .3 * dd / s.life})`; c.beginPath(); c.ellipse(x, y, len, s.sz * .8, Math.atan2(vy, vx), 0, TAU); c.fill(); }
+  c.restore();
+}
+// the artist's hand: a soft shadow above the glass (screen space)
+function handAt(t) {
+  if (t < .7) { const f = sweepX(Math.min(t, .55)), P = [f - 30, 1470 + 260 * prog(t, .5, .7)];
+    return { P, O: [f + 120, 2600], kind: 'palm', a: 1 - prog(t, .5, .7), lift: .1 + prog(t, .48, .7) }; }
+  if (false) { const { tw } = titleGeom(), kw = prog(t, TW0, TW1), xr = 540 + tw / 2;
+    const P0 = [xr - tw * kw, TITLE.y + 10 + 12 * Math.sin(t * 40)], out = prog(t, TW1 + .15, TW1 + .45), inn = 1 - prog(t, TITLE.t0 - .12, TW0);
+    const P = [P0[0] + 420 * (out + inn), P0[1] - 480 * (out + inn)];
+    return { P, O: [1400, -700], kind: 'finger', a: (1 - out) * (1 - inn * .7), lift: .15 + out + inn * .6 }; }
+  return null;
+}
+function drawHand(c, t, C) {
+  const st = handAt(t); if (!st || st.a <= .01) return;
+  const g = HCV.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, HCV.width, HCV.height); g.setTransform(1 / 6, 0, 0, 1 / 6, 0, 0);
+  const off = st.lift * 60, P = [st.P[0] + off * .6, st.P[1] + off], dx = st.O[0] - P[0], dy = st.O[1] - P[1], dl = Math.hypot(dx, dy), ux = dx / dl, uy = dy / dl, nx = -uy, ny = ux, s = 1 + st.lift * .25;
+  const at = (a, b) => [P[0] + ux * a * s + nx * b * s, P[1] + uy * a * s + ny * b * s];
+  g.fillStyle = g.strokeStyle = '#000'; g.lineCap = 'round';
+  const seg = (a, b, w) => { g.lineWidth = w * s; g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke(); }, blob = (p, rx, ry) => { g.beginPath(); g.ellipse(p[0], p[1], rx * s, ry * s, Math.atan2(uy, ux), 0, TAU); g.fill(); };
+  if (st.kind === 'finger') { seg(at(4, 0), at(110, 4), 28); blob(at(175, 12), 74, 64); seg(at(140, -48), at(92, -54), 30); seg(at(128, 44), at(108, 58), 32); seg(at(230, 10), at(dl / s + 200, 40), 118); }
+  else { [[0, -48, 25], [-12, -16, 27], [-8, 16, 27], [14, 46, 23]].forEach(([tip, sd, w]) => seg(at(tip + 14, sd), at(110, sd * .8), w)); blob(at(160, 2), 76, 70); seg(at(150, -70), at(80, -112), 30); seg(at(210, 6), at(dl / s + 200, 30), 120); }
+  const C0 = toScreen(C, 540, 760);
+  c.save(); c.setTransform(S, 0, 0, S, 0, 0); c.globalCompositeOperation = 'multiply'; c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+  c.globalAlpha = (.3 - st.lift * .1) * st.a; c.drawImage(HCV, 0, 0, W, H);
+  c.globalAlpha *= .5; c.drawImage(HCV, 14 + st.lift * 30, 20 + st.lift * 40, W, H); c.restore();
+}
+function bloom(c) {
+  const q = (cv2, src) => { const g = cv2.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(src, 0, 0, cv2.width, cv2.height); };
+  q(B1, cv); q(B2, B1); q(B3, B2);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'screen'; c.globalAlpha = .2; c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.drawImage(B3, 0, 0, OUT_W, OUT_H); c.restore();
+}
+
+// ============================================================
+film({
+  setup() {
+    TG = mkCanvas(GW, GH); tg = TG.getContext('2d', { willReadFrequently: true });
+    T = new Float32Array(NC); RT = new Float32Array(NC); h = new Float32Array(NC); L = new Float32Array(NC); E = new Float32Array(NC); F = new Float32Array(NC);
+    GM = new Float32Array(NC); JIT = new Float32Array(NC);
+    for (let j = 0, p = 0; j < GH; j++) for (let i = 0; i < GW; i++, p++) { GM[p] = .8 + .32 * fbm(i / 9, j / 9, 17) + .12 * hash(p, 5); JIT[p] = .4 + 1.2 * hash(p, 8); }
+    buildBackground(); buildLook();
+  },
+  draw(c, t, i) {
+    simTo(i);
+    const C = cam(t);
+    renderSand(t, i, C);
+    drawAirGrains(c, t, C);
+    drawHand(c, t, C);
+    bloom(c);
+  },
+  kit: { reverb: .42, revSec: 2.8, musicGain: .5, sfxGain: .85 },
+  voice: K => {
+    const { osc, noise, mf, nm, at } = K;
+    const kal = (t, m, v = .08, d = 1.5, out = K.music) => { const f = mf(m); osc('sine', f, t, d, out, v, .003); osc('sine', f * 3.02, t, d * .22, out, v * .1, .002); osc('sine', f * 5.43, t, d * .08, out, v * .16, .001); osc('triangle', f, t, .05, out, v * .2, .001, .05, 3000); };
+    const hang = (t, m, v = .1, d = 2.4, out = K.music) => { const f = mf(m); osc('sine', f, t, d, out, v, .012); osc('sine', f * 2, t, d * .55, out, v * .32, .01); osc('sine', f * 2.97, t, d * .3, out, v * .16, .01); osc('sine', f * 4.1, t, d * .12, out, v * .06, .006); };
+    const hiss = (t, d, v = .07, f = 3400, q = .8, a = null) => noise(t, d, K.sfx, v, 'bandpass', f, q, a ?? d * .45);
+    const sweep = (t, d, v, f0, f1, q = .9) => { const b = noise(t, d, K.sfx, v, 'bandpass', f0, q, d * .4); b.frequency.exponentialRampToValueAtTime(f1, at(t + d)); };
+    const thud = (t, v = .5, f0 = 92) => { const o = osc('sine', f0, t, .7, K.sfx, v, .006); o.frequency.exponentialRampToValueAtTime(36, at(t + .55)); noise(t, .4, K.sfx, v * .3, 'lowpass', 260, .7, .012); };
+    const bell = (t, m, v = .05, att = .5, d = 2.6, out = K.sfx) => [1, 2.76, 5.4, 8.93].forEach((p, j) => osc('sine', mf(m) * p, t, d / (1 + j * .6), out, v / (1 + j * 1.2), att * (1 - j * .18)));
+    return {
+      groove(a, b, root, tri) {
+        K.pad(a, b - a, [tri[0] - 12, tri[1] - 12, tri[2] - 12], .016, 'sine', 900);
+        hang(a, root, .09, Math.min(2.6, b - a + 1));
+        let n = 0; for (let t = a + .25; t < b - .05; t += .5, n++) kal(t, tri[n % 3] + 12 + (n % 4 === 3 ? 12 : 0), .04 + .015 * (n % 2), 1.3);
+        for (let t = a; t < b - .05; t += .25) noise(t, .09, K.music, .006 + .004 * ((t * 4) % 2), 'highpass', 6500, .7, .03);   // grains trickling, a rain-stick pulse
+      },
+      motif(t) { [[0, 'E5'], [.25, 'G5'], [.5, 'C6'], [1.0, 'B5'], [1.25, 'G5'], [1.5, 'C6']].forEach(([d, s]) => kal(t + d, nm(s), .075, 1.8)); },
+      ending(t) { K.pad(t, 1.6, [48, 55, 60, 64, 67], .022, 'sine', 1100); hang(t, 36, .13, 3); hang(t + .02, 48, .08, 3); bell(t + .1, nm('C6'), .04, .6, 2.4, K.music); kal(t + .6, nm('G5'), .06, 2); kal(t + .9, nm('C6'), .06, 2.2); },
+      cues: {
+        reveal: t => { sweep(t, .6, .1, 4200, 1800, .7); hang(t, 48, .08, 2.5, K.sfx); },
+        star: t => { kal(t + .1, nm('G6'), .05, 1.4, K.sfx); hiss(t, .35, .03, 6000, 1.2); },
+        pop: t => { hang(t, 60, .09, 1.2, K.sfx); hiss(t - .05, .3, .05, 2400, .9); },
+        jump: (t, n) => { sweep(t, .38, .07, 1800, 5200); kal(t, nm(n ? 'D6' : 'C6'), .05, .8, K.sfx); kal(t + .08, nm(n ? 'A6' : 'G6'), .045, .8, K.sfx); },
+        fall: (t, n) => { sweep(t, .26, .06, 4800, 1400); kal(t, nm(n ? 'B5' : 'A5'), .04, .6, K.sfx); kal(t + .1, nm('E5'), .04, .6, K.sfx); },
+        splat: t => { thud(t, .6); noise(t, .55, K.sfx, .2, 'lowpass', 1400, .6, .004); hiss(t + .02, .7, .11, 3000, .7, .01); },
+        dizzy: t => { [0, .12, .24].forEach((d, j) => kal(t + d, nm(['E7', 'C7', 'G6'][j]), .025, .5, K.sfx)); },
+        getup: t => { hang(t, 55, .07, 1, K.sfx); sweep(t, .3, .05, 1500, 3500); },
+        drop: t => sweep(t, .28, .07, 6000, 1600, 1),
+        thud: (t, n) => { thud(t, .6 + n * .1, 80); hiss(t, .6, .1, 2200, .6, .01); },
+        idea: t => { [0, 4, 7, 12, 16].forEach((d, j) => kal(t + j * .05, 84 + d, .05, 1.1, K.sfx)); hiss(t, .3, .03, 7000, 1.2); },
+        hop: (t, n) => { hang(t, 62 + n * 5, .07, .8, K.sfx); sweep(t, .3, .05, 2000, 4800); },
+        land: t => { thud(t, .25, 110); hiss(t, .25, .05, 2600, .8, .005); },
+        leap: t => { sweep(t, .45, .09, 1200, 6000, .8); [0, 2, 4, 7, 9, 12].forEach((d, j) => kal(t + j * .06, 72 + d, .045, .9, K.sfx)); },
+        grab: t => { thud(t, .35, 70); bell(t, nm('C6'), .07, .45, 3); bell(t + .05, nm('G6'), .045, .55, 2.6); bell(t + .1, nm('E7'), .03, .6, 2.2);
+          noise(t, 1.6, K.sfx, .07, 'highpass', 5500, .5, .5); hiss(t, .9, .09, 3400, .6, .02); for (let k = 0; k < 8; k++) kal(t + .2 + k * .07, 96 + [0, 4, 7, 12][k % 4], .02, .5, K.sfx); },
+        title: t => { for (let k = 0; k < 6; k++) hiss(t + .08 + k * .11, .16, .045, 3600 + (k % 2) * 700, 1.1, .05); },
+      },
+    };
+  },
+});
+</script>
