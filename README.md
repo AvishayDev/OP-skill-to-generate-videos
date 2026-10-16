@@ -42,7 +42,7 @@ brief (format · language · length · shape · voice) → research (factual top
    `huggingface.co`, `generativelanguage.googleapis.com`, `api.pexels.com`, `images.pexels.com`, `videos.pexels.com`,
    `pixabay.com`, `cdn.pixabay.com`, `commons.wikimedia.org`, `upload.wikimedia.org`, `thumb.wikimedia.org`,
    `freesound.org`, `cdn.freesound.org`, `api.iconify.design`, `fonts.googleapis.com`, `fonts.gstatic.com`.
-3. Library skills: `library/fetch.sh` (all packs) or `library/fetch.sh hyperframes manim` — pinned commits, each
+3. Library skills are fetched when needed (~1–2 min): `library/fetch.sh` (all packs) or `library/fetch.sh hyperframes manim` — pinned commits, each
    pack keeps its own licence.
 
 Check any time: `node pipeline/cli.mjs doctor`. Tests: `npm test`.

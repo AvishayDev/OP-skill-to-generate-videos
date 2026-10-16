@@ -45,3 +45,6 @@ projects/**/*.ttf
 projects/**/*.otf
 # Downloaded third-party skill sources (library/fetch.sh) are re-fetchable
 .cache/
+
+# Library packs are fetched per session (library/fetch.sh), not committed
+library/*/
