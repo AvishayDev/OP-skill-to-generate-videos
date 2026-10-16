@@ -42,7 +42,7 @@ brief (format · language · length · shape · voice) → research (factual top
    `huggingface.co`, `generativelanguage.googleapis.com`, `api.pexels.com`, `images.pexels.com`, `videos.pexels.com`,
    `pixabay.com`, `cdn.pixabay.com`, `commons.wikimedia.org`, `upload.wikimedia.org`, `thumb.wikimedia.org`,
    `freesound.org`, `cdn.freesound.org`, `api.iconify.design`, `fonts.googleapis.com`, `fonts.gstatic.com`.
-3. Library skills are already in `library/` (18 packs, 87 skills, pinned commits, each with its own licence).
-   `library/fetch.sh <pack>` re-fetches one; telemetry is off (`DO_NOT_TRACK=1` in `.claude/settings.json`).
+3. Library skills: `library/fetch.sh` (all packs) or `library/fetch.sh hyperframes manim` — pinned commits, each
+   pack keeps its own licence.
 
 Check any time: `node pipeline/cli.mjs doctor`. Tests: `npm test`.
