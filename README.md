@@ -27,7 +27,9 @@ brief (format · language · length · shape · voice) → research (factual top
 |---|---|
 | `CLAUDE.md` | The producer brain: modes, pipeline, rules, data formats |
 | `.claude/skills/video-studio/` | **The director skill**: routing, style menu (`references/styles.md`), skill catalog, sound, formats |
-| `.claude/skills/reelkit/`, `.claude/skills/animate-in-code/` | The two built-in shot engines |
+| `.claude/skills/reelkit/`, `.claude/skills/animate-in-code/`, `.claude/skills/blender-3d/` | The built-in shot engines |
+| `.claude/skills/watch-video/` | Send a video link → Claude watches it (contact sheets + transcript) |
+| `.claude/skills/ben-adam/`, `remotion-best-practices/`, `competitive-ads-extractor/` | Hebrew/English line editing, Remotion's skills, competitor-ad research |
 | `library/` | Third-party video skills (HyperFrames, Remotion, Manim, motion-graphics, iart packs, sound design, Lottie, anidoodle, lemo-opuscar…): `sources.json` + `fetch.sh` |
 | `.claude/commands/` | `/make-video` (one-shot), `/review-video` (approval gates) |
 | `config/` | defaults: `brand.json`, `voice.json` (Gemini voices), `video.json`, `languages.json` |
@@ -42,6 +44,7 @@ brief (format · language · length · shape · voice) → research (factual top
    `huggingface.co`, `generativelanguage.googleapis.com`, `api.pexels.com`, `images.pexels.com`, `videos.pexels.com`,
    `pixabay.com`, `cdn.pixabay.com`, `commons.wikimedia.org`, `upload.wikimedia.org`, `thumb.wikimedia.org`,
    `freesound.org`, `cdn.freesound.org`, `api.iconify.design`, `fonts.googleapis.com`, `fonts.gstatic.com`.
+   To watch links: `youtube.com`, `*.googlevideo.com`, `i.ytimg.com`, and the other video sites you'll send.
 3. Library skills are fetched when needed (~1–2 min): `library/fetch.sh` (all packs) or `library/fetch.sh hyperframes manim` — pinned commits, each
    pack keeps its own licence.
 

@@ -11,6 +11,8 @@ from a phone, so:
 
 **Every video request goes through the `video-studio` skill** (`.claude/skills/video-studio/SKILL.md`) — read it
 first. It routes each shot to reelkit, animate-in-code, blender-3d (real 3D), stock footage or a library skill (`library/`).
+**A video link from the user** ("watch this", "make one like this") → the `watch-video` skill: run its script, Read
+the contact sheets and transcript, then answer. Watched videos are reference only (Rule 3).
 
 ## Two modes
 - **One-shot (default).** "make a video about…", "צור סרטון על…", `/make-video`: run the whole pipeline without

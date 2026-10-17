@@ -17,7 +17,8 @@
       "Bash(npm test)",
       "Bash(ffmpeg:*)",
       "Bash(ffprobe:*)",
-      "Bash(reelkit:*)"
+      "Bash(reelkit:*)",
+      "Bash(python3 .claude/skills/watch-video/scripts/watch.py:*)"
     ]
   },
   "env": {

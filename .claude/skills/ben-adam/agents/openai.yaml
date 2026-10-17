@@ -1,0 +1,7 @@
+interface:
+  display_name: "ben-adam (בן אדם)"
+  short_description: "Bilingual line editor for Hebrew and English. Flags generic, inflated, machine-sounding phrasing in a draft and rewrites it to read naturally."
+  default_prompt: "Clean up the phrasing in this draft so it reads like a person wrote it."
+
+policy:
+  allow_implicit_invocation: true

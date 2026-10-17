@@ -12,6 +12,9 @@ decision is yours. Two engines are built in and always available:
   sketchbook, stickers, sand, cross-stitch, drawing over photos/video.
 - **blender-3d** (`.claude/skills/blender-3d/`) — real 3D (Blender Cycles, local): glossy toy characters with lip
   sync, a bus, toy-town sets, 3D words. Slow (~3.5 s/frame → 2 min ≈ 3 h at 24 fps): say so before a long render.
+Helpers in `.claude/skills/`: **watch-video** (the user sends a video link → frames + transcript; reference
+only), **ben-adam** (Hebrew/English line edit of the script and post text), **remotion-best-practices**
+(local Remotion skills for a `clip`), **competitive-ads-extractor** (research for ads/promos).
 Everything else is a **library skill** (`library/`, see `references/catalog.md`) whose output enters the film as a
 `clip` shot, or whose knowledge you borrow for a reelkit/canvas shot.
 
