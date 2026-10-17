@@ -50,7 +50,7 @@ footage (Pexels / Pixabay video) or clips rendered by any library skill (Manim, 
   clips <p> [--only <id>]        Footage shots (download + trim + crop) and clip shots (conform clips-src/<id>.mp4)
   canvas <p> [--only <id>] [--grid-only]
                                  Render the canvas shots → clips/<id>.mp4 + frames/<id>-grid.jpg (Read it!)
-  blender <p> [--only <id>] [--grid-only] [--quality final|preview]
+  blender <p> [--only <id>] [--grid-only] [--quality final|preview] [--adopt]
                                  Render the blender-3d shots (real 3D, Cycles on the CPU, resumable) → clips/<id>.mp4;
                                  --grid-only = a few stills → frames/<id>-grid.jpg (Read it before the long render)
   overlays <p> [--only <id>]     Optional overlays.json images → overlays/<id>.png
@@ -373,7 +373,7 @@ async function main() {
     case 'shots': return shots(ep);
     case 'elements': return prepareElements(ep, { only: opt('--only') });
     case 'canvas': return renderCanvasShots(ep, { only: opt('--only'), gridOnly: flag('--grid-only') });
-    case 'blender': return renderBlenderShots(ep, { only: opt('--only'), gridOnly: flag('--grid-only'), quality: opt('--quality') ?? 'final' });
+    case 'blender': return renderBlenderShots(ep, { only: opt('--only'), gridOnly: flag('--grid-only'), quality: opt('--quality') ?? 'final', adopt: flag('--adopt') });
     case 'overlays': return prepareOverlays(ep, { only: opt('--only') });
     case 'audio': return prepareAudio(ep);
     case 'credits': return credits(ep);

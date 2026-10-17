@@ -19,8 +19,11 @@ blender.version`) installs itself on first use (`install.sh`, ~380 MB, seconds).
 
 ## Render cost — plan for it
 4 CPUs, no GPU. Defaults (`config/video.json → blender.quality.final`): 960×540, Cycles 6 samples + OpenImageDenoise
-(BALANCED), upscaled to the film size → **≈ 3.5–4 s per frame**. Set `project.json → fps: 24` for 3D films
-(20 % fewer frames). So a 30 s film ≈ 45 min, 1 min ≈ 1.5 h, 2 min ≈ 3 h. Tell the user before a long render.
+(BALANCED), upscaled to the film size → **≈ 3.5–4 s per frame**. Blender renders at `blender.fps` (24 — 20 % fewer
+frames) and each clip is conformed to the film's fps (keep the project at 30: the Reelkit timeline always runs at
+30). So a 30 s film ≈ 45 min, 1 min ≈ 1.5 h, 2 min ≈ 3 h. Tell the user before a long render, and split it into
+background runs under 2 h each (`blender <p> --only …`, then `produce`). After a timing/fps change with unchanged
+shot code, `blender <p> --adopt` re-conforms the existing renders instead of re-rendering.
 Frames go to `projects/<name>/blender/<id>-<hash>/`; an interrupted render continues where it stopped (rerun the
 same command). Faster when needed: `quality.final.step: 2` (renders every 2nd frame, holds it — choppier),
 `width: 854`, fewer objects on screen, `samples: 4`. Never `engine: eevee` here (software GL is slower and noisy).
