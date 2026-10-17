@@ -10,6 +10,8 @@ decision is yours. Two engines are built in and always available:
 - **reelkit** (`.claude/skills/reelkit/`) — React/HyperFrames shots + the final render (captions, voice, music, SFX).
 - **animate-in-code** (`.claude/skills/animate-in-code/`) — Canvas 2D films: brush, collage, pixel, riso, chalk,
   sketchbook, stickers, sand, cross-stitch, drawing over photos/video.
+- **blender-3d** (`.claude/skills/blender-3d/`) — real 3D (Blender Cycles, local): glossy toy characters with lip
+  sync, a bus, toy-town sets, 3D words. Slow (~3.5 s/frame → 2 min ≈ 3 h at 24 fps): say so before a long render.
 Everything else is a **library skill** (`library/`, see `references/catalog.md`) whose output enters the film as a
 `clip` shot, or whose knowledge you borrow for a reelkit/canvas shot.
 
@@ -32,7 +34,7 @@ Inside the studio the director decides: a built-in or library skill's own "ask t
 3b OVERLAYS overlays.json (optional)    prompts/overlays.md
 3c AUDIO    audio.json                  prompts/audio.md     music + the SFX the cues name (references/sound.md)
 ── Gate 1 (review mode) ──
-4 PRODUCE   frames → produce            prompts/editing.md   fonts, elements, footage, clips, canvas, timeline, render
+4 PRODUCE   frames → produce            prompts/editing.md   fonts, elements, footage, clips, canvas, blender, timeline, render
 ── Gate 2 (review mode) ──
 5 DELIVER   final.mp4 via SendUserFile + the post description block, then `cleanup`, commit the text files
 ```
@@ -43,6 +45,7 @@ in the environment settings, then stop). `init <name> --lang <code> --aspect <ra
 | The shot needs… | Engine |
 |---|---|
 | headlines, cards, UI, phones, chat bubbles, counters, charts, photos with boxes, stamps, maps of text | `reelkit` (shared kit `pipeline/render/reelkit/*.tsx` + `reelkit/kit`: BarChart, TrendLine, DonutStat, CompareTable, FlowDiagram, ChatStack, ShaderLayer, 3D…) |
+| real 3D: a 3D cartoon / kids' 3D show / toy world, characters that sing (lip sync), "like the 3D nursery-rhyme channels" | `blender` (blender-3d, toykit) |
 | a hand-made medium: brush, paper collage, pixel art, riso, chalk, pencil, stickers, sand, embroidery, ink, particles, simulations | `canvas` (animate-in-code) |
 | real-world motion: nature, city, food, sport, people | `footage` (`search-videos`) |
 | maths / physics / proofs / graphs (3Blue1Brown) | `clip` ← `library/manim` |
@@ -73,7 +76,7 @@ Install what a library skill needs into the project folder or user space (`pip i
 4. **One concept per film**; elements land on the words that name them; one new element every ~0.7–1.5 s.
 5. **Length**: the voice decides it — over target by > 8 % → cut words, never speed up the audio.
 6. **Never commit media** (`.gitignore` blocks it; `npm test` checks). Commit the project's text files.
-7. **Look before the long render**: `frames <p>` → Read the contact sheet. Read canvas grids, element PNGs and
+7. **Look before the long render**: `frames <p>` → Read the contact sheet. Read canvas and blender grids (`--grid-only`), element PNGs and
    clip frames before they go in. Self-review the final (prompts/editing.md) before sending.
 8. **Deliver in the chat**: SendUserFile `output/<name>/final.mp4`, then the post description as one copyable
    block, then `cleanup <p>`.

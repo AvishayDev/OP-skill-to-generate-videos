@@ -1,0 +1,47 @@
+{
+  "name": "Toy Town 3D",
+  "why": "A toddler sing-along in real 3D: glossy toy characters, a rainbow bus and a candy-coloured town rendered in Blender, like the 3D nursery-rhyme channels.",
+  "look": "Real 3D (Blender Cycles): soft sunlight, glossy plastic and soft-skin materials, big sparkly eyes, a cream bus with rainbow stripes on a bright toy-town road; words pop in as chunky 3D letters.",
+  "palette": {
+    "bg": "#8FD3FF",
+    "ink": "#2B2250",
+    "accent": "#FF5A7A",
+    "accentInk": "#FFFFFF",
+    "muted": "#7A6FA8",
+    "paper": "#FFF7E6",
+    "red": "#FF4D4D",
+    "yellow": "#FFC61A",
+    "green": "#3DCC5B",
+    "blue": "#3D8BFF",
+    "purple": "#9B5DE5"
+  },
+  "font": {
+    "google": "Fredoka"
+  },
+  "bodyFont": {
+    "google": "Fredoka"
+  },
+  "canvasFont": "Fredoka",
+  "imageTreatment": "none",
+  "ground": {
+    "grain": 0,
+    "pattern": "none"
+  },
+  "motif": {
+    "type": "none"
+  },
+  "captions": {
+    "size": 70,
+    "bottom": 0.06,
+    "plate": "rgba(255,255,255,0.92)"
+  },
+  "elements": [
+    "a cream bus with rainbow stripes and a smiling grille",
+    "five round-faced characters (toddler, bunny, duckling, frog, bear)",
+    "colour stop signs",
+    "chunky bubble words",
+    "balloons, puddles, shells",
+    "notes, hearts and sparkles"
+  ],
+  "motion": "Everything bounces: springy pops on the word, gentle squash-and-stretch idles, hard cuts between shots."
+}

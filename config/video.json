@@ -146,5 +146,25 @@
   },
   "licenses": {
     "allowShareAlike": true
+  },
+  "blender": {
+    "version": "4.5.14",
+    "engine": "cycles",
+    "quality": {
+      "grid": {
+        "width": 640,
+        "samples": 8,
+        "stills": 6
+      },
+      "preview": {
+        "width": 640,
+        "samples": 4
+      },
+      "final": {
+        "width": 960,
+        "samples": 6,
+        "step": 1
+      }
+    }
   }
 }
