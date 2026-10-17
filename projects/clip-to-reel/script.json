@@ -1,0 +1,10 @@
+{
+  "title": "From raw clip to reel",
+  "segments": [
+    { "id": "hook", "text": "[excited] You filmed a great clip. Then you opened the editor, and *two hours* disappeared.", "sources": [] },
+    { "id": "send", "text": "Here's the new way. Send the raw clip in a chat. *That's it.*", "sources": [] },
+    { "id": "cut", "text": "Claude transcribes every word, cuts the *dead air*, and zooms in right when you hit the point.", "sources": [] },
+    { "id": "polish", "text": "Captions land on each word. Logos pop when you say them. And the music actually works on a *phone speaker*.", "sources": [] },
+    { "id": "cta", "text": "No timeline. No CapCut. No laptop. [playfully] Comment *EDIT* and I'll show you the whole setup.", "sources": [] }
+  ]
+}

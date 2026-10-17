@@ -1,0 +1,21 @@
+{
+  "title": "From raw clip to reel",
+  "language": "en",
+  "aspect": "9:16",
+  "durationSeconds": 30,
+  "fps": 30,
+  "voice": {
+    "voiceName": "Puck",
+    "style": "Energetic, punchy social-media creator, fast, confident, smiling, a little playful"
+  },
+  "video": {
+    "music": {
+      "volume": 0.18
+    },
+    "reelkit": {
+      "captions": {
+        "maxWords": 3
+      }
+    }
+  }
+}
