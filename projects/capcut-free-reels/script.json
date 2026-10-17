@@ -1,0 +1,8 @@
+{
+  "title": "Edit reels from your phone",
+  "segments": [
+    { "id": "hook", "text": "[excited] Stop editing your reels by hand. *Seriously.*", "sources": [] },
+    { "id": "how", "text": "Send Claude one raw clip. It cuts every *pause*, puts captions on every word, and drops graphics right when you say them.", "sources": [] },
+    { "id": "done", "text": "Zooms. Music. Sound effects. *Done.* No CapCut. No laptop. [playfully] Tell me what you'd film first.", "sources": [] }
+  ]
+}
