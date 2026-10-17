@@ -4,7 +4,7 @@
 // `style` annotation, and inline vocal tags like <laugh> or <short pause> are
 // passed straight through. Segment boundaries for captions and cuts are then
 // recovered from the pauses in the audio → voice.mp3 + timing.json.
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -202,15 +202,21 @@ export async function generateVoice(ep, { force = false } = {}) {
   const voice = config.voice();
   const script = readJson(ep.script);
   if (voice.none) return silentTiming(ep, script);
-  const { GEMINI_API_KEY } = requireEnv('GEMINI_API_KEY');
   mkdirSync(ep.audioDir, { recursive: true });
-
-  const body = buildRequest(script, voice);
-  const requestHash = hash(body);
   const wav = join(ep.audioDir, 'voice.wav');
   const previous = readJsonIfExists(ep.timing, {});
   let fresh = false;
-  if (force || !existsSync(wav) || previous.requestHash !== requestHash) {
+  let requestHash;
+  if (voice.source) {
+    // Footage mode: the user's own voice, already cut and cleaned by `source`; only the words are re-timed.
+    if (!existsSync(wav)) throw new Error('No source voice — run "source <p> <file>" with the uploaded video first');
+    const { size, mtimeMs } = statSync(wav);
+    requestHash = hash({ size, mtimeMs, segments: script.segments }); // a proofread script re-times the words
+    fresh = previous.requestHash !== requestHash;
+  } else if (force || !existsSync(wav) || previous.requestHash !== (requestHash = hash(buildRequest(script, voice)))) {
+    const { GEMINI_API_KEY } = requireEnv('GEMINI_API_KEY');
+    const body = buildRequest(script, voice);
+    requestHash = hash(body);
     console.log(`TTS: whole script in one request (${voice.model}, ${script.segments.length} segments)…`);
     writeFileSync(wav, await synthesize(body, GEMINI_API_KEY));
     fresh = true;

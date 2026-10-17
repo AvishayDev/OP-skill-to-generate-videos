@@ -9,12 +9,17 @@
 //
 // Both are conformed to the film's size, frame rate and the shot's exact frame count, silent, →
 // projects/<name>/clips/<id>.mp4, and play in the shot's slot under the captions, motif and sound.
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+//
+// Footage mode (pipeline/video/source.mjs): `"video": "source"` plays the user's own edited video at the slot's
+// moment (lip-sync kept; `"zoom": 1.15` punches in), and a reelkit shot with `"under": "source"` draws its
+// graphics over it.
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { config, readJson, readJsonIfExists, writeJson, run, requireEnv, probeDuration } from '../lib.mjs';
 import { readShots, downloadHttp } from '../assets/images.mjs';
 import { resolveShots } from '../video/slots.mjs';
+import { sourcePaths } from '../video/source.mjs';
 
 // ---------- search ----------
 
@@ -74,11 +79,14 @@ export function videoTreatment(treat = 'none') {
 
 // The ffmpeg arguments that turn `src` into exactly `frames` frames of width×height at fps.
 // fit "cover" crops to fill; "contain" letterboxes on `pad` (the concept's ground colour).
-export function conformArgs(src, out, { width, height, fps, frames, start = 0, loop = false, fit = 'cover', pad = '#000000', treat = 'none' }) {
+// `zoom` > 1 punches in (1.15 = 15 % closer), keeping the point at `focusY` (0 top … 1 bottom) in frame.
+export function conformArgs(src, out, { width, height, fps, frames, start = 0, loop = false, fit = 'cover', pad = '#000000', treat = 'none', zoom = 1, focusY = 0.5 }) {
   const scale = fit === 'contain'
     ? `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${pad.replace('#', '0x')}`
     : `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
-  const filters = [scale, 'setsar=1', `fps=${fps}`, videoTreatment(treat), `tpad=stop_mode=clone:stop=-1`].filter(Boolean).join(',');
+  const even = (n) => Math.round(n / 2) * 2;
+  const punch = zoom > 1 ? `scale=${even(width * zoom)}:${even(height * zoom)},crop=${width}:${height}:(iw-${width})/2:(ih-${height})*${focusY}` : null;
+  const filters = [scale, punch, 'setsar=1', `fps=${fps}`, videoTreatment(treat), `tpad=stop_mode=clone:stop=-1`].filter(Boolean).join(',');
   return ['-y', '-v', 'error', ...(loop ? ['-stream_loop', '-1'] : []), ...(start ? ['-ss', String(start)] : []), '-i', src,
     '-vf', filters, '-frames:v', String(frames), '-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '17', '-preset', 'veryfast', '-r', String(fps), out];
 }
@@ -93,14 +101,21 @@ export async function prepareClips(ep, { only } = {}) {
   const assets = readJsonIfExists(ep.assets, {});
   assets.clips ??= {};
   const shots = resolveShots(plan, { script: readJson(ep.script), timing: readJson(ep.timing), fps: brand.fps })
-    .filter((s) => (s.skill === 'footage' || s.skill === 'clip') && (!only || s.id === only));
+    .filter((s) => (s.skill === 'footage' || s.skill === 'clip' || s.under) && (!only || s.id === only));
   if (!shots.length) return assets;
   mkdirSync(ep.clipsDir, { recursive: true });
   const videos = Object.fromEntries((plan.videos ?? []).map((v) => [v.id, v]));
   for (const shot of shots) {
     let src;
     let opts = { width: brand.width, height: brand.height, fps: brand.fps, frames: shot.frames, fit: shot.fit ?? 'cover', pad: concept.palette?.bg ?? '#000000' };
-    if (shot.skill === 'footage') {
+    const fromSource = shot.video === 'source' || shot.under === 'source';
+    if (shot.under && shot.under !== 'source') throw new Error(`shot ${shot.id}: "under" can only be "source" (the user's own video)`);
+    if (fromSource) {
+      // Footage mode: the user's edited video, in sync with its voice (the slot's own moment of it).
+      src = sourcePaths(ep).edit;
+      if (!existsSync(src)) throw new Error(`shot ${shot.id}: no source video — run "source <p> <file>" first`);
+      opts = { ...opts, start: shot.from / brand.fps, treat: shot.treat ?? 'none', zoom: shot.zoom ?? 1, focusY: shot.focusY ?? 0.4 };
+    } else if (shot.skill === 'footage') {
       const v = typeof shot.video === 'string' ? videos[shot.video] : shot.video;
       if (!v?.source?.url) throw new Error(`footage shot ${shot.id}: "video" must name an entry of shots.json → videos (or be { source: { url } })`);
       if (!v.license) throw new Error(`footage shot ${shot.id}: record the video's licence, credit and page`);
@@ -117,11 +132,11 @@ export async function prepareClips(ep, { only } = {}) {
       if (have + 0.05 < shot.frames / brand.fps) console.warn(`⚠ clip ${shot.id}: ${have.toFixed(2)}s, the slot is ${(shot.frames / brand.fps).toFixed(2)}s — its last frame is held`);
     }
     const out = join(ep.clipsDir, `${shot.id}.mp4`);
-    const hash = hashOf(opts, src, shot.skill === 'clip' ? readFileSync(src).length : 0);
+    const hash = hashOf(opts, src, shot.skill === 'clip' ? readFileSync(src).length : 0, fromSource ? statSync(src).mtimeMs : 0);
     if (assets.clips[shot.id]?.hash === hash && existsSync(out)) { console.log(`Clip ${shot.id}: unchanged → ${out}`); continue; }
     run('ffmpeg', conformArgs(src, out, opts));
     assets.clips[shot.id] = { file: out, frames: shot.frames, hash };
-    console.log(`Clip ${shot.id} (${shot.skill}): ${shot.frames} frames → ${out}`);
+    console.log(`Clip ${shot.id} (${fromSource ? 'source' : shot.skill}${opts.zoom > 1 ? ` ×${opts.zoom}` : ''}): ${shot.frames} frames → ${out}`);
   }
   writeJson(ep.assets, assets);
   return assets;

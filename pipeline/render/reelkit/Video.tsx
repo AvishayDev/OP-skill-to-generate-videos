@@ -67,7 +67,7 @@ export type ShotProps = {
 };
 
 type Shot = {
-  id: string; kind: "component" | "clip"; component?: string; src?: string; from: number; frames: number;
+  id: string; kind: "component" | "clip"; component?: string; src?: string; under?: string; from: number; frames: number;
   cue: Record<string, number>; words: { word: string; f: number; end: number }[]; images: string[]; motif: boolean;
 };
 type Overlay = {
@@ -127,7 +127,10 @@ export const Video: React.FC<VideoProps> = ({ urls }) => {
               {s.kind === "clip" ? (
                 <ShotClip kind="video" src={urls[s.src ?? ""]} />
               ) : Comp ? (
-                <Comp id={s.id} frames={s.frames} fps={e.fps} cue={s.cue} words={s.words} c={palette} face={display} body={body} img={imgs(s.images)} ui={UI} />
+                <>
+                  {s.under ? <ShotClip kind="video" src={urls[s.under]} /> : null}
+                  <Comp id={s.id} frames={s.frames} fps={e.fps} cue={s.cue} words={s.words} c={palette} face={display} body={body} img={imgs(s.images)} ui={UI} />
+                </>
               ) : null}
             </Sequence>
           );

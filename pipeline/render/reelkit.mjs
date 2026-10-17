@@ -267,6 +267,12 @@ export function buildEpisodeData({ brand, video, script, plan, timing, assets, o
     }
     if (s.skill !== 'reelkit') throw new Error(`shot ${s.id}: "skill" must be "reelkit", "canvas", "footage" or "clip"`);
     if (!COMPONENT.test(s.component ?? '')) throw new Error(`shot ${s.id}: "component" must be a PascalCase component name (episodes/<date>/shots/<Name>.tsx)`);
+    if (s.under) {
+      const a = assets.clips?.[s.id];
+      if (!a?.file || !existsSync(a.file)) throw new Error(`shot ${s.id} plays over the source video — run "clips" first`);
+      if (a.frames !== s.frames) throw new Error(`shot ${s.id}: its source slice was conformed for ${a.frames} frames, the slot now has ${s.frames} — run "clips" again`);
+      return { ...base, kind: 'component', component: s.component, under: add(`assets/shots/${s.id}.mp4`, a.file) };
+    }
     return { ...base, kind: 'component', component: s.component };
   });
   const totalFrames = shots.at(-1).from + shots.at(-1).frames;
