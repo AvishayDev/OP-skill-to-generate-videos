@@ -77,7 +77,9 @@ export const Name = ({ cue, c, face, body, img, words, frames, fps, ui }: ShotPr
   `Pop` (whole-element entrance on a cue: rise/scale/drop/left/right/spin, `out` to leave), `At` (place by centre),
   `BigText` (heavy RTL headline lines + marker block), `Tag`, `SelectBox`, `Photo`, `Stamp`, `Bubble`, `Card`,
   `Window`, `Phone`, `Toggle`, `TypeField`, `CountUp`, `Progress`, `TickGrid`, `Doodle` (circle/underline/arrow/
-  cross/check drawing itself), `Bot`, `Img`, `prog(frame, at, len)`, `bidi(text)`. Sources and props:
+  cross/check drawing itself), `Bot`, `Img`, `KineticLine` (the spoken words 1–2 at a time, each on its frame, sized
+  to the width, key words slamming in the accent: kinetic typography), `Push` (camera push + shake on hit frames),
+  `chunkAt(words, frame)` (which word group is on screen, e.g. to hard-cut the ground), `prog(frame, at, len)`, `bidi(text)`. Sources and props:
   `pipeline/render/reelkit/*.tsx`. Kit components from `reelkit/kit` (BarChart, DonutStat, Icon…) work too.
 - A new reusable element goes into `pipeline/render/reelkit/<Name>.tsx` (self-contained, props-driven, starts with a
   comment) and into the `UI` object in `Video.tsx`; episode-only details stay in the shot file.
