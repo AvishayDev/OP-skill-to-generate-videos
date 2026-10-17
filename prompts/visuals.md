@@ -9,6 +9,7 @@ Four kinds of shot — mix them freely, the concept keeps them one film:
 |---|---|---|
 | `reelkit` | a React component `shots/<Name>.tsx` (type, cards, UI, phones, charts, photos, counters) | the reelkit skill + the shared kit |
 | `canvas` | a Canvas 2D film `shots/<id>.js` (procedural, hand-made, particles, ink, sand, pixels, sketch) | the animate-in-code skill |
+| `blender` | a real 3D scene `shots/<id>.py` (`build(k)` with toykit: toy characters with lip sync, bus, toy town, 3D words) | the blender-3d skill |
 | `footage` | a real stock video (Pexels / Pixabay), trimmed, cropped, treated | `search-videos` → `shots.json → videos` |
 | `clip` | any video another skill renders: Manim (maths), HyperFrames (400+ registry blocks, GSAP, Three.js, Lottie, shaders), Remotion, Lottie, Blender, p5.js, ffmpeg | the library skills (`.claude/skills/video-studio/references/catalog.md`) → `clips-src/<id>.mp4` |
 
@@ -21,7 +22,7 @@ Cut wherever the idea changes (typically 4–6 shots per story, ~15 total). For 
   a stamp). `sfx` names a sound in audio.json (pop, whoosh, click, tick, ding, stamp, glass, type… — missing
   ones are auto-picked on Freesound from `config/video.json → sfx.queries`, else add them by hand).
 - `intent` — what the viewer must get; `description` — what we see.
-- `skill` — `reelkit`, `canvas`, `footage` or `clip` (table above).
+- `skill` — `reelkit`, `canvas`, `blender`, `footage` or `clip` (table above).
 - No narrator: cut with `at` (seconds into the segment) or `weight`; cues are seconds (`{ "name": 1.2 }`).
 - `images` — ids from the top-level `images` list the shot uses.
 `node pipeline/cli.mjs shots <p>` prints every shot's start, length, words and cue times. Fix every ⚠ and every
@@ -44,6 +45,9 @@ error (a cue whose word is spoken outside its shot is refused).
   icon animation, a Remotion map). `shots <p>` prints the clip's exact length in frames and seconds and the frame
   size: render exactly that (shorter = last frame held, longer = cut) to `clips-src/<id>.mp4` (or set `"file"`), in
   the concept's palette and font, then `clips <p>`. Commit the clip's *source* (scene .py / index.html) next to it.
+- **blender** (`.claude/skills/blender-3d/SKILL.md`): when the film should be real 3D (a 3D kids' show, a toy world,
+  characters singing). A 3D film is usually 3D in every shot (one concept); `blender <p> --grid-only` → Read
+  `frames/<id>-grid.jpg` per shot, then the long render (`blender <p>`, run_in_background, resumable).
 Aim for variety: e.g. 60 % reelkit, 2–4 canvas shots, footage/clips where they clearly win.
 
 ## 3. Write the shots
@@ -132,7 +136,7 @@ Send `audio/voice.mp3` first (caption: "🎙 The voiceover — Xs"). Then:
 🎯 Brief: <format> · <language> · <aspect> · ~Xs
 🎨 Concept: <name> — <why>
 🎙 Script (~N words · Xs): <script>
-🎬 Shots: N (reelkit a / canvas b / footage c / clips d)
+🎬 Shots: N (reelkit a / canvas b / blender e / footage c / clips d)
 1. 0:00 story1-a — <description>
 …
 🎵 Music: <name> · 🔊 SFX: pop, stamp, …

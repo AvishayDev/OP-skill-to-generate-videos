@@ -259,13 +259,19 @@ export function buildEpisodeData({ brand, video, script, plan, timing, assets, o
       if (a.frames !== s.frames) throw new Error(`canvas shot ${s.id} was rendered for ${a.frames} frames, the slot now has ${s.frames} — run "canvas" again`);
       return { ...base, kind: 'clip', src: add(`assets/shots/${s.id}.mp4`, a.file) };
     }
+    if (s.skill === 'blender') {
+      const a = assets.blender?.[s.id];
+      if (!a?.file || !existsSync(a.file)) throw new Error(`blender shot ${s.id} is not rendered — run "blender" first`);
+      if (a.frames !== s.frames) throw new Error(`blender shot ${s.id} was rendered for ${a.frames} frames, the slot now has ${s.frames} — run "blender" again`);
+      return { ...base, kind: 'clip', src: add(`assets/shots/${s.id}.mp4`, a.file) };
+    }
     if (s.skill === 'footage' || s.skill === 'clip') {
       const a = assets.clips?.[s.id];
       if (!a?.file || !existsSync(a.file)) throw new Error(`${s.skill} shot ${s.id} is not prepared — run "clips" first`);
       if (a.frames !== s.frames) throw new Error(`${s.skill} shot ${s.id} was conformed for ${a.frames} frames, the slot now has ${s.frames} — run "clips" again`);
       return { ...base, kind: 'clip', src: add(`assets/shots/${s.id}.mp4`, a.file) };
     }
-    if (s.skill !== 'reelkit') throw new Error(`shot ${s.id}: "skill" must be "reelkit", "canvas", "footage" or "clip"`);
+    if (s.skill !== 'reelkit') throw new Error(`shot ${s.id}: "skill" must be "reelkit", "canvas", "blender", "footage" or "clip"`);
     if (!COMPONENT.test(s.component ?? '')) throw new Error(`shot ${s.id}: "component" must be a PascalCase component name (episodes/<date>/shots/<Name>.tsx)`);
     return { ...base, kind: 'component', component: s.component };
   });

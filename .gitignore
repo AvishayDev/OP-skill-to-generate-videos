@@ -29,6 +29,8 @@ projects/**/*.webp
 projects/**/frames/
 projects/**/elements/
 projects/**/canvas/
+projects/**/blender/
+__pycache__/
 projects/**/clips/
 projects/**/audio/
 projects/**/overlays/
