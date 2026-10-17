@@ -457,3 +457,51 @@ test('episode data: component shots, canvas clips, cue sounds, concept palette a
   assert.ok(rk.scenes.every((s) => s.seconds <= 15) && rk.scenes.length >= 2);
   assert.throws(() => buildEpisodeData({ brand, video, script: cueScript, plan, timing: { ...cueTiming, voiceFile: f('voice.wav') }, assets: { ...assets, canvas: {} }, overlays: { overlays: [] }, concept }), /canvas shot a2 is not rendered/);
 });
+
+// ---------- footage mode (pipeline/video/source.mjs) ----------
+import { keepRanges, remapTime, remapWords, transcriptSegments, editFilterGraph, sourceVideoFilter } from './video/source.mjs';
+import { conformArgs } from './render/clips.mjs';
+
+test('keepRanges keeps the words, cuts long pauses, measured silences and chosen ranges, on the frame grid', () => {
+  const words = [{ start: 1.0, end: 1.4 }, { start: 1.5, end: 2.0 }, { start: 4.0, end: 4.5 }, { start: 4.6, end: 6.2 }];
+  // 1.0–2.0 and 4.0–6.2 are two takes; the 2 s gap goes.
+  assert.deepEqual(keepRanges(words, 8, { fps: 10 }), [[0.9, 2.2], [3.9, 6.4]]);
+  // Whisper stretched "6.2" over a silence 5.0–6.0: it is cut, pads kept.
+  assert.deepEqual(keepRanges(words, 8, { fps: 10, silences: [{ start: 5.0, end: 6.0 }] }), [[0.9, 2.2], [3.9, 5.2], [5.9, 6.4]]);
+  // A false start removed by the director.
+  assert.deepEqual(keepRanges(words, 8, { fps: 10, remove: [[0.9, 2.2]] }), [[3.9, 6.4]]);
+});
+
+test('remapTime / remapWords move source times into the edit', () => {
+  const ranges = [[1, 2], [4, 6]];
+  assert.equal(remapTime(1.5, ranges), 0.5);
+  assert.equal(remapTime(5, ranges), 2);
+  assert.equal(remapTime(3, ranges), null);
+  assert.equal(remapTime(3, ranges, { snap: 'next' }), 1);
+  assert.equal(remapTime(3, ranges, { snap: 'prev' }), 1);
+  const words = remapWords([{ w: 'a', start: 0.8, end: 1.3 }, { w: 'gone', start: 2.5, end: 3.5 }, { w: 'b', start: 4.2, end: 4.6 }], ranges);
+  assert.deepEqual(words.map((w) => [w.w, w.start, w.end]), [['a', 0, 0.3], ['b', 1.2, 1.6]]);
+});
+
+test('transcriptSegments cuts the transcript at sentence ends into a few segments', () => {
+  const words = [];
+  let t = 0;
+  for (const sentence of ['one two three four five six.', 'seven eight nine ten eleven twelve.', 'thirteen fourteen fifteen sixteen.', 'bye now.']) {
+    for (const w of sentence.split(' ')) { words.push({ w, start: t, end: t + 0.4 }); t += 0.5; }
+  }
+  const segs = transcriptSegments(words);
+  assert.deepEqual(segs.map((s) => s.id), ['s1', 's2', 's3']);
+  assert.equal(segs[0].text, 'one two three four five six.');
+  assert.ok(segs.at(-1).text.endsWith('bye now.'), 'a tiny last sentence joins the one before');
+});
+
+test('the source edit graph cuts picture and sound together and conformArgs punches in', () => {
+  const g = editFilterGraph([[0.5, 1.5], [2, 3]], { videoFilter: sourceVideoFilter({ width: 1080, height: 1920, fps: 30, color: { contrast: 1.1 } }) });
+  assert.match(g, /\[0:v\]trim=start=0\.5:end=1\.5/);
+  assert.match(g, /\[0:a\]atrim=start=2:end=3/);
+  assert.match(g, /concat=n=2:v=1:a=1/);
+  assert.match(g, /crop=1080:1920.*eq=contrast=1\.1/);
+  const args = conformArgs('in.mp4', 'out.mp4', { width: 1080, height: 1920, fps: 30, frames: 90, start: 2, zoom: 1.2, focusY: 0.4 });
+  assert.match(args[args.indexOf('-vf') + 1], /scale=1296:2304,crop=1080:1920:\(iw-1080\)\/2:\(ih-1920\)\*0\.4/);
+  assert.equal(args[args.indexOf('-ss') + 1], '2');
+});

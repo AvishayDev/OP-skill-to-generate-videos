@@ -12,6 +12,16 @@ flows are *not* used end to end — this studio keeps the voice, captions, music
 | `reelkit` | React motion graphics + the final render. Kit: Headline, WordReveal, CounterRoll, BarChart, TrendLine, DonutStat, CompareTable, FlowDiagram, ChatStack, CopyCorrection, Callout, PromptBox, TerminalLog, BrowserFrame, NamedCursor, HudOverlay, ShaderLayer (aurora, liquid metal, grain, halftone), 3D; references: styles, art-styles, motion-design, beat-sync, brand-motion, explain-graphics, launch-film, keynote-film, sound-design, hebrew-rtl. Studio kit (`pipeline/render/reelkit/`): Pop, At, BigText, Tag, SelectBox, Photo, Stamp, Bubble, Card, Window, Phone, Toggle, TypeField, CountUp, Progress, TickGrid, Doodle, Bot. |
 | `animate-in-code` | Canvas 2D hand-made films: brush strokes, zine collage, 8-bit pixel art, risograph, chalkboard, pencil sketchbook, paper stickers, sand animation, cross-stitch; doodles over a real photo or video. |
 
+## capcut-studio: `library/capcut-studio/SKILL.md` (shared with the user by its author; lives in this repo, no upstream)
+A pro editor's playbook for Reels/TikTok, written for CapCut desktop. Here it is **knowledge only**: footage mode
+(`references/footage.md`) does its CapCut steps in code. Worth reading for: reading a video by type (§1b),
+word-synced captions, punch-ins, B-roll and split-screen inserts (§4, §7), phone-speaker music rules and a search
+table by video type (§5a–5b), SFX palette (§5c), RTL motion-graphics pitfalls and safe zones (§5), 10 reference
+styles (§6: morphing UI, kinetic type, particle word, 3D cube world, text rings, doodle character,
+children's-book explainer, neon branches, blueprint-to-3D, mixed-media narration), and the checks before export
+(§10). Ignore its CapCut UI/JSON/export steps, its computer-use notes, and its "one check-in" rule (our modes
+decide).
+
 ## hyperframes — `library/hyperframes/` (Apache-2.0, HeyGen)
 HTML + GSAP compositions rendered with `npx hyperframes render` (needs Node + Chrome; downloads its engine).
 | Skill | Use for |

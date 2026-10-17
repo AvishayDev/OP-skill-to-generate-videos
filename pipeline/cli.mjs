@@ -17,6 +17,7 @@ import { renderCanvasShots } from './render/canvas.mjs';
 import { renderBlenderShots, findBlender, blenderConfig } from './render/blender.mjs';
 import { prepareClips, searchVideos } from './render/clips.mjs';
 import { prepareFonts, findGoogleFont } from './assets/fonts.mjs';
+import { prepareSource } from './video/source.mjs';
 
 const HELP = `
 Video Studio — run from the repo root. One project = projects/<name>/. Any idea, language, length and shape:
@@ -24,8 +25,13 @@ shots drawn in code (reelkit components shots/<Name>.tsx, animate-in-code canvas
 footage (Pexels / Pixabay video) or clips rendered by any library skill (Manim, HyperFrames, Remotion, Lottie…).
 
   doctor                         Check API keys, tools and network access — run first
-  init <name> [--lang en] [--aspect 9:16|16:9|1:1|4:5] [--seconds 60] [--voice none] [--title "…"]
+  init <name> [--lang en] [--aspect 9:16|16:9|1:1|4:5] [--seconds 60] [--voice none|source] [--title "…"]
                                  Create projects/<name>/ with project.json + templates
+                                 (--voice source = footage mode: the user's own video + voice, no TTS)
+  source <p> <file> [--max-pause 0.35] [--keep-pauses] [--rewrite-script]
+                                 Footage mode: transcribe the upload, cut dead air (+ project.json → source.remove),
+                                 crop to the frame, colour + voice cleanup → source/edit.mp4 + audio/voice.wav,
+                                 transcript → script.json. Shots then use "video": "source" / "under": "source"
   status <p>                     What exists for the project and which gates are approved
   approve <p> <plan|preview>     Record the human's approval (ONLY after they said yes)
   approve <p> auto "<request>"   One-shot mode: the user asked for a finished video in one prompt
@@ -85,7 +91,7 @@ function init(name, opts = {}) {
   frameSize(aspect);
   const seconds = Number(opts.seconds ?? 60);
   mkdirSync(join(ep.dir, 'shots'), { recursive: true });
-  const project = { title: opts.title ?? '', language: lang.code, aspect, durationSeconds: seconds, fps: 30, ...(opts.voice === 'none' ? { voice: 'none' } : {}) };
+  const project = { title: opts.title ?? '', language: lang.code, aspect, durationSeconds: seconds, fps: 30, ...(['none', 'source'].includes(opts.voice) ? { voice: opts.voice } : {}) };
   writeJson(ep.project, project);
   writeFileSync(ep.research, `# Research — ${name}\n\nOnly for factual topics (news, history, science, products): sources and checked facts.\n`);
   const words = Math.round(seconds * (lang.wordsPerSecond ?? 2.5));
@@ -101,7 +107,7 @@ function init(name, opts = {}) {
   writeJson(ep.concept, {
     name: '', why: '', look: '',
     palette: { bg: '#F2F0E9', ink: '#111111', accent: '#D7FF3A', accentInk: '#111111', muted: '#8A877C', paper: '#FFFFFF' },
-    font: lang.font, imageTreatment: 'none', ground: { grain: 0.06, pattern: 'none' }, motif: { type: opts.voice === 'none' ? 'none' : 'voiceline' },
+    font: lang.font, imageTreatment: 'none', ground: { grain: 0.06, pattern: 'none' }, motif: { type: opts.voice === 'none' || opts.voice === 'source' ? 'none' : 'voiceline' },
     elements: [], motion: '',
   });
   writeJson(ep.shots, {
@@ -112,7 +118,7 @@ function init(name, opts = {}) {
     ],
   });
   writeJson(ep.approvals, {});
-  console.log(`Created ${ep.dir}\n  ${lang.name} (${lang.rtl ? 'right to left' : 'left to right'}), ${aspect} ${frameSize(aspect).join('×')}, ~${seconds}s${opts.voice === 'none' ? ', no narrator' : ` ≈ ${words} spoken words`}`);
+  console.log(`Created ${ep.dir}\n  ${lang.name} (${lang.rtl ? 'right to left' : 'left to right'}), ${aspect} ${frameSize(aspect).join('×')}, ~${seconds}s${opts.voice === 'none' ? ', no narrator' : opts.voice === 'source' ? ', footage mode — next: source <p> <file>' : ` ≈ ${words} spoken words`}`);
 }
 
 function status(ep) {
@@ -124,7 +130,7 @@ function status(ep) {
   const blender3d = plan.shots.filter((s) => s.skill === 'blender');
   const clipShots = plan.shots.filter((s) => s.skill === 'footage' || s.skill === 'clip');
   const p = readJsonIfExists(ep.project, {});
-  console.log(`Project ${ep.name}  (${p.language ?? 'en'} · ${p.aspect ?? '9:16'} · ~${p.durationSeconds ?? '?'}s${p.voice === 'none' ? ' · no narrator' : ''})
+  console.log(`Project ${ep.name}  (${p.language ?? 'en'} · ${p.aspect ?? '9:16'} · ~${p.durationSeconds ?? '?'}s${p.voice === 'none' ? ' · no narrator' : p.voice === 'source' ? ` · footage mode${existsSync(join(ep.dir, 'source', 'edit.mp4')) ? ' (source cut ✔)' : ' (run source)'}` : ''})
   ${has(ep.research)} research.md     ${has(ep.script)} script.json     ${has(ep.concept)} concept.json     ${has(ep.shots)} shots.json (${plan.shots.length} shots)
   ${has(ep.timing)} timing.json      ${has(ep.audio)} audio.json       ${has(ep.overlays)} overlays.json
   images prepared: ${Object.keys(assets.elements ?? {}).length}/${(plan.images ?? []).length}   canvas clips: ${canvas.filter((s) => assets.canvas?.[s.id]).length}/${canvas.length}   blender: ${blender3d.filter((s) => assets.blender?.[s.id]).length}/${blender3d.length}   footage/clips: ${clipShots.filter((s) => assets.clips?.[s.id]).length}/${clipShots.length}   sfx: ${Object.keys(assets.sfx ?? {}).join(', ') || '·'}
@@ -370,6 +376,7 @@ async function main() {
     case 'search-music': return json(await searchFreesound(a, { kind: 'music' }));
     case 'search-sfx': return json(await searchFreesound(a, { kind: 'sfx' }));
     case 'voice': return generateVoice(ep, { force: flag('--force') });
+    case 'source': return prepareSource(ep, rest[0]?.startsWith('--') ? undefined : rest[0], { maxPause: opt('--max-pause'), keepPauses: flag('--keep-pauses'), rewriteScript: flag('--rewrite-script') });
     case 'shots': return shots(ep);
     case 'elements': return prepareElements(ep, { only: opt('--only') });
     case 'canvas': return renderCanvasShots(ep, { only: opt('--only'), gridOnly: flag('--grid-only') });

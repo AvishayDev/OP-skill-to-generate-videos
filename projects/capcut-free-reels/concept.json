@@ -1,0 +1,14 @@
+{
+  "name": "Kinetic Poster",
+  "why": "A fast, confident pitch: the words themselves are the picture, slammed in on the beat like a poster that keeps changing.",
+  "look": "Full-colour grounds (red, black, yellow, blue) hard-cut on every new word group; one or two huge Archivo Black words at a time filling the width; the camera always pushes, shaking on the hits. Ends on cream with the whole last line.",
+  "palette": { "bg": "#F4EFE4", "ink": "#111111", "accent": "#FF3B2F", "accentInk": "#FFFFFF", "muted": "#8A877C", "paper": "#FFFFFF", "yellow": "#FFD400", "blue": "#2B50FF", "black": "#111111", "cream": "#F4EFE4" },
+  "font": "archivoBlack",
+  "bodyFont": "montserrat",
+  "imageTreatment": "none",
+  "ground": { "grain": 0.05, "pattern": "none" },
+  "motif": { "type": "none" },
+  "captions": { "size": 62, "bottom": 0.19 },
+  "elements": ["huge spoken words (KineticLine)", "accent slams on key words", "a clip strip with a waveform that gets cut", "pop shapes for graphics", "strike-through bars", "the cream end card"],
+  "motion": "Words land on the frame they are said; key words slam from 1.25x with a camera shake; grounds hard-cut; a constant slow push."
+}

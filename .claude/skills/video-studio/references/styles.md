@@ -32,6 +32,7 @@ Reelkit's own `reference/styles.md` ("Locked looks") and `reference/art-styles.m
 | Bold poster | flat hot colour (red/yellow) + black | bebasNeue / unbounded | reelkit BigText | hard cuts on beats, scale slams |
 | Acid studio | near-black, acid lime, hot orange | bebasNeue + jetbrainsMono | reelkit | rotated labels, thick frames |
 | Kinetic typography | black or white, one accent | syne / unbounded / montserrat 900 | reelkit or `kinetic-typography` / `kinetic-reel` | words split, stagger, scale with the beat |
+| Kinetic poster (CapCut skill style 2) | full-colour grounds hard-cut per word group (red / black / yellow / blue), cream end card | archivoBlack | reelkit `KineticLine` + `Push` + `chunkAt` | the spoken words 1–2 at a time filling the width, key words slam from 1.25× with a shake, constant push; ends on the whole last line on cream |
 | Meme / UGC | white top bar, Impact-like caps | anton-like: bebasNeue | reelkit + footage | zoom punches, jump cuts |
 | Text-message story | phone UI, chat bubbles | system: roboto | reelkit Phone + Bubble / ChatStack | messages pop with typing dots |
 | Y2K / chrome | holographic gradient, chrome type | syne | reelkit ShaderLayer | shine sweeps, sparkles |

@@ -10,7 +10,7 @@ questions into one message; in one-shot mode decide and say what you decided).
 | **Language** | the language the user wrote in | `languages` lists the tuned ones; any ISO code works (Gemini TTS + Whisper) |
 | **Length** | 30–60 s for social; what the content needs otherwise | 15 s – 10 min; > 4 min renders in parts automatically |
 | **Shape** | 9:16 (Reels / TikTok / Shorts) | 16:9 YouTube / presentation, 1:1 or 4:5 feed |
-| **Narrator** | yes (Gemini voice) | `--voice none` for music-driven films: launch films, lyric videos, loops, mood pieces |
+| **Narrator** | yes (Gemini voice) | `--voice none` for music-driven films: launch films, lyric videos, loops, mood pieces; `--voice source` when the user sent their own video (footage mode, `references/footage.md`) |
 | **Voice** | by tone: Puck upbeat, Charon informative, Kore firm, Zephyr bright, Sulafat warm… | `voices` lists them; `project.json → voice.voiceName` |
 | **Captions** | on, word-timed, a few words at a time | off for a film without a narrator unless lyrics |
 | **Look** | chosen in Stage 3a from the content | the user's named style always wins |
