@@ -42,6 +42,7 @@ projects/**/assets.json
 projects/**/renders.json
 projects/**/reelkit-p*/
 projects/**/footage/
+projects/**/source/
 projects/**/fonts/
 projects/**/*.ttf
 projects/**/*.otf
@@ -50,3 +51,5 @@ projects/**/*.otf
 
 # Library packs are fetched per session (library/fetch.sh), not committed
 library/*/
+# …except packs that live only here (no upstream repo to fetch from)
+!library/capcut-studio/

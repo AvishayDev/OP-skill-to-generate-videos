@@ -81,6 +81,8 @@ export const config = {
     const lang = language(p.language ?? readJson(join(ROOT, 'config/brand.json')).language ?? 'en');
     if (p.voice === 'none' || p.voice === false) return { none: true, languageCode: lang.languageCode };
     const base = readJson(join(ROOT, 'config/voice.json'));
+    // Footage mode: the narrator is the user's own recording (pipeline/video/source.mjs) — no TTS.
+    if (p.voice === 'source') return { ...base, source: true, languageCode: lang.languageCode, alignLanguage: lang.whisperLanguage ?? lang.code, alignModel: lang.whisperModel };
     return { ...base, languageCode: lang.languageCode, alignLanguage: lang.whisperLanguage ?? lang.code, alignModel: lang.whisperModel, style: lang.voiceStyle ?? base.style, ...(isObj(p.voice) ? p.voice : {}) };
   },
   video: () => deepMerge(readJson(join(ROOT, 'config/video.json')), project().video ?? {}),

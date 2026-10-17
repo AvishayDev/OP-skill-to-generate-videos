@@ -1,0 +1,19 @@
+{
+  "title": "Edit reels from your phone",
+  "language": "en",
+  "aspect": "9:16",
+  "durationSeconds": 20,
+  "fps": 30,
+  "voice": {
+    "voiceName": "Puck",
+    "style": "Energetic, punchy social-media creator, fast and confident, smiling"
+  },
+  "video": {
+    "captions": {
+      "enabled": false
+    },
+    "music": {
+      "volume": 0.2
+    }
+  }
+}

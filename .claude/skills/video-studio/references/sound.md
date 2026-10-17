@@ -5,6 +5,14 @@ looped/trimmed to the film, faded and loudness-evened under the voice (`video.mu
 SFX trimmed to their hit. For a deeper pass read `library/barty/sound-effects/SKILL.md` (beat grid, cue
 lists) and reelkit's `reference/sound-design.md` / `reference/beat-sync.md`.
 
+## Phone speakers (most viewers)
+Phones don't play the sub-bass. Music whose energy sits below 150 Hz (808 trap, ambient pads, drones) disappears
+under the voice on a phone. Prefer tracks with mids: claps, hats, guitars, piano, strings, supersaws, phonk
+cowbells. Check a candidate: `ffmpeg -i m.mp3 -af highpass=f=150,volumedetect -f null -` vs. without the
+high-pass. If it loses more than ~6 dB, it will vanish on a phone. A deeper table of search terms by video type
+(hot take, tutorial, fashion, luxury, reveal, story, tension, humour, CTA, retro) with BPMs is in
+`library/capcut-studio/SKILL.md` §5b.
+
 ## Music by mood (Freesound queries)
 | Film | Query ideas |
 |---|---|

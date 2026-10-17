@@ -1,0 +1,30 @@
+{
+  "images": [],
+  "videos": [],
+  "shots": [
+    { "id": "hook-a", "segment": "hook", "skill": "reelkit", "component": "Chaos", "images": [],
+      "cues": { "clip": { "word": "clip", "sfx": "ding" }, "editor": { "word": "editor", "sfx": "click" }, "hours": { "word": "hours", "sfx": "stamp" }, "gone": { "word": "disappeared", "sfx": "whoosh" } },
+      "intent": "The pain: a great clip, then two hours lost", "description": "Camera viewfinder REC with a check on 'clip'; hard cut to a timeline piling up clips, a clock spins to 2 HOURS, everything falls away" },
+    { "id": "send-a", "segment": "send", "skill": "reelkit", "component": "ChatSend", "images": [],
+      "cues": { "way": "way", "send": { "word": "Send", "sfx": "whoosh" }, "chat": { "word": "chat", "sfx": "pop" }, "done": { "word": "That's", "sfx": "stamp" } },
+      "intent": "The new way is one message", "description": "A phone chat: a video bubble flies in on 'Send', uploads, lands with a check; THAT'S IT stamps" },
+    { "id": "cut-a", "segment": "cut", "skill": "canvas", "file": "shots/cut-a.js", "images": [],
+      "cues": { "transcribes": { "word": "transcribes", "sfx": "type" }, "cuts": "cuts", "air": { "word": "air", "sfx": "click" } },
+      "intent": "Every word transcribed, dead air cut", "description": "Pencil sketchbook: transcript words written on lines, a waveform drawn in pencil, its flat gap circled red and snipped out" },
+    { "id": "cut-b", "segment": "cut", "skill": "reelkit", "component": "Punch", "words": "and zooms", "images": [],
+      "cues": { "zoom": { "word": "zooms", "sfx": "whoosh" }, "point": { "word": "point", "sfx": "pop" } },
+      "intent": "Punch-ins on the point", "description": "A viewfinder on a speaker silhouette punches in with a selection box and a x1.3 tag; POINT slams" },
+    { "id": "polish-a", "segment": "polish", "skill": "reelkit", "component": "Artboard", "images": [],
+      "cues": { "captions": { "word": "Captions", "sfx": "pop" }, "word": "word", "logos": { "word": "Logos", "sfx": "pop" }, "pop": { "word": "pop", "sfx": "pop" } },
+      "intent": "Captions locked to words, logos on cue", "description": "Design-tool artboard: caption chips land one per word with a LOCKED selection box; three app-logo tiles pop in on 'pop'" },
+    { "id": "polish-b", "segment": "polish", "skill": "reelkit", "component": "Speaker", "words": "And the music", "images": [],
+      "cues": { "music": "music", "phone": { "word": "phone", "sfx": "ding" } },
+      "intent": "Music that survives a phone speaker", "description": "Phone speaker grille with live EQ bars: sub bars fade grey under a 150 Hz line, the mids glow; HEARD tag lands" },
+    { "id": "cta-a", "segment": "cta", "skill": "reelkit", "component": "NoNoNo", "images": [],
+      "cues": { "timeline": { "word": "timeline", "sfx": "whoosh" }, "capcut": { "word": "CapCut", "sfx": "whoosh" }, "laptop": { "word": "laptop", "sfx": "whoosh" } },
+      "intent": "Nothing else needed", "description": "Kinetic poster: NO TIMELINE / NO CAPCUT / NO LAPTOP, each struck through, grounds hard-cut" },
+    { "id": "cta-b", "segment": "cta", "skill": "reelkit", "component": "Comment", "words": "Comment EDIT", "images": [],
+      "cues": { "edit": { "word": "EDIT", "sfx": "type" }, "show": { "word": "show", "sfx": "pop" }, "setup": { "word": "setup", "sfx": "ding" } },
+      "intent": "The CTA", "description": "A comment card types EDIT, sends, a heart bursts and a reply chip says the whole setup is on its way" }
+  ]
+}

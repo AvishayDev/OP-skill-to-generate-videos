@@ -20,6 +20,16 @@ flows are *not* used end to end — this studio keeps the voice, captions, music
 | `remotion-best-practices` (Remotion, v4.0.534) | Local copy of Remotion's agent skills (create, markup, captions, maps, multimedia, render, studio…). Use it for a `clip` shot built in Remotion; inside the studio skip its "open Studio / don't render" steps — render the clip silent to `clips-src/<id>.mp4`. Same content as `library/remotion`, no fetch needed. |
 | `competitive-ads-extractor` | research competitors' ads (Meta Ad Library, LinkedIn…) before an ad/promo brief: messaging, hooks, formats. Inspiration only — never copy an ad. |
 
+## capcut-studio: `library/capcut-studio/SKILL.md` (shared with the user by its author; lives in this repo, no upstream)
+A pro editor's playbook for Reels/TikTok, written for CapCut desktop. Here it is **knowledge only**: footage mode
+(`references/footage.md`) does its CapCut steps in code. Worth reading for: reading a video by type (§1b),
+word-synced captions, punch-ins, B-roll and split-screen inserts (§4, §7), phone-speaker music rules and a search
+table by video type (§5a–5b), SFX palette (§5c), RTL motion-graphics pitfalls and safe zones (§5), 10 reference
+styles (§6: morphing UI, kinetic type, particle word, 3D cube world, text rings, doodle character,
+children's-book explainer, neon branches, blueprint-to-3D, mixed-media narration), and the checks before export
+(§10). Ignore its CapCut UI/JSON/export steps, its computer-use notes, and its "one check-in" rule (our modes
+decide).
+
 ## hyperframes — `library/hyperframes/` (Apache-2.0, HeyGen)
 HTML + GSAP compositions rendered with `npx hyperframes render` (needs Node + Chrome; downloads its engine).
 | Skill | Use for |

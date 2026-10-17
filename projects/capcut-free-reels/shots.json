@@ -1,0 +1,18 @@
+{
+  "images": [],
+  "videos": [],
+  "shots": [
+    { "id": "hook-a", "segment": "hook", "skill": "reelkit", "component": "Hook", "images": [],
+      "cues": { "stop": { "word": "Stop", "sfx": "whoosh" }, "seriously": { "word": "Seriously", "sfx": "stamp" } },
+      "intent": "Stop the scroll", "description": "STOP EDITING / YOUR REELS / BY HAND slam on red/black/yellow; SERIOUSLY stamps in" },
+    { "id": "how-a", "segment": "how", "skill": "reelkit", "component": "CutClip", "images": [],
+      "cues": { "clip": { "word": "clip", "sfx": "pop" }, "pause": { "word": "pause", "sfx": "click" } },
+      "intent": "One raw clip in, the pauses cut out", "description": "Kinetic words on yellow; a clip strip with a waveform lands on 'clip', its silent gap is cut and closes on 'pause'" },
+    { "id": "how-b", "segment": "how", "skill": "reelkit", "component": "Graphics", "words": "puts captions", "images": [],
+      "cues": { "captions": { "word": "captions", "sfx": "pop" }, "graphics": { "word": "graphics", "sfx": "whoosh" } },
+      "intent": "Captions on every word, graphics on cue", "description": "Kinetic words on blue; shapes burst in around the words on 'graphics'" },
+    { "id": "done-a", "segment": "done", "skill": "reelkit", "component": "Done", "images": [],
+      "cues": { "done": { "word": "Done", "sfx": "stamp" }, "capcut": { "word": "CapCut", "sfx": "whoosh" }, "laptop": "laptop", "tell": { "word": "Tell", "sfx": "ding" } },
+      "intent": "Everything done, no app, no laptop, then the CTA", "description": "ZOOMS / MUSIC / SOUND EFFECTS / DONE hard-cut; NO CAPCUT and NO LAPTOP struck through; cream end card with the full CTA line" }
+  ]
+}

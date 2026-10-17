@@ -1,0 +1,16 @@
+{
+  "name": "Mixed-Media Studio",
+  "why": "A before/after pitch told as a tour through the worlds an edit passes through (camera, timeline, chat, sketchbook, viewfinder, design tool, speaker, poster), each idea in its own world.",
+  "look": "Every scene is a different medium, held together by one thread: Archivo Black for every headline, one hot red accent with a yellow highlight, and word-synced captions on a black plate. Hard cuts between worlds.",
+  "palette": { "bg": "#F4EFE4", "ink": "#111111", "accent": "#FF3B2F", "accentInk": "#FFFFFF", "muted": "#8A877C", "paper": "#FFFFFF",
+    "yellow": "#FFD400", "blue": "#2B50FF", "black": "#111111", "cream": "#F4EFE4", "green": "#19C37D", "night": "#16161C", "slate": "#26262F" },
+  "font": "archivoBlack",
+  "bodyFont": "montserrat",
+  "canvasFont": "Heebo",
+  "imageTreatment": "none",
+  "ground": { "grain": 0.05, "pattern": "none" },
+  "motif": { "type": "none" },
+  "captions": { "size": 58, "bottom": 0.16, "ink": "#FFFFFF", "plate": "#111111", "chip": "#FFD400", "chipInk": "#111111" },
+  "elements": ["camera viewfinder (REC, timecode, brackets)", "NLE timeline with piling clips and a spinning clock", "phone chat with a video bubble uploading", "pencil sketchbook waveform cut with scissors", "punch-in selection box with a zoom tag", "design-tool artboard with LOCKED caption chips and popping logo tiles", "phone speaker EQ: dim sub, glowing mids", "kinetic poster strikes", "comment card typing EDIT"],
+  "motion": "Snappy springs and scale pops on cues, hard cuts between worlds, a shake on every hit, pencil lines boiling on twos in the sketchbook."
+}

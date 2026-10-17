@@ -1,6 +1,6 @@
 ---
 name: video-studio
-description: The director for any video request. Turns one idea, in any language, length (15 s – 10 min) and shape (9:16, 16:9, 1:1, 4:5), into a finished mp4 sent in the chat - brief, research, script, voiceover (Gemini TTS, word-timed with Whisper), visual concept, shots, elements, fonts, music and sound effects, captions, render. Routes each shot to the right engine - reelkit (React motion graphics), animate-in-code (Canvas 2D hand-made looks), stock footage, or a clip from the library skills (HyperFrames, Remotion, Manim, Lottie, kinetic type, 80+ film styles). Use whenever the user asks to make, create, generate or edit a video, reel, short, TikTok, explainer, promo, ad, story, lyric video, animation or motion graphic ("make a video about…", "צור סרטון", "תעשה לי סרטון", "/make-video").
+description: The director for any video request. Turns one idea, in any language, length (15 s – 10 min) and shape (9:16, 16:9, 1:1, 4:5), into a finished mp4 sent in the chat - brief, research, script, voiceover (Gemini TTS, word-timed with Whisper), visual concept, shots, elements, fonts, music and sound effects, captions, render. Routes each shot to the right engine - reelkit (React motion graphics), animate-in-code (Canvas 2D hand-made looks), stock footage, or a clip from the library skills (HyperFrames, Remotion, Manim, Lottie, kinetic type, 80+ film styles). Also edits the user's own uploaded video (footage mode, replaces CapCut): dead-air cuts, punch-ins, word-synced captions, graphics and B-roll over it, music and SFX. Use whenever the user asks to make, create, generate or edit a video, reel, short, TikTok, explainer, promo, ad, story, lyric video, animation or motion graphic ("make a video about…", "צור סרטון", "תעשה לי סרטון", "edit my video", "make this a reel", "תערוך לי את הסרטון", "/make-video").
 ---
 
 # Video Studio — the director
@@ -26,6 +26,14 @@ Inside the studio the director decides: a built-in or library skill's own "ask t
   the approval: `approve <p> auto "<their words>"`. Finish with the mp4 in the chat.
 - **Review** — only when asked ("show me the plan first", `/review-video`): stop at Gate 1 (plan + the voiceover
   mp3) and Gate 2 (preview). `approve <p> plan|preview` only after a clear yes.
+
+## Footage mode: the user sent their own video
+"Edit my video", "make this a reel", "תערוך לי את הסרטון", a clip attached: their recording is the film and their
+voice is the narrator. `init <name> --voice source`, then `source <p> <uploaded file>`. It transcribes, cuts dead
+air, crops to the frame and cleans the voice, and the transcript becomes `script.json`. Then the usual loop from
+3a, with shots that play the source (`"video": "source"`, punch-ins with `"zoom"`), graphics over it
+(`"under": "source"`) and cut-aways. Read `references/footage.md` first (the CapCut-replacement workflow + the
+editing craft of `library/capcut-studio/SKILL.md`).
 
 ## The loop
 ```
@@ -56,6 +64,7 @@ in the environment settings, then stop). `init <name> --lang <code> --aspect <ra
 | icon / logo / UI micro-animation as vector | `clip` ← `library/lottie` |
 | a named film style (watercolour, ukiyo-e, stained glass, cel anime, silent film, HD-2D…) | `canvas` if animate-in-code has it, else `clip` ← `library/lemo-opuscar` / `library/anidoodle` |
 | kinetic typography / lyric lines / beat-synced type | `reelkit` (BigText, Pop) or `clip` ← `library/iart-type` |
+| the user's own recording (talking head, vlog, screen capture) | `footage` with `"video": "source"` (+ `zoom`), or `reelkit` with `"under": "source"` (footage mode) |
 | bar-chart race / infographic | `reelkit` kit charts, or `clip` ← `library/iart-data` |
 `references/catalog.md` lists every library skill with what it is best at and what it needs (keys, installs).
 Run `library/fetch.sh <pack>` if a pack you need is not in `library/` yet, then read its SKILL.md before using it.
@@ -88,4 +97,5 @@ Install what a library skill needs into the project folder or user space (`pip i
 - `references/catalog.md` — every library skill, routed by need.
 - `references/styles.md` — ≈80 named looks → palette, type, engine, motion.
 - `references/sound.md` — music genres by mood, the SFX vocabulary, mixing.
+- `references/footage.md` — footage mode: editing the user's own video (cuts, punch-ins, graphics over it).
 - `references/formats.md` — platforms, lengths, safe areas, languages, long films, delivery specs.

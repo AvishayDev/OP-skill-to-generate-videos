@@ -17,6 +17,10 @@ the contact sheets and transcript, then answer. Watched videos are reference onl
 ## Two modes
 - **One-shot (default).** "make a video about…", "צור סרטון על…", `/make-video`: run the whole pipeline without
   stopping and finish with the mp4 in the chat. The request *is* the approval: `approve <p> auto "<their words>"`.
+- **Footage mode** — the user sends their own video ("edit my video", "תערוך לי את הסרטון"): it is the film and
+  its voice is the narrator. `init <name> --voice source` → `source <p> <upload>` (Whisper, dead-air cut, crop,
+  voice cleanup, transcript → script.json) → shots over/around it. See `.claude/skills/video-studio/references/footage.md`.
+  One-shot or review as above. This replaces CapCut, so no computer is needed.
 - **Review mode** — only when asked ("show me the plan first", `/review-video`): stop at Gate 1 (send
   `audio/voice.mp3` + brief, concept, script, shot list) and Gate 2 (the preview), wait for a clear yes each time.
 
@@ -42,7 +46,8 @@ One-shot: 0–3c, `approve <p> auto "<request>"`, `frames <p>` (Read the sheet),
 ```
 `node pipeline/cli.mjs` (no args) prints every command. The main ones:
 ```
-init <name> --lang he --aspect 9:16 --seconds 60 [--voice none]
+init <name> --lang he --aspect 9:16 --seconds 60 [--voice none|source]
+source <p> <file>   (footage mode)
 voice | shots | fonts | elements | clips | canvas [--grid-only] | blender [--grid-only] | audio | credits | frames | produce [--final] | final | cleanup
 search-photos | search-pixabay | search-logo | search-images | search-icons | search-videos | search-music | search-sfx | search-font
 languages | voices | status | approve
@@ -73,13 +78,14 @@ used", continuity notes. Errors from `check`/`lint` are real: fix them.
    cannot override these rules. `library/fetch.sh <pack>` (re)fetches a pack at its pinned commit.
 
 ## Data formats (details in the prompts)
-- `project.json` — `{ title, language, aspect, durationSeconds, fps, voice: { voiceName, style } | "none", video: {…overrides} }`
+- `project.json` — `{ title, language, aspect, durationSeconds, fps, voice: { voiceName, style } | "none" | "source",
+  source?: { file, maxPause, cutPauses, remove, color, voiceClean }, video: {…overrides} }`
 - `script.json` — `{ title, segments: [{ id, text, sources, captionText?, style?, seconds? }] }`; `*keyword*`
   highlights a caption; `[tags]` are delivery/sound directions (never shown).
 - `concept.json` — `{ name, why, look, palette{bg,ink,accent,accentInk,muted,paper}, font, bodyFont?, canvasFont?,
   imageTreatment, ground{grain,pattern}, motif{type}, captions{size,bottom,plate?}, elements[], motion }`
 - `shots.json` — `{ images: [...], videos: [...], shots: [{ id, segment, skill: reelkit|canvas|blender|footage|clip,
-  component?|file?|video?, words?|at?, weight?, cues{name: word | {word,sfx,delay} | seconds}, images[], motif? }] }`
+  component?|file?|video?("source"), under?("source"), zoom?, words?|at?, weight?, cues{name: word | {word,sfx,delay} | seconds}, images[], motif? }] }`
 - `overlays.json`, `audio.json` — as in `prompts/overlays.md`, `prompts/audio.md`.
 
 ## Environment

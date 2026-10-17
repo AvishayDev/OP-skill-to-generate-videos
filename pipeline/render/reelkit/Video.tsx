@@ -15,6 +15,8 @@ import { CountUp } from "./CountUp";
 import { Doodle } from "./Doodle";
 import { FocusBackdrop } from "./FocusBackdrop";
 import { GlowText } from "./GlowText";
+import { KineticLine, chunkAt } from "./KineticLine";
+import { Push } from "./Push";
 import { LightBurst } from "./LightBurst";
 import { Paper } from "./Paper";
 import { Phone } from "./Phone";
@@ -44,7 +46,7 @@ import type { StatCount } from "./StatPop";
 // `prog(frame, at, len)` = eased 0→1 progress of a move starting on a cue; `bidi(text)` isolates Latin runs in Hebrew.
 const prog = (frame: number, at: number, len = 12, easing: (t: number) => number = ease.out) =>
   interpolate(frame, [at, at + Math.max(1, len)], [0, 1], { easing, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-const UI = { At, BigText, Bot, Bubble, Card, CountUp, Doodle, Img, Phone, Photo, Pop, Progress, SelectBox, Stamp, Tag, TickGrid, Toggle, TypeField, Window, prog, bidi };
+const UI = { At, BigText, Bot, Bubble, Card, CountUp, Doodle, Img, KineticLine, Phone, Photo, Pop, Progress, Push, SelectBox, Stamp, Tag, TickGrid, Toggle, TypeField, Window, chunkAt, prog, bidi };
 export type Ui = typeof UI;
 
 export type Palette = { bg: string; ink: string; accent: string; accentInk: string; muted: string; paper: string; [name: string]: string };
@@ -67,7 +69,7 @@ export type ShotProps = {
 };
 
 type Shot = {
-  id: string; kind: "component" | "clip"; component?: string; src?: string; from: number; frames: number;
+  id: string; kind: "component" | "clip"; component?: string; src?: string; under?: string; from: number; frames: number;
   cue: Record<string, number>; words: { word: string; f: number; end: number }[]; images: string[]; motif: boolean;
 };
 type Overlay = {
@@ -127,7 +129,10 @@ export const Video: React.FC<VideoProps> = ({ urls }) => {
               {s.kind === "clip" ? (
                 <ShotClip kind="video" src={urls[s.src ?? ""]} />
               ) : Comp ? (
-                <Comp id={s.id} frames={s.frames} fps={e.fps} cue={s.cue} words={s.words} c={palette} face={display} body={body} img={imgs(s.images)} ui={UI} />
+                <>
+                  {s.under ? <ShotClip kind="video" src={urls[s.under]} /> : null}
+                  <Comp id={s.id} frames={s.frames} fps={e.fps} cue={s.cue} words={s.words} c={palette} face={display} body={body} img={imgs(s.images)} ui={UI} />
+                </>
               ) : null}
             </Sequence>
           );
