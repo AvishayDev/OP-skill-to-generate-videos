@@ -78,7 +78,7 @@ def scene_hook(k, ph):
         word(k, 'MILO', (0, 0, 0), .3, '#3D8BFF', k.cue('milo'), font=font(k))
         _follow_last_word(k, lambda t: (x(t) + dx + 1.0, -1.6, dz + .55))
     else:
-        x = lambda t: -9 + 3.6 * t
+        x = lambda t: -5.5 + 3.2 * t
         bus_with(k, lambda t: (x(t), 0, 0), bounce=lambda t: .8, wave=1)
         k.camera((1.5, -9.0, 1.7), (1.5, 0, 1.5), 30)
         word(k, 'HOP ON!', (-.5, -1.8, 3.25), .7, '#2FBF4F', k.cue('hop') + .05, k.cue('ride') - .2, font=font(k))
@@ -167,7 +167,7 @@ def stop_scene(k, colour, ph):
         if colour == 'blue': W('SPLASH!', '#2F7FFF', k.cue('splash'), .75, x=-.8); W('BLUE!', '#2F7FFF', k.cue('blue'), .65, x=2.9, z=3.05)
     if ph == 'd':
         W(S['word'] + '!', S['col'], k.cue(colour), .9)
-        if colour == 'green': W('BUMP BUMP!', '#2E9B4D', k.cue('bump'), .38, x=-1.6, z=2.35)
+        if colour == 'green': W('BUMP BUMP!', '#2E9B4D', k.cue('bump'), .4, x=-.4, z=2.4)
         if colour == 'red': twinkles(k, (fx, -2.2, 2.2), (.8, .2, .6), 10, ('#FF8FB5', '#FFFFFF'), .1, t0=k.cue('hello'))
     if boards: twinkles(k, (bx(0) + seat[0], -1.2, 1.7), (.6, .2, .4), 8, t0=fly_at + fly_len)
 
@@ -192,9 +192,9 @@ def scene_count(k, ph):
         c = cue_of[who]
         t_in = k.cue(c) if k.has(c) else (-1 if (ph == 'b' and i < 2) or ph == 'c' else None)
         if t_in is None: continue
-        word(k, str(i + 1), (xs[who], -1.2, 2.75), .55, cols[i], t_in, font=font(k))
+        word(k, str(i + 1), (xs[who], -1.2, 2.62), .5, cols[i], t_in, font=font(k))
     if ph == 'c':
-        title(k, 'RAINBOW BUS', (0, -1.3, 3.35), .42, k.cue('rainbow'))
+        title(k, 'RAINBOW BUS', (0, -1.3, 3.02), .4, k.cue('rainbow'))
         twinkles(k, (0, -1.5, 2.2), (3, .3, 1.2), 22, t0=0)
 
 

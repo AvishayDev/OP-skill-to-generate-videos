@@ -40,9 +40,9 @@ class Bus:
         sphere(f'{name}_mirror', (2.25, -1.02, 1.55), (.06, .05, .1), grey, self.body)
         # a soft light on the near side so the passengers in the windows read clearly
         import bpy
-        L = bpy.data.lights.new(f'{name}_winLight', 'AREA'); L.energy = 220; L.shape = 'RECTANGLE'; L.size = 4.8; L.size_y = 1.0; L.color = (1, .95, .88)
+        L = bpy.data.lights.new(f'{name}_winLight', 'AREA'); L.energy = 55; L.shape = 'RECTANGLE'; L.size = 4.8; L.size_y = .8; L.color = (1, .95, .88); L.spread = math.radians(35)
         lo = bpy.data.objects.new(f'{name}_winLight', L); bpy.context.scene.collection.objects.link(lo)
-        lo.parent = self.body; lo.location = (0, -2.6, 2.3); lo.rotation_euler = (math.radians(68), 0, 0)
+        lo.parent = self.body; lo.location = (0, -3.4, 1.62); lo.rotation_euler = (math.radians(90), 0, 0)
         # wheels (spin about local Y)
         self.wheels = []
         rub, hub, cap = mat('#2A2B38', 'rubber'), mat('#D5DCEA', 'plastic'), mat('#FF5A5A', 'plastic')
@@ -142,13 +142,14 @@ def burst(k, loc, t0, n=14, col='#7CCBFF', speed=3.0, up=4.0, gravity=9.0, r=.06
     rnd = random.Random(seed); m = mat(col, 'plastic', rough=.1)
     for i in range(n):
         a = rnd.uniform(0, 2 * math.pi); v = rnd.uniform(.4, 1) * speed; vu = rnd.uniform(.6, 1.1) * up
-        o = sphere('drop', loc, r * rnd.uniform(.7, 1.3), m, seg=12, rings=6)
+        rr_ = r * rnd.uniform(.7, 1.3)
+        o = sphere('drop', loc, 1.0, m, seg=12, rings=6)
         def f(t, a=a, v=v, vu=vu):
             q = t - t0
             if q < 0 or q > life: return (loc[0], loc[1], -5)
             return (loc[0] + math.cos(a) * v * q, loc[1] + math.sin(a) * v * q * .5, loc[2] + vu * q - gravity * q * q / 2)
         k.drive(o, 'location', f)
-        k.drive(o, 'scale', lambda t, t0=t0: (max(1e-4, 1 - clamp((t - t0) / life)),) * 3)
+        k.drive(o, 'scale', lambda t, rr_=rr_: (max(1e-4, rr_ * (1 - clamp((t - t0) / life))),) * 3)
 
 
 def twinkles(k, center, extent, n=24, cols=('#FFFFFF', '#FFF27A', '#FFD1F0'), size=.12, seed=5, t0=0.0):
