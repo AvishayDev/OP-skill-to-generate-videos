@@ -10,7 +10,7 @@ from a phone, so:
   (format in `prompts/editing.md`), then run `cleanup <p>`.
 
 **Every video request goes through the `video-studio` skill** (`.claude/skills/video-studio/SKILL.md`) — read it
-first. It routes each shot to reelkit, animate-in-code, stock footage or a library skill (`library/`).
+first. It routes each shot to reelkit, animate-in-code, blender-3d (real 3D), stock footage or a library skill (`library/`).
 
 ## Two modes
 - **One-shot (default).** "make a video about…", "צור סרטון על…", `/make-video`: run the whole pipeline without
@@ -33,7 +33,7 @@ network host to add (environment settings), then stop.
 1 RESEARCH  research.md             prompts/research.md   factual topics only
 2 SCRIPT    script.json → voice     prompts/script.md     Gemini TTS + Whisper word timing → exact length
 3a CONCEPT  concept.json            prompts/concept.md    one look (.claude/skills/video-studio/references/styles.md)
-3  SHOTS    shots.json + shots/*    prompts/visuals.md    reelkit | canvas | footage | clip, 3–7 s, elements on words
+3  SHOTS    shots.json + shots/*    prompts/visuals.md    reelkit | canvas | blender | footage | clip, 3–7 s, elements on words
 3b OVERLAYS overlays.json           prompts/overlays.md   optional, usually empty
 3c AUDIO    audio.json              prompts/audio.md      Freesound music + SFX
 ──────── GATE 1 (review mode) ────────
@@ -46,7 +46,7 @@ One-shot: 0–3c, `approve <p> auto "<request>"`, `frames <p>` (Read the sheet),
 ```
 init <name> --lang he --aspect 9:16 --seconds 60 [--voice none|source]
 source <p> <file>   (footage mode)
-voice | shots | fonts | elements | clips | canvas [--grid-only] | audio | credits | frames | produce [--final] | final | cleanup
+voice | shots | fonts | elements | clips | canvas [--grid-only] | blender [--grid-only] | audio | credits | frames | produce [--final] | final | cleanup
 search-photos | search-pixabay | search-logo | search-images | search-icons | search-videos | search-music | search-sfx | search-font
 languages | voices | status | approve
 ```
@@ -82,7 +82,7 @@ used", continuity notes. Errors from `check`/`lint` are real: fix them.
   highlights a caption; `[tags]` are delivery/sound directions (never shown).
 - `concept.json` — `{ name, why, look, palette{bg,ink,accent,accentInk,muted,paper}, font, bodyFont?, canvasFont?,
   imageTreatment, ground{grain,pattern}, motif{type}, captions{size,bottom,plate?}, elements[], motion }`
-- `shots.json` — `{ images: [...], videos: [...], shots: [{ id, segment, skill: reelkit|canvas|footage|clip,
+- `shots.json` — `{ images: [...], videos: [...], shots: [{ id, segment, skill: reelkit|canvas|blender|footage|clip,
   component?|file?|video?("source"), under?("source"), zoom?, words?|at?, weight?, cues{name: word | {word,sfx,delay} | seconds}, images[], motif? }] }`
 - `overlays.json`, `audio.json` — as in `prompts/overlays.md`, `prompts/audio.md`.
 

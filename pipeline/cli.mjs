@@ -14,6 +14,7 @@ import { buildCredits } from './credits.mjs';
 import { searchIcons } from './assets/icons.mjs';
 import { renderReelkit, previewFrames, buildReelkitProject, ensureReelkit, reelkitVersion, reelkitSettings } from './render/reelkit.mjs';
 import { renderCanvasShots } from './render/canvas.mjs';
+import { renderBlenderShots, findBlender, blenderConfig } from './render/blender.mjs';
 import { prepareClips, searchVideos } from './render/clips.mjs';
 import { prepareFonts, findGoogleFont } from './assets/fonts.mjs';
 import { prepareSource } from './video/source.mjs';
@@ -55,6 +56,9 @@ footage (Pexels / Pixabay video) or clips rendered by any library skill (Manim, 
   clips <p> [--only <id>]        Footage shots (download + trim + crop) and clip shots (conform clips-src/<id>.mp4)
   canvas <p> [--only <id>] [--grid-only]
                                  Render the canvas shots → clips/<id>.mp4 + frames/<id>-grid.jpg (Read it!)
+  blender <p> [--only <id>] [--grid-only] [--quality final|preview]
+                                 Render the blender-3d shots (real 3D, Cycles on the CPU, resumable) → clips/<id>.mp4;
+                                 --grid-only = a few stills → frames/<id>-grid.jpg (Read it before the long render)
   overlays <p> [--only <id>]     Optional overlays.json images → overlays/<id>.png
   audio <p>                      Music + sound effects from audio.json (missing ones auto-picked on Freesound)
   credits <p>                    Credits for the post description → credits.txt
@@ -65,7 +69,7 @@ footage (Pexels / Pixabay video) or clips rendered by any library skill (Manim, 
   frames <p>                     Prepare everything, then check + lint + labelled stills of every scene
                                  (~2 min, no render) → reelkit/out/preview/sheet.jpg (Read it!)
   preview <p>                    Full local render → output/<name>/preview.mp4 (small chat copy)
-  produce <p> [--final]          voice → fonts → elements → clips → canvas → overlays → audio → timeline → preview (or final)
+  produce <p> [--final]          voice → fonts → elements → clips → canvas → blender → overlays → audio → timeline → preview (or final)
 
   -- requires "preview" approval --
   final <p>                      Phone export (reuses the preview's master if nothing changed) → output/<name>/final.mp4
@@ -123,12 +127,13 @@ function status(ep) {
   const has = (p) => (existsSync(p) ? '✔' : '·');
   const plan = readShots(ep);
   const canvas = plan.shots.filter((s) => s.skill === 'canvas');
+  const blender3d = plan.shots.filter((s) => s.skill === 'blender');
   const clipShots = plan.shots.filter((s) => s.skill === 'footage' || s.skill === 'clip');
   const p = readJsonIfExists(ep.project, {});
   console.log(`Project ${ep.name}  (${p.language ?? 'en'} · ${p.aspect ?? '9:16'} · ~${p.durationSeconds ?? '?'}s${p.voice === 'none' ? ' · no narrator' : p.voice === 'source' ? ` · footage mode${existsSync(join(ep.dir, 'source', 'edit.mp4')) ? ' (source cut ✔)' : ' (run source)'}` : ''})
   ${has(ep.research)} research.md     ${has(ep.script)} script.json     ${has(ep.concept)} concept.json     ${has(ep.shots)} shots.json (${plan.shots.length} shots)
   ${has(ep.timing)} timing.json      ${has(ep.audio)} audio.json       ${has(ep.overlays)} overlays.json
-  images prepared: ${Object.keys(assets.elements ?? {}).length}/${(plan.images ?? []).length}   canvas clips: ${canvas.filter((s) => assets.canvas?.[s.id]).length}/${canvas.length}   footage/clips: ${clipShots.filter((s) => assets.clips?.[s.id]).length}/${clipShots.length}   sfx: ${Object.keys(assets.sfx ?? {}).join(', ') || '·'}
+  images prepared: ${Object.keys(assets.elements ?? {}).length}/${(plan.images ?? []).length}   canvas clips: ${canvas.filter((s) => assets.canvas?.[s.id]).length}/${canvas.length}   blender: ${blender3d.filter((s) => assets.blender?.[s.id]).length}/${blender3d.length}   footage/clips: ${clipShots.filter((s) => assets.clips?.[s.id]).length}/${clipShots.length}   sfx: ${Object.keys(assets.sfx ?? {}).join(', ') || '·'}
   reelkit project: ${existsSync(join(ep.dir, 'reelkit', 'src', 'Video.tsx')) || existsSync(join(ep.dir, 'reelkit-p1', 'src', 'Video.tsx')) ? '✔' : '·'}
   gate plan:    ${approvals.plan?.approved ? `✔ ${approvals.plan.at}` : '✗ not approved'}
   gate preview: ${approvals.preview?.approved ? `✔ ${approvals.preview.at}` : '✗ not approved'}`);
@@ -210,7 +215,7 @@ function shots(ep) {
     const len = s.frames / fps;
     const flag = len > max + 0.05 ? `  ⚠ > ${max}s — split it` : len < min - 0.05 ? `  ⚠ < ${min}s` : '';
     if (flag) bad++;
-    const who = s.skill === 'canvas' ? `canvas ${s.file ?? `shots/${s.id}.js`}` : s.skill === 'footage' ? `footage ${typeof s.video === 'string' ? s.video : s.video?.source?.url ?? '?'}` : s.skill === 'clip' ? `clip ${s.file ?? `clips-src/${s.id}.mp4`} (render ${s.frames} frames)` : `reelkit ${s.component}`;
+    const who = s.skill === 'canvas' ? `canvas ${s.file ?? `shots/${s.id}.js`}` : s.skill === 'blender' ? `blender ${s.file ?? `shots/${s.id}.py`}` : s.skill === 'footage' ? `footage ${typeof s.video === 'string' ? s.video : s.video?.source?.url ?? '?'}` : s.skill === 'clip' ? `clip ${s.file ?? `clips-src/${s.id}.mp4`} (render ${s.frames} frames)` : `reelkit ${s.component}`;
     console.log(`${s.id.padEnd(11)} ${(s.from / fps).toFixed(2).padStart(6)}s  ${len.toFixed(1).padStart(4)}s  ${who}${flag}`);
     console.log(`            “${s.words.map((w) => w.word).join(' ')}”`);
     for (const [name, c] of Object.entries(s.cues)) console.log(`            cue ${name.padEnd(12)} +${c.t.toFixed(2)}s (frame ${c.f})${c.sfx ? ` ♪ ${c.sfx}` : ''}`);
@@ -264,6 +269,7 @@ async function prepare(ep) {
   await prepareElements(ep);
   await prepareClips(ep);
   await renderCanvasShots(ep);
+  await renderBlenderShots(ep);
   await prepareOverlays(ep);
   await prepareAudio(ep);
   defaultMusic(ep);
@@ -273,6 +279,7 @@ async function prepare(ep) {
 // [host, purpose, required]
 const HOSTS = [
   ['huggingface.co', 'Whisper model download (word timing)', true],
+  ['download.blender.org', 'Blender download (blender-3d shots, optional)', false],
   ['generativelanguage.googleapis.com', 'Gemini TTS', true],
   ['storage.googleapis.com', 'Reelkit render browser (downloaded once, ~150 MB)', true],
   ['api.pexels.com', 'Pexels photo search', false],
@@ -314,6 +321,8 @@ async function doctor() {
   if (v !== reelkitSettings().version) { try { v = ensureReelkit(); } catch { v = null; } }
   if (!v) ok = false;
   line(Boolean(v), `reelkit-cli ${v ?? 'not installed (npm install -g reelkit-cli@' + reelkitSettings().version + ')'} — renders the shots, captions + sound locally`);
+  const bl = findBlender({ install: false });
+  line(Boolean(bl), `blender ${bl ? blenderConfig().version : `not installed (optional) — "blender <p>" installs it on first use (.claude/skills/blender-3d/install.sh)`} — real 3D shots (blender-3d skill)`);
   for (const skill of ['video-studio', 'reelkit', 'animate-in-code']) {
     const has = existsSync(join(ROOT, '.claude/skills', skill, 'SKILL.md'));
     if (!has) ok = false;
@@ -371,6 +380,7 @@ async function main() {
     case 'shots': return shots(ep);
     case 'elements': return prepareElements(ep, { only: opt('--only') });
     case 'canvas': return renderCanvasShots(ep, { only: opt('--only'), gridOnly: flag('--grid-only') });
+    case 'blender': return renderBlenderShots(ep, { only: opt('--only'), gridOnly: flag('--grid-only'), quality: opt('--quality') ?? 'final' });
     case 'overlays': return prepareOverlays(ep, { only: opt('--only') });
     case 'audio': return prepareAudio(ep);
     case 'credits': return credits(ep);
