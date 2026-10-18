@@ -12,6 +12,9 @@ from a phone, so:
 **Every video request goes through the `video-studio` skill** (`.claude/skills/video-studio/SKILL.md`) — read it
 first. It routes each shot to reelkit, animate-in-code, blender-3d (real 3D — only when the user wants 3D, Hard rule 9),
 stock footage or a library skill (`library/`).
+**Fallback for any picture:** when an image, element, shot or whole video is needed and no tool can make it (no key,
+host blocked, nothing found, an install fails, paid AI not allowed), paint it pixel by pixel with the `image-writer`
+skill (`.claude/skills/image-writer/SKILL.md`, Java + ImageWriter → PNG frames → ffmpeg → mp4) and say so in one line.
 **A video link from the user** ("watch this", "make one like this") → the `watch-video` skill: run its script, Read
 the contact sheets and transcript, then answer. Watched videos are reference only (Rule 3).
 

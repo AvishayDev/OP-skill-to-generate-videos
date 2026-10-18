@@ -18,7 +18,8 @@
       "Bash(ffmpeg:*)",
       "Bash(ffprobe:*)",
       "Bash(reelkit:*)",
-      "Bash(python3 .claude/skills/watch-video/scripts/watch.py:*)"
+      "Bash(python3 .claude/skills/watch-video/scripts/watch.py:*)",
+      "Bash(.claude/skills/image-writer/paint.sh:*)"
     ]
   },
   "env": {

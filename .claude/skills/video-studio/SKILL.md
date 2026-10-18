@@ -14,6 +14,11 @@ decision is yours. Two engines are built in and always available:
   sync, a bus, toy-town sets, 3D words. Slow (~3.5 s/frame → 2 min ≈ 3 h at 24 fps). **Opt-in only**: use it only
   when the user wants real 3D — asked for it, or their request / reference clearly calls for it (CLAUDE.md Hard
   rule 9). Never as your own style pick. When used, say the render time before the long render.
+- **image-writer** (`.claude/skills/image-writer/`) — the **fallback**: paints images and films pixel by pixel in
+  Java (the Mini-Pro ray tracer's ImageWriter; every pixel's color is a formula of x, y, t), then ffmpeg joins the
+  frames. Local, free, always available. Use it when an image, element or shot is needed and no other tool can
+  make it (no key, host blocked, nothing found, a library skill won't install, paid AI not allowed), when the user
+  asks for an image or video we have no tool for, or for light-built pictures (space, skies, glows, gradients).
 Helpers in `.claude/skills/`: **watch-video** (the user sends a video link → frames + transcript; reference
 only), **ben-adam** (Hebrew/English line edit of the script and post text), **remotion-best-practices**
 (local Remotion skills for a `clip`), **competitive-ads-extractor** (research for ads/promos).
@@ -68,6 +73,8 @@ in the environment settings, then stop). `init <name> --lang <code> --aspect <ra
 | kinetic typography / lyric lines / beat-synced type | `reelkit` (BigText, Pop) or `clip` ← `library/iart-type` |
 | the user's own recording (talking head, vlog, screen capture) | `footage` with `"video": "source"` (+ `zoom`), or `reelkit` with `"under": "source"` (footage mode) |
 | bar-chart race / infographic | `reelkit` kit charts, or `clip` ← `library/iart-data` |
+| light and atmosphere: space, planets, sunrises, skies, glows, nebulae, gradient worlds | `clip` ← `image-writer` (or `canvas`) |
+| **anything the engines above can't make here** (no key / host / install, no stock found, paid AI not allowed) | `clip` ← `image-writer` for a shot; a painted PNG (`source.path`) for an image element |
 `references/catalog.md` lists every library skill with what it is best at and what it needs (keys, installs).
 Run `library/fetch.sh <pack>` if a pack you need is not in `library/` yet, then read its SKILL.md before using it.
 
