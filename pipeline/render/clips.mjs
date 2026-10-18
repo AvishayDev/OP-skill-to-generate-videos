@@ -123,11 +123,13 @@ export async function prepareClips(ep, { only } = {}) {
       mkdirSync(dir, { recursive: true });
       src = join(dir, `${hashOf(v.source.url)}${extname(new URL(v.source.url).pathname) || '.mp4'}`);
       if (!existsSync(src)) { console.log(`Footage ${shot.id}: downloading ${v.source.url}`); await downloadHttp(v.source.url, src); }
-      opts = { ...opts, start: v.start ?? shot.start ?? 0, loop: true, treat: shot.treat ?? v.treat ?? concept.imageTreatment ?? 'none' };
+      opts = { ...opts, start: v.start ?? (plan.shots ?? []).find((s) => s.id === shot.id)?.start ?? 0, loop: true, treat: shot.treat ?? v.treat ?? concept.imageTreatment ?? 'none' };
     } else {
       src = resolve(ep.dir, shot.file ?? `clips-src/${shot.id}.mp4`);
       if (!existsSync(src)) throw new Error(`clip shot ${shot.id}: ${src} not found — render it first (its length: ${(shot.frames / brand.fps).toFixed(2)} s = ${shot.frames} frames at ${brand.fps} fps, ${brand.width}×${brand.height})`);
-      opts = { ...opts, start: shot.start ?? 0, treat: shot.treat ?? 'none' };
+      // `shot.start` is the slot's time in the film (resolveShots); a trim into the clip is only the plan's own `start`.
+      const trim = (plan.shots ?? []).find((s) => s.id === shot.id)?.start ?? 0;
+      opts = { ...opts, start: trim, treat: shot.treat ?? 'none' };
       const have = probeDuration(src);
       if (have + 0.05 < shot.frames / brand.fps) console.warn(`⚠ clip ${shot.id}: ${have.toFixed(2)}s, the slot is ${(shot.frames / brand.fps).toFixed(2)}s — its last frame is held`);
     }

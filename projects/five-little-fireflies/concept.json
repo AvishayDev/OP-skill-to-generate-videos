@@ -9,7 +9,7 @@
   "imageTreatment": "none",
   "ground": { "grain": 0, "pattern": "none" },
   "motif": { "type": "none" },
-  "captions": { "size": 66, "bottom": 0.05, "plate": "rgba(16,14,58,0.62)" },
+  "captions": { "size": 84, "bottom": 0.05, "plate": "rgba(16,14,58,0.62)" },
   "elements": ["five firefly characters with faces and glowing tails", "a smiling moon that wakes and sleeps", "twinkling stars", "glowing numbers 1–5", "fireflies turning into coloured stars"],
   "motion": "Everything bobs and glows; fireflies hop up-up-up on the words, tails pulse on every 'blink', hard cuts between camera framings of one continuous world."
 }
