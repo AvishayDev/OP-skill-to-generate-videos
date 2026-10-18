@@ -1,9 +1,5 @@
 package imagewriter;
 
-import java.awt.Font;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -12,7 +8,8 @@ import java.util.Map;
 import java.util.stream.IntStream;
 
 /**
- * Renders a Painting: every pixel's color comes from painting.pixel(x, y, t), written with ImageWriter.
+ * Renders a Painting: every pixel's color comes from painting.pixel(x, y, t), written with
+ * ImageWriter.writePixel - nothing else ever touches the image (no camera, scene, geometry or drawing calls).
  * <pre>
  * java -cp BUILD imagewriter.Studio PaintingClass OUT [options]
  *   OUT = still.png | still.jpg   one image at --at seconds
@@ -70,7 +67,7 @@ public final class Studio {
     }
 
     /**
-     * One frame: every pixel from the painting (rows in parallel), then the overlays
+     * One frame: every pixel from the painting (rows in parallel)
      */
     static ImageWriter render(Painting painting, int aa, double t) {
         ImageWriter writer = new ImageWriter(painting.width, painting.height);
@@ -87,7 +84,6 @@ public final class Studio {
                 writer.writePixel(x, y, sum.scale(1.0 / (aa * aa)));
             }
         });
-        painting.overlay(writer, t);
         return writer;
     }
 
@@ -123,35 +119,45 @@ public final class Studio {
     }
 
     /**
-     * Six frames spread over the film on one sheet, each stamped with its time
+     * Six frames spread over the film on one sheet, each stamped with its time - written pixel by pixel too
      */
     private static void grid(Painting painting, int aa, File out) throws IOException {
-        int cols = 3, rows = 2, n = cols * rows;
+        int cols = 3, rows = 2, n = cols * rows, gap = 8;
         double scale = 360.0 / Math.max(painting.width, painting.height);
         int w = (int) (painting.width * scale), h = (int) (painting.height * scale);
-        BufferedImage sheet = new BufferedImage(cols * w + (cols + 1) * 8, rows * h + (rows + 1) * 8, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = sheet.createGraphics();
-        g.setColor(new java.awt.Color(40, 40, 40));
-        g.fillRect(0, 0, sheet.getWidth(), sheet.getHeight());
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        ImageWriter sheet = new ImageWriter(cols * w + (cols + 1) * gap, rows * h + (rows + 1) * gap);
+        Color ground = new Color(40, 40, 40), yellow = new Color(255, 255, 0);
+        for (int y = 0; y < sheet.getNy(); ++y)
+            for (int x = 0; x < sheet.getNx(); ++x)
+                sheet.writePixel(x, y, ground);
+        java.awt.Font font = Lettering.font(null);
         int frames = frameCount(painting);
         for (int i = 0; i < n; ++i) {
             int f = n == 1 || frames == 1 ? 0 : (int) Math.round(i * (frames - 1) / (double) (n - 1));
             painting.frame = f;
             double t = f / painting.fps;
-            BufferedImage img = render(painting, aa, t).image();
-            int x = 8 + (i % cols) * (w + 8), y = 8 + (i / cols) * (h + 8);
-            g.drawImage(img, x, y, w, h, null);
-            g.setColor(java.awt.Color.BLACK);
-            g.drawString(String.format("%.2fs", t), x + 7, y + 21);
-            g.setColor(java.awt.Color.YELLOW);
-            g.drawString(String.format("%.2fs", t), x + 6, y + 20);
+            ImageWriter img = render(painting, aa, t);
+            int left = gap + (i % cols) * (w + gap), top = gap + (i / cols) * (h + gap);
+            String stamp = String.format("%.2fs", t);
+            Lettering label = new Lettering(stamp, font, 9.5 * stamp.length(), left + 6 + 4.75 * stamp.length(), top + 14, 2);
+            for (int y = 0; y < h; ++y)
+                for (int x = 0; x < w; ++x) {
+                    // the average of the frame pixels under this sheet pixel
+                    int sx0 = (int) (x / scale), sx1 = Math.max(sx0 + 1, Math.min(painting.width, (int) ((x + 1) / scale)));
+                    int sy0 = (int) (y / scale), sy1 = Math.max(sy0 + 1, Math.min(painting.height, (int) ((y + 1) / scale)));
+                    Color sum = Color.BLACK;
+                    for (int sy = sy0; sy < sy1; ++sy)
+                        for (int sx = sx0; sx < sx1; ++sx)
+                            sum = sum.add(img.readPixel(sx, sy));
+                    Color c = sum.scale(1.0 / ((sx1 - sx0) * (sy1 - sy0)));
+                    double px = left + x + 0.5, py = top + y + 0.5;
+                    double d = label.distance(px, py);
+                    c = c.lerp(Color.BLACK, Paint.coverage(label.distance(px - 1, py - 1)))
+                            .lerp(yellow, Paint.coverage(d));
+                    sheet.writePixel(left + x, top + y, c);
+                }
         }
-        g.dispose();
-        out.getAbsoluteFile().getParentFile().mkdirs();
-        javax.imageio.ImageIO.write(sheet, "jpg", out);
+        sheet.writeToFile(out);
     }
 
     private static void encode(File frames, double fps, File out) throws IOException, InterruptedException {

@@ -3,8 +3,9 @@ package imagewriter;
 import java.util.Map;
 
 /**
- * An image or a film described pixel by pixel: extend it, decide the color of every pixel in pixel(x, y, t),
- * and optionally draw text and labels on the finished frame in overlay(). Studio renders it.
+ * An image or a film described pixel by pixel: extend it and decide the color of every pixel in pixel(x, y, t).
+ * That is the only way color reaches the image - shapes, text (Lettering) and pictures (Picture) are all
+ * sampled inside pixel(). Studio renders it.
  */
 public abstract class Painting {
     /**
@@ -25,7 +26,8 @@ public abstract class Painting {
     protected Map<String, String> options;
 
     /**
-     * Called once before rendering, after width/height/seconds/fps/options are set
+     * Called once before rendering, after width/height/seconds/fps/options are set: build Letterings and
+     * Pictures here, never inside pixel()
      */
     protected void setup() {
     }
@@ -39,15 +41,6 @@ public abstract class Painting {
      * @return the color
      */
     public abstract Color pixel(double x, double y, double t);
-
-    /**
-     * Draw on the finished frame (text, labels) with the ImageWriter overlays
-     *
-     * @param writer the frame
-     * @param t      time in seconds
-     */
-    public void overlay(ImageWriter writer, double t) {
-    }
 
     protected String option(String key, String fallback) {
         return options.getOrDefault(key, fallback);

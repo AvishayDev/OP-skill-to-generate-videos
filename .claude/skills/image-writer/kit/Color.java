@@ -3,7 +3,7 @@ package imagewriter;
 /**
  * An RGB color with double components on the 0..255 scale. Components may go above 255 while colors are
  * added together (light, glow); they are clamped only when a pixel is written.
- * Same API as Mini-Pro's primitives.Color, plus lerp and an alpha-free hex constructor.
+ * Same API as Mini-Pro's Color, plus lerp and an alpha-free hex constructor.
  */
 public final class Color {
     public static final Color BLACK = new Color(0, 0, 0);
@@ -58,10 +58,6 @@ public final class Color {
      */
     public int rgb() {
         return (clamp(r) << 16) | (clamp(g) << 8) | clamp(b);
-    }
-
-    public java.awt.Color awt() {
-        return new java.awt.Color(rgb());
     }
 
     private static int clamp(double v) {

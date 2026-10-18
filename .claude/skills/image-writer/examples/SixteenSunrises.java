@@ -1,5 +1,5 @@
 import imagewriter.Color;
-import imagewriter.ImageWriter;
+import imagewriter.Lettering;
 import imagewriter.Painting;
 
 import java.awt.Font;
@@ -10,7 +10,7 @@ import static imagewriter.Paint.*;
  * A sunrise seen from orbit over the night side of the Earth - "16 sunrises a day, on the space station".
  * Every pixel is a formula of (x, y, t): the Earth's limb is a circle, the atmosphere is layers that fade with
  * the height above it, the sun rises over the limb, rays and bloom grow with it, stars twinkle, city lights are
- * noise in perspective. The text comes in with the ImageWriter overlays.
+ * noise in perspective. The words are Letterings - signed distances like the circles - filled and glowed per pixel.
  * Still: paint.sh SixteenSunrises.java out.png --at 5 --set font=<Heebo.ttf>
  * Film:  paint.sh SixteenSunrises.java out.mp4 --seconds 6 --fps 30 --set font=<Heebo.ttf>
  */
@@ -26,8 +26,16 @@ public class SixteenSunrises extends Painting {
     private static final Color CITY = new Color(255, 185, 105);
     private static final Color MOON = new Color(235, 228, 215);
 
+    private static final Color TITLE = new Color(255, 248, 238);
+    private static final Color TITLE_GLOW = new Color(255, 120, 40);
+    private static final Color SUBTITLE = new Color(255, 170, 90);
+    private static final Color PILL = new Color(40, 44, 58);
+    private static final Color TAG = new Color(255, 150, 70);
+    private static final Color TAG_INK = new Color(40, 22, 10);
+    private static final Color PILL_INK = new Color(240, 232, 225);
+
     private double earthR, earthX, earthY, sunAngle, moonX, moonY, moonR;
-    private Font font;
+    private Lettering title, subtitle, space, station;
 
     @Override
     protected void setup() {
@@ -39,7 +47,11 @@ public class SixteenSunrises extends Painting {
         moonX = 0.27 * width;
         moonY = 0.15 * height;
         moonR = 0.057 * width;
-        font = ImageWriter.loadFont(option("font", null), "DejaVu Sans", 100);
+        Font font = Lettering.font(option("font", null));
+        title = new Lettering("16 זריחות", font, 0.66 * width, width / 2d, 0.33 * height, 90);
+        subtitle = new Lettering("בכל יום", font, 0.3 * width, width / 2d, 0.415 * height, 2);
+        space = new Lettering("החלל.", font, 0.12 * width, 0.416 * width, 0.817 * height, 2);
+        station = Lettering.sized("בתחנת", font, space.size, 0.585 * width, 0.817 * height, 2); // same size
     }
 
     /**
@@ -68,7 +80,33 @@ public class SixteenSunrises extends Painting {
         double vx = (x / width - 0.5) * 2, vy = (y / height - 0.5) * 2;
         double vignette = 1 - 0.3 * (0.6 * vx * vx + 0.4 * vy * vy);
         double g = grain(x, y, frame) * 5 + 2.5;
-        return color.scale(vignette).add(new Color(g, g, g));
+        return words(x, y, t, color.scale(vignette).add(new Color(g, g, g)));
+    }
+
+    /**
+     * the title with its glow, the subtitle and the label pill - each a distance, faded in by time
+     */
+    private Color words(double x, double y, double t, Color color) {
+        boolean still = seconds == 0;
+        double in = still ? 1 : progress(t, 1.6, 0.6), sub = still ? 1 : progress(t, 2.3, 0.5);
+        double label = still ? 1 : progress(t, 3.0, 0.5);
+        double rise = (1 - easeOut(in)) * 0.02 * height;
+
+        if (in > 0) {
+            double d = title.distance(x, y, 0, rise, 1);
+            color = color.add(TITLE_GLOW.scale(0.9 * in * Math.exp(-Math.max(0, d) / 18)))
+                    .lerp(TITLE, in * coverage(d));
+        }
+        if (sub > 0) color = color.lerp(SUBTITLE, sub * coverage(subtitle.distance(x, y)));
+        if (label > 0) {
+            double pill = roundBox(x, y, 0.5 * width, 0.817 * height, 0.19 * width, 0.026 * height, 0.016 * width);
+            double tag = roundBox(x, y, 0.416 * width, 0.817 * height, 0.079 * width, 0.018 * height, 0.013 * width);
+            color = color.lerp(PILL, 0.88 * label * coverage(pill))
+                    .lerp(TAG, label * coverage(tag))
+                    .lerp(TAG_INK, label * coverage(space.distance(x, y)))
+                    .lerp(PILL_INK, label * coverage(station.distance(x, y)));
+        }
+        return color;
     }
 
     private Color space(double x, double y, double h, double nearSun, double wide, double t) {
@@ -129,24 +167,5 @@ public class SixteenSunrises extends Painting {
         double warm = hash(cx, cy, 5);
         return new Color(0.9 + 0.1 * warm, 0.92, 1.05 - 0.1 * warm)
                 .scale(brightness * Math.exp(-(sq(x - sx) + sq(y - sy)) / 0.9));
-    }
-
-    @Override
-    public void overlay(ImageWriter w, double t) {
-        boolean still = seconds == 0;
-        double title = still ? 1 : progress(t, 1.6, 0.6), sub = still ? 1 : progress(t, 2.3, 0.5);
-        double label = still ? 1 : progress(t, 3.0, 0.5);
-        double rise = (1 - easeOut(title)) * 0.02 * height;
-
-        w.drawGlowText("16 זריחות", ImageWriter.fitFont("16 זריחות", font, 0.66 * width),
-                new Color(255, 248, 238), width / 2d, 0.33 * height + rise, new Color(255, 120, 40), 24, title);
-        w.drawText("בכל יום", ImageWriter.fitFont("בכל יום", font, 0.3 * width),
-                new Color(255, 170, 90), width / 2d, 0.415 * height, sub);
-
-        Font small = ImageWriter.fitFont("החלל.", font, 0.12 * width);
-        w.fillRoundRect(0.31 * width, 0.791 * height, 0.38 * width, 0.052 * height, 0.016 * width, new Color(40, 44, 58), 0.88 * label);
-        w.fillRoundRect(0.337 * width, 0.799 * height, 0.158 * width, 0.036 * height, 0.013 * width, new Color(255, 150, 70), label);
-        w.drawText("החלל.", small, new Color(40, 22, 10), 0.416 * width, 0.817 * height, label);
-        w.drawText("בתחנת", small, new Color(240, 232, 225), 0.585 * width, 0.817 * height, label);
     }
 }
