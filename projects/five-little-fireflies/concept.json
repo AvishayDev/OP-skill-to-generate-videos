@@ -1,0 +1,15 @@
+{
+  "name": "Moonlit Meadow",
+  "why": "A counting bedtime song lives in one glowing night world a toddler can name: five coloured fireflies, a smiling moon, and stars that were once fireflies — light itself is the story, which is exactly what pixel-by-pixel painting does best.",
+  "look": "Deep blue night painted in light: soft gradient sky, twinkling stars, rolling hills, swaying grass blades, a big smiling moon with blush cheeks; five round firefly characters (yellow, mint, pink, sky, lilac) with big sparkly eyes and glowing tails. Numbers appear as chunky glowing Fredoka digits.",
+  "palette": { "bg": "#0F1A4A", "ink": "#FFFFFF", "accent": "#FFD93D", "accentInk": "#1A1440", "muted": "#8FA3D9", "paper": "#FFF3C4", "mint": "#5BF5B0", "pink": "#FF7AC8", "sky": "#6FD3FF", "lilac": "#B48CFF" },
+  "font": "Fredoka",
+  "bodyFont": "Fredoka",
+  "canvasFont": "Fredoka",
+  "imageTreatment": "none",
+  "ground": { "grain": 0, "pattern": "none" },
+  "motif": { "type": "none" },
+  "captions": { "size": 66, "bottom": 0.05, "plate": "rgba(16,14,58,0.62)" },
+  "elements": ["five firefly characters with faces and glowing tails", "a smiling moon that wakes and sleeps", "twinkling stars", "glowing numbers 1–5", "fireflies turning into coloured stars"],
+  "motion": "Everything bobs and glows; fireflies hop up-up-up on the words, tails pulse on every 'blink', hard cuts between camera framings of one continuous world."
+}

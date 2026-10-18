@@ -1,0 +1,13 @@
+{
+  "title": "Five Little Fireflies",
+  "segments": [
+    { "id": "intro", "text": "[cheerful] The sun goes down, the sky turns blue. The stars wake up, and so do you! Who is glowing in the grass? *Five little fireflies*! Blink, blink, blink!", "sources": [] },
+    { "id": "count", "text": "[playfully] Let's count them! *One, two, three, four, five*! Five little lights that dance and fly!", "sources": [] },
+    { "id": "five", "text": "[sing-song] *Five little fireflies*, glowing in the night. One flew up, up, up, to the moon so bright! Blink, blink, blink! Goodnight, little light!", "sources": [] },
+    { "id": "four", "text": "[sing-song] *Four little fireflies*, glowing in the night. One flew up, up, up, to the moon so bright! Blink, blink, blink! Goodnight, little light!", "sources": [] },
+    { "id": "three", "text": "[sing-song] *Three little fireflies*, glowing in the night. One flew up, up, up, to the moon so bright! Blink, blink, blink! Goodnight, little light!", "sources": [] },
+    { "id": "two", "text": "[sing-song] *Two little fireflies*, glowing in the night. One flew up, up, up, to the moon so bright! Blink, blink, blink! Goodnight, little light!", "sources": [] },
+    { "id": "one", "text": "[sing-song] *One little firefly*, glowing in the night. She flew up, up, up, to the moon so bright! Blink, blink, blink! Goodnight, little light!", "sources": [] },
+    { "id": "end", "text": "[amazed] No little fireflies glowing in the grass. But look up high! *Five new stars* are twinkling in the sky! [gentle] Blink, blink, blink. Goodnight, goodnight!", "sources": [] }
+  ]
+}

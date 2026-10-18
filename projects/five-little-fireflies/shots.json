@@ -1,0 +1,355 @@
+{
+  "images": [],
+  "videos": [],
+  "shots": [
+    {
+      "id": "intro-a",
+      "segment": "intro",
+      "skill": "clip",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "Wide: a sunset meadow; the sun sinks behind the hills and the sky turns deep blue"
+    },
+    {
+      "id": "intro-b",
+      "segment": "intro",
+      "skill": "clip",
+      "words": "The stars wake up",
+      "cues": {
+        "stars": {
+          "word": "stars",
+          "sfx": "twinkle"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "The moon with a face opens its eyes; stars twinkle on one by one"
+    },
+    {
+      "id": "intro-c",
+      "segment": "intro",
+      "skill": "clip",
+      "words": "Who is glowing",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "Close on the dark grass; a soft glow pulses between the blades"
+    },
+    {
+      "id": "intro-d",
+      "segment": "intro",
+      "skill": "clip",
+      "words": "Five little fireflies!",
+      "cues": {
+        "five": {
+          "word": "Five",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "Five coloured firefly characters pop up out of the grass and blink three times"
+    },
+    {
+      "id": "count-a",
+      "segment": "count",
+      "skill": "clip",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The five fireflies line up in a row, bobbing"
+    },
+    {
+      "id": "count-b",
+      "segment": "count",
+      "skill": "clip",
+      "words": "One, two, three,",
+      "cues": {
+        "one": {
+          "word": "One",
+          "sfx": "pop"
+        },
+        "two": {
+          "word": "two",
+          "sfx": "pop"
+        },
+        "three": {
+          "word": "three",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "A glowing number pops over each firefly: 1, 2, 3"
+    },
+    {
+      "id": "count-c",
+      "segment": "count",
+      "skill": "clip",
+      "words": "four, five!",
+      "cues": {
+        "four": {
+          "word": "four",
+          "sfx": "pop"
+        },
+        "five": {
+          "word": "five!",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "Numbers 4 and 5 pop over the last two fireflies"
+    },
+    {
+      "id": "count-d",
+      "segment": "count",
+      "skill": "clip",
+      "words": "Five little lights",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The fireflies dance in a circle with light trails"
+    },
+    {
+      "id": "five-a",
+      "segment": "five",
+      "skill": "clip",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The five remaining fireflies glow in the meadow; a big glowing \"Five\" stands in the sky"
+    },
+    {
+      "id": "five-b",
+      "segment": "five",
+      "skill": "clip",
+      "words": "One flew up,",
+      "cues": {
+        "flew": {
+          "word": "flew",
+          "sfx": "whoosh"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "One firefly hops up, up, up and glides to the moon; the camera follows"
+    },
+    {
+      "id": "five-c",
+      "segment": "five",
+      "skill": "clip",
+      "words": "Blink, blink, blink!",
+      "cues": {
+        "star": {
+          "word": "Goodnight,",
+          "sfx": "twinkle"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "Close on the moon: the firefly blinks three times, then turns into a twinkling star"
+    },
+    {
+      "id": "four-a",
+      "segment": "four",
+      "skill": "clip",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The four remaining fireflies glow in the meadow; a big glowing \"Four\" stands in the sky"
+    },
+    {
+      "id": "four-b",
+      "segment": "four",
+      "skill": "clip",
+      "words": "One flew up,",
+      "cues": {
+        "flew": {
+          "word": "flew",
+          "sfx": "whoosh"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "One firefly hops up, up, up and glides to the moon; the camera follows"
+    },
+    {
+      "id": "four-c",
+      "segment": "four",
+      "skill": "clip",
+      "words": "Blink, blink, blink!",
+      "cues": {
+        "star": {
+          "word": "Goodnight,",
+          "sfx": "twinkle"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "Close on the moon: the firefly blinks three times, then turns into a twinkling star"
+    },
+    {
+      "id": "three-a",
+      "segment": "three",
+      "skill": "clip",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The three remaining fireflies glow in the meadow; a big glowing \"Three\" stands in the sky"
+    },
+    {
+      "id": "three-b",
+      "segment": "three",
+      "skill": "clip",
+      "words": "One flew up,",
+      "cues": {
+        "flew": {
+          "word": "flew",
+          "sfx": "whoosh"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "One firefly hops up, up, up and glides to the moon; the camera follows"
+    },
+    {
+      "id": "three-c",
+      "segment": "three",
+      "skill": "clip",
+      "words": "Blink, blink, blink!",
+      "cues": {
+        "star": {
+          "word": "Goodnight,",
+          "sfx": "twinkle"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "Close on the moon: the firefly blinks three times, then turns into a twinkling star"
+    },
+    {
+      "id": "two-a",
+      "segment": "two",
+      "skill": "clip",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The two remaining fireflies glow in the meadow; a big glowing \"Two\" stands in the sky"
+    },
+    {
+      "id": "two-b",
+      "segment": "two",
+      "skill": "clip",
+      "words": "One flew up,",
+      "cues": {
+        "flew": {
+          "word": "flew",
+          "sfx": "whoosh"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "One firefly hops up, up, up and glides to the moon; the camera follows"
+    },
+    {
+      "id": "two-c",
+      "segment": "two",
+      "skill": "clip",
+      "words": "Blink, blink, blink!",
+      "cues": {
+        "star": {
+          "word": "Goodnight,",
+          "sfx": "twinkle"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "Close on the moon: the firefly blinks three times, then turns into a twinkling star"
+    },
+    {
+      "id": "one-a",
+      "segment": "one",
+      "skill": "clip",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The one remaining fireflies glow in the meadow; a big glowing \"One\" stands in the sky"
+    },
+    {
+      "id": "one-b",
+      "segment": "one",
+      "skill": "clip",
+      "words": "She flew up,",
+      "cues": {
+        "flew": {
+          "word": "flew",
+          "sfx": "whoosh"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "One firefly hops up, up, up and glides to the moon; the camera follows"
+    },
+    {
+      "id": "one-c",
+      "segment": "one",
+      "skill": "clip",
+      "words": "Blink, blink, blink!",
+      "cues": {
+        "star": {
+          "word": "Goodnight,",
+          "sfx": "twinkle"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "Close on the moon: the firefly blinks three times, then turns into a twinkling star"
+    },
+    {
+      "id": "end-a",
+      "segment": "end",
+      "skill": "clip",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The empty meadow, quiet grass, no fireflies"
+    },
+    {
+      "id": "end-b",
+      "segment": "end",
+      "skill": "clip",
+      "words": "grass.",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The camera tilts up from the grass to the sky"
+    },
+    {
+      "id": "end-c",
+      "segment": "end",
+      "skill": "clip",
+      "words": "Five new stars",
+      "cues": {
+        "stars": {
+          "word": "stars",
+          "sfx": "twinkle"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "The moon with five new coloured stars around it, each with a sleepy little face"
+    },
+    {
+      "id": "end-d",
+      "segment": "end",
+      "skill": "clip",
+      "words": "Blink, blink, blink.",
+      "cues": {},
+      "images": [],
+      "intent": "",
+      "description": "The stars blink, the moon closes its eyes and falls asleep"
+    }
+  ]
+}

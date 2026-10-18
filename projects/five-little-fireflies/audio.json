@@ -1,0 +1,108 @@
+{
+  "music": {
+    "query": "glockenspiel happy",
+    "source": {
+      "type": "freesound",
+      "id": 833636,
+      "url": "https://cdn.freesound.org/previews/833/833636_18136826-hq.mp3"
+    },
+    "name": "Butterflow Menu Music Theme",
+    "duration": 41.13,
+    "license": "CC BY 4.0",
+    "credit": "\"Butterflow Menu Music Theme\" by Nomagician / Freesound",
+    "page": "https://freesound.org/people/Nomagician/sounds/833636/"
+  },
+  "sfx": {
+    "twinkle": {
+      "query": "twinkle chime",
+      "source": {
+        "type": "freesound",
+        "id": 639429,
+        "url": "https://cdn.freesound.org/previews/639/639429_5685306-hq.mp3"
+      },
+      "name": "Crystal Twinkle",
+      "duration": 3.98,
+      "license": "CC0",
+      "credit": "\"Crystal Twinkle\" by LaurenPonder / Freesound",
+      "page": "https://freesound.org/people/LaurenPonder/sounds/639429/"
+    },
+    "pop": {
+      "query": "bubble pop cartoon",
+      "source": {
+        "type": "freesound",
+        "id": 463388,
+        "url": "https://cdn.freesound.org/previews/463/463388_9658839-hq.mp3"
+      },
+      "name": "VS Pop_4.mp3",
+      "duration": 0.54,
+      "license": "CC BY 4.0",
+      "credit": "\"VS Pop_4.mp3\" by Vilkas_Sound / Freesound",
+      "page": "https://freesound.org/people/Vilkas_Sound/sounds/463388/"
+    },
+    "whoosh": {
+      "query": "soft whoosh",
+      "source": {
+        "type": "freesound",
+        "id": 73263,
+        "url": "https://cdn.freesound.org/previews/73/73263_128404-hq.mp3"
+      },
+      "name": "whoosh.soft.wav",
+      "duration": 0.37,
+      "license": "CC BY 4.0",
+      "credit": "\"whoosh.soft.wav\" by junggle / Freesound",
+      "page": "https://freesound.org/people/junggle/sounds/73263/"
+    },
+    "logo": {
+      "query": "pop ui notification",
+      "source": {
+        "type": "freesound",
+        "id": 810191,
+        "url": "https://cdn.freesound.org/previews/810/810191_17437502-hq.mp3"
+      },
+      "name": "notification chime",
+      "duration": 2.08,
+      "license": "CC BY 4.0",
+      "credit": "\"notification chime\" by mokasza / Freesound",
+      "page": "https://freesound.org/people/mokasza/sounds/810191/"
+    },
+    "image": {
+      "query": "whoosh swoosh short",
+      "source": {
+        "type": "freesound",
+        "id": 449992,
+        "url": "https://cdn.freesound.org/previews/449/449992_3217484-hq.mp3"
+      },
+      "name": "whoosh_short_low.wav",
+      "duration": 2.68,
+      "license": "CC0",
+      "credit": "\"whoosh_short_low.wav\" by DJT4NN3R / Freesound",
+      "page": "https://freesound.org/people/DJT4NN3R/sounds/449992/"
+    },
+    "stat": {
+      "query": "counter ticks",
+      "source": {
+        "type": "freesound",
+        "id": 349655,
+        "url": "https://cdn.freesound.org/previews/349/349655_464940-hq.mp3"
+      },
+      "name": "c4_beep1.ogg",
+      "duration": 0.75,
+      "license": "CC0",
+      "credit": "\"c4_beep1.ogg\" by insanity54 / Freesound",
+      "page": "https://freesound.org/people/insanity54/sounds/349655/"
+    },
+    "title": {
+      "query": "cinematic whoosh short",
+      "source": {
+        "type": "freesound",
+        "id": 179779,
+        "url": "https://cdn.freesound.org/previews/179/179779_985466-hq.mp3"
+      },
+      "name": "wipe2.wav",
+      "duration": 1,
+      "license": "CC0",
+      "credit": "\"wipe2.wav\" by Sclolex / Freesound",
+      "page": "https://freesound.org/people/Sclolex/sounds/179779/"
+    }
+  }
+}
