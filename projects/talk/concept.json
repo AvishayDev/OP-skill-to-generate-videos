@@ -1,0 +1,29 @@
+{
+  "name": "Price Tag Pop",
+  "why": "A retail-deals vlog: the shop's own yellow price-tag language, bold and clear on phone.",
+  "look": "Yellow price tags, red price bursts, white-on-black chips over the live footage",
+  "palette": {
+    "bg": "#111111",
+    "ink": "#FFFFFF",
+    "accent": "#FFD21F",
+    "accentInk": "#111111",
+    "muted": "#B9B9B9",
+    "paper": "#FFFFFF"
+  },
+  "font": "rubik",
+  "imageTreatment": "none",
+  "ground": {
+    "grain": 0.06,
+    "pattern": "none"
+  },
+  "motif": {
+    "type": "none"
+  },
+  "elements": [],
+  "motion": "Springy whole-word pops (rise, scale, side slides); hard cuts with alternating punch-ins",
+  "captions": {
+    "size": 58,
+    "bottom": 0.12,
+    "plate": "#111111CC"
+  }
+}

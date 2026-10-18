@@ -1,0 +1,279 @@
+{
+  "images": [],
+  "videos": [],
+  "shots": [
+    {
+      "id": "sh-a",
+      "segment": "s1",
+      "skill": "reelkit",
+      "component": "ShA",
+      "under": "source",
+      "zoom": 1.0,
+      "cues": {
+        "c0": {
+          "word": "מבצעים",
+          "sfx": "stamp"
+        },
+        "c1": {
+          "word": "אקונומיקה",
+          "sfx": "pop"
+        },
+        "c2": {
+          "word": "9.90",
+          "sfx": "ding"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": ""
+    },
+    {
+      "id": "sh-b",
+      "segment": "s1",
+      "skill": "reelkit",
+      "component": "ShB",
+      "under": "source",
+      "zoom": 1.12,
+      "cues": {
+        "c0": {
+          "word": "סכו\"ם",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "",
+      "words": "סט"
+    },
+    {
+      "id": "sh-c",
+      "segment": "s1",
+      "skill": "reelkit",
+      "component": "ShC",
+      "under": "source",
+      "zoom": 1.0,
+      "cues": {
+        "c0": {
+          "word": "זהב",
+          "sfx": "pop"
+        },
+        "c1": {
+          "word": "שחור",
+          "sfx": "pop"
+        },
+        "c2": {
+          "word": "כסף",
+          "sfx": "pop"
+        },
+        "c3": {
+          "word": "מחלידים",
+          "sfx": "tick"
+        },
+        "c4": {
+          "word": "משחירים",
+          "sfx": "tick"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "",
+      "words": "זהב"
+    },
+    {
+      "id": "sh-d",
+      "segment": "s2",
+      "skill": "reelkit",
+      "component": "ShD",
+      "under": "source",
+      "zoom": 1.1,
+      "cues": {
+        "c0": {
+          "word": "סטים",
+          "sfx": "whoosh"
+        },
+        "c1": {
+          "word": "חלקים",
+          "sfx": "pop"
+        },
+        "c2": {
+          "word": "יחידות",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": ""
+    },
+    {
+      "id": "sh-e",
+      "segment": "s2",
+      "skill": "reelkit",
+      "component": "ShE",
+      "under": "source",
+      "zoom": 1.0,
+      "cues": {
+        "c0": {
+          "word": "ב-150",
+          "sfx": "ding"
+        },
+        "c1": {
+          "word": "בלבד",
+          "sfx": "stamp"
+        },
+        "c2": {
+          "word": "תבדקו",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "",
+      "words": "ב-150"
+    },
+    {
+      "id": "sh-f",
+      "segment": "s3",
+      "skill": "reelkit",
+      "component": "ShF",
+      "under": "source",
+      "zoom": 1.12,
+      "cues": {
+        "c0": {
+          "word": "כאלה",
+          "sfx": "stamp"
+        },
+        "c1": {
+          "word": "לבחירה",
+          "sfx": "pop"
+        },
+        "c2": {
+          "word": "ב-150",
+          "sfx": "ding"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": ""
+    },
+    {
+      "id": "sh-g",
+      "segment": "s3",
+      "skill": "reelkit",
+      "component": "ShG",
+      "under": "source",
+      "zoom": 1.0,
+      "cues": {
+        "c0": {
+          "word": "הגיע",
+          "sfx": "stamp"
+        },
+        "c1": {
+          "word": "המרכך",
+          "sfx": "pop"
+        },
+        "c2": {
+          "word": "במגוון",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "",
+      "words": "הגיע"
+    },
+    {
+      "id": "sh-h",
+      "segment": "s4",
+      "skill": "reelkit",
+      "component": "ShH",
+      "under": "source",
+      "zoom": 1.12,
+      "cues": {
+        "c0": {
+          "word": "בסופר",
+          "sfx": "pop"
+        },
+        "c1": {
+          "word": "כלי",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": ""
+    },
+    {
+      "id": "sh-i",
+      "segment": "s4",
+      "skill": "reelkit",
+      "component": "ShI",
+      "under": "source",
+      "zoom": 1.0,
+      "cues": {
+        "c0": {
+          "word": "פגז",
+          "sfx": "stamp"
+        },
+        "c1": {
+          "word": "חמש",
+          "sfx": "pop"
+        },
+        "c2": {
+          "word": "בזכותכם",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "",
+      "words": "מחירים"
+    },
+    {
+      "id": "sh-j",
+      "segment": "s5",
+      "skill": "reelkit",
+      "component": "ShJ",
+      "under": "source",
+      "zoom": 1.12,
+      "cues": {
+        "c0": {
+          "word": "סחורה",
+          "sfx": "pop"
+        },
+        "c1": {
+          "word": "סרטונים",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": ""
+    },
+    {
+      "id": "sh-k",
+      "segment": "s5",
+      "skill": "reelkit",
+      "component": "ShK",
+      "under": "source",
+      "zoom": 1.0,
+      "cues": {
+        "c0": {
+          "word": "ירושלים",
+          "sfx": "pop"
+        },
+        "c1": {
+          "word": "תישארו",
+          "sfx": "pop"
+        },
+        "c2": {
+          "word": "אוהבים",
+          "sfx": "pop"
+        }
+      },
+      "images": [],
+      "intent": "",
+      "description": "",
+      "words": "תישארו"
+    }
+  ]
+}
