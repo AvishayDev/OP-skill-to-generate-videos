@@ -22,8 +22,8 @@ def _const(v): return v if callable(v) else (lambda t: v)
 
 
 class Char:
-    def __init__(self, k, kind, loc=(0, 0, 0), size=1.0, face=0.0, name=None):
-        self.k, self.kind, self.K = k, kind, KINDS[kind]
+    def __init__(self, k, kind, loc=(0, 0, 0), size=1.0, face=0.0, name=None, **over):
+        self.k, self.kind, self.K = k, kind, {**KINDS[kind], **over}
         n = name or kind
         self.root = empty(f'{n}_root', loc); self.root.scale = (size,) * 3; self.root.rotation_euler = (0, 0, face)
         self.base_loc, self.size = tuple(loc), size
@@ -33,13 +33,13 @@ class Char:
         fur = mat(K['skin'], 'skin' if kind == 'milo' else 'plastic', rough=.5)
         # legs + shoes
         for sx in (-1, 1):
-            sphere(f'{n}_leg', (sx * .085, 0, .13), (.075, .075, .1), fur if kind != 'milo' else skin, self.body)
+            sphere(f'{n}_leg', (sx * .085, 0, .13), (.075, .075, .1), mat(K['legs'], 'matte', rough=.7, bump=.25, bump_scale=300) if K.get('legs') else (fur if kind != 'milo' else skin), self.body)
             sphere(f'{n}_shoe', (sx * .088, -.03, .045), (.088, .115, .055), mat(K['shoe'], 'plastic'), self.body)
         # torso
-        sphere(f'{n}_torso', (0, 0, .34), (.22, .19, .24), cloth if kind in ('milo', 'bella', 'bear') else fur, self.body, seg=40, rings=20)
+        sphere(f'{n}_torso', (0, 0, .34), (.22, .19, .24), K['shirt'] if K.get('shirt') else (cloth if kind in ('milo', 'bella', 'bear') else fur), self.body, seg=40, rings=20)
         if kind in ('duckie', 'fred'):
             sphere(f'{n}_belly', (0, -.1, .32), (.15, .1, .17), mat('#FFF6C9' if kind == 'duckie' else '#CFF5A8', 'plastic'), self.body)
-        if kind == 'milo':
+        if kind == 'milo' and not K.get('nostar'):
             star(f'{n}_star', (0, -.185, .37), .075, .45, .02, mat('#FFE04A', 'plastic'), self.body, rot=(math.pi / 2, 0, 0))
         if kind == 'bear':
             for z in (.24, .3): torus(f'{n}_stripe', (0, 0, z), .205, .012, mat('#FFD08A', 'plastic'), self.body)
@@ -90,7 +90,7 @@ class Char:
             self._eye(n, sx * .12, .03, -.268)
             sphere(f'{n}_cheek', (sx * .2, -.225, -.075), (.058, .02, .04), pink, H)
         if kind == 'milo':
-            hair = mat('#FF9A2E', 'plastic', rough=.45)
+            hair = mat(self.K.get('hair', '#FF9A2E'), 'plastic', rough=.45)
             sphere(f'{n}_hair', (0, .085, .165), (.336, .315, .215), hair, H, seg=48, rings=24)
             for (x, y, z, sx, sz, rx) in ((.0, -.06, .33, .1, .13, -.5), (.07, -.02, .34, .08, .1, -.2), (-.06, .0, .34, .075, .1, -.1)):
                 sphere(f'{n}_tuft', (x, y, z), (sx, .075, sz), hair, H, rot=(rx, 0, x * 3))
