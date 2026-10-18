@@ -323,6 +323,11 @@ async function doctor() {
   line(Boolean(v), `reelkit-cli ${v ?? 'not installed (npm install -g reelkit-cli@' + reelkitSettings().version + ')'} — renders the shots, captions + sound locally`);
   const bl = findBlender({ install: false });
   line(Boolean(bl), `blender ${bl ? blenderConfig().version : `not installed (optional) — "blender <p>" installs it on first use (.claude/skills/blender-3d/install.sh)`} — real 3D shots (blender-3d skill)`);
+  {
+    let java = null;
+    try { java = execFileSync('javac', ['-version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim(); } catch { /* missing */ }
+    line(Boolean(java), `${java ?? 'javac not found (optional; apt-get install default-jdk-headless)'} — image-writer, the fallback that paints images and films pixel by pixel`);
+  }
   for (const skill of ['video-studio', 'reelkit', 'animate-in-code']) {
     const has = existsSync(join(ROOT, '.claude/skills', skill, 'SKILL.md'));
     if (!has) ok = false;

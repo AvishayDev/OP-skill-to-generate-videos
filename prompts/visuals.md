@@ -11,7 +11,7 @@ Four kinds of shot — mix them freely, the concept keeps them one film:
 | `canvas` | a Canvas 2D film `shots/<id>.js` (procedural, hand-made, particles, ink, sand, pixels, sketch) | the animate-in-code skill |
 | `blender` | a real 3D scene `shots/<id>.py` (`build(k)` with toykit: toy characters with lip sync, bus, toy town, 3D words) | the blender-3d skill |
 | `footage` | a real stock video (Pexels / Pixabay), trimmed, cropped, treated | `search-videos` → `shots.json → videos` |
-| `clip` | any video another skill renders: Manim (maths), HyperFrames (400+ registry blocks, GSAP, Three.js, Lottie, shaders), Remotion, Lottie, Blender, p5.js, ffmpeg | the library skills (`.claude/skills/video-studio/references/catalog.md`) → `clips-src/<id>.mp4` |
+| `clip` | any video another skill renders: Manim (maths), HyperFrames (400+ registry blocks, GSAP, Three.js, Lottie, shaders), Remotion, Lottie, Blender, p5.js, ffmpeg, image-writer (pixel-painted, the fallback) | the library skills (`.claude/skills/video-studio/references/catalog.md`) → `clips-src/<id>.mp4` |
 
 ## 1. Cut the script into shots — 3 to 7 seconds each
 Cut wherever the idea changes (typically 4–6 shots per story, ~15 total). For each shot:
@@ -128,6 +128,8 @@ Then `node pipeline/cli.mjs elements <p>` downloads + treats them (`elements/<id
 wrong photo behind a right title is common). Pixabay URLs expire within a day: run `elements` right after picking.
 Logos: Commons PNG renders keep transparency. Real people only from official/press material of that event.
 Allowed licences as always (no NC/ND); every image needs `license`, `credit`, `page`.
+Nothing usable found, or no key/host for the search? Paint it with the `image-writer` skill →
+`projects/<name>/painted/<id>.png` and use `{ "source": { "path": "…" }, "license": "drawn in code (image-writer)" }`.
 
 ## 5. Look before you render
 `frames <p>` (Reelkit check + lint + stills) → Read `reelkit/out/preview/sheet.jpg`: ground and palette identical

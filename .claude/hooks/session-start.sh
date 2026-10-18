@@ -7,6 +7,8 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
 fi
 
 command -v ffmpeg >/dev/null 2>&1 || echo "warning: ffmpeg not found" >&2
+# The image-writer skill (fallback painter) compiles Java.
+command -v javac >/dev/null 2>&1 || echo "warning: javac not found — the image-writer skill needs a JDK" >&2
 
 # faster-whisper: exact word timing of the voiceover (captions, cuts, overlays).
 if ! python3 -c 'import faster_whisper, numpy' >/dev/null 2>&1; then
