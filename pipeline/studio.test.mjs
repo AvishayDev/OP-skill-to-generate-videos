@@ -83,7 +83,7 @@ test('clips are conformed to the exact frame count, size and treatment', () => {
   assert.equal(args[args.indexOf('-frames:v') + 1], '95');
   assert.equal(args[args.indexOf('-ss') + 1], '2');
   const vf = args[args.indexOf('-vf') + 1];
-  assert.match(vf, /scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080/);
+  assert.match(vf, /scale=1920:1080:force_original_aspect_ratio=increase(:flags=lanczos)?,crop=1920:1080/);
   assert.match(vf, /hue=s=0/);
   assert.match(vf, /tpad=stop_mode=clone/);
   const contain = conformArgs('in.mp4', 'out.mp4', { width: 1080, height: 1920, fps: 30, frames: 10, fit: 'contain', pad: '#112233' });

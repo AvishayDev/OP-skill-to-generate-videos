@@ -90,7 +90,8 @@ export function transcriptSegments(words, { target } = {}) {
 export function sourceVideoFilter({ width, height, fps, color = {} }) {
   const eq = ['contrast', 'brightness', 'saturation', 'gamma'].filter((k) => color[k] !== undefined).map((k) => `${k}=${color[k]}`);
   return [
-    `scale=${width}:${height}:force_original_aspect_ratio=increase`, `crop=${width}:${height}`, 'setsar=1', `fps=${fps}`,
+    // light denoise first (chat-compressed uploads carry blocks), Lanczos upscale, then a gentle sharpen to win the edges back
+    'hqdn3d=1.5:1.2:3:3', `scale=${width}:${height}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${width}:${height}`, 'unsharp=5:5:0.7:5:5:0.0', 'setsar=1', `fps=${fps}`,
     eq.length ? `eq=${eq.join(':')}` : null,
     color.temperature ? `colortemperature=temperature=${color.temperature}` : null,
   ].filter(Boolean).join(',');
