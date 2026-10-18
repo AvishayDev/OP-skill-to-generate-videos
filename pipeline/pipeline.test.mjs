@@ -505,3 +505,25 @@ test('the source edit graph cuts picture and sound together and conformArgs punc
   assert.match(args[args.indexOf('-vf') + 1], /scale=1296:2304,crop=1080:1920:\(iw-1080\)\/2:\(ih-1920\)\*0\.4/);
   assert.equal(args[args.indexOf('-ss') + 1], '2');
 });
+
+test('image-writer is pixel-only: the kit never draws, and the guard refuses cameras, scenes and drawing calls', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const dir = '.claude/skills/image-writer';
+  for (const f of readdirSync(`${dir}/kit`)) {
+    const code = readFileSync(`${dir}/kit/${f}`, 'utf8');
+    assert.doesNotMatch(code, /Graphics|createGraphics|drawString|drawImage|fillRect|AlphaComposite|ConvolveOp|\boverlay\(/, `${f} must not draw`);
+  }
+  for (const f of readdirSync(`${dir}/examples`)) execFileSync(`${dir}/check.sh`, [`${dir}/examples/${f}`]);
+  const bad = mkdtempSync(`${tmpdir()}/iw-`);
+  for (const [name, body] of [
+    ['Cam', 'Camera camera = new Camera();'],
+    ['Draw', 'void f(java.awt.Graphics2D g) { g.fillRect(0, 0, 9, 9); }'],
+    ['Ball', 'Sphere ball;'],
+  ]) {
+    writeFileSync(`${bad}/${name}.java`, `// "Scene" in a comment is fine\npublic class ${name} {\n  String s = "Camera";\n  ${body}\n}\n`);
+    assert.throws(() => execFileSync(`${dir}/check.sh`, [`${bad}/${name}.java`], { stdio: 'pipe' }), name);
+  }
+  writeFileSync(`${bad}/Ok.java`, '// a Sphere and a Camera in a comment\npublic class Ok { String s = "Scene"; double d = Math.hypot(1, 2); }\n');
+  execFileSync(`${dir}/check.sh`, [`${bad}/Ok.java`]);
+});

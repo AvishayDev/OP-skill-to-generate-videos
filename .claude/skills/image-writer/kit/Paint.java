@@ -72,6 +72,15 @@ public final class Paint {
     }
 
     /**
+     * Distance from (x, y) to the line segment a-b (subtract a half-thickness for a stroke: lines, arrows, rays)
+     */
+    public static double segment(double x, double y, double ax, double ay, double bx, double by) {
+        double px = x - ax, py = y - ay, ux = bx - ax, uy = by - ay;
+        double k = clamp01((px * ux + py * uy) / Math.max(1e-12, ux * ux + uy * uy));
+        return Math.hypot(px - k * ux, py - k * uy);
+    }
+
+    /**
      * A repeatable random number in 0..1 for an integer lattice point
      */
     public static double hash(int x, int y, int z) {

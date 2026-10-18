@@ -15,8 +15,8 @@ decision is yours. Two engines are built in and always available:
   when the user wants real 3D — asked for it, or their request / reference clearly calls for it (CLAUDE.md Hard
   rule 9). Never as your own style pick. When used, say the render time before the long render.
 - **image-writer** (`.claude/skills/image-writer/`) — the **fallback**: paints images and films pixel by pixel in
-  Java (the Mini-Pro ray tracer's ImageWriter; every pixel's color is a formula of x, y, t), then ffmpeg joins the
-  frames. Local, free, always available. Use it when an image, element or shot is needed and no other tool can
+  Java (the Mini-Pro ray tracer's ImageWriter; every pixel's color, text included, is a formula of x, y, t —
+  pixel-only: no camera, scene, primitives or drawing calls), then ffmpeg joins the frames. Local, free, always available. Use it when an image, element or shot is needed and no other tool can
   make it (no key, host blocked, nothing found, a library skill won't install, paid AI not allowed), when the user
   asks for an image or video we have no tool for, or for light-built pictures (space, skies, glows, gradients).
 Helpers in `.claude/skills/`: **watch-video** (the user sends a video link → frames + transcript; reference

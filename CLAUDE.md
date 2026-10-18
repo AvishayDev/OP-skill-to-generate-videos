@@ -14,7 +14,8 @@ first. It routes each shot to reelkit, animate-in-code, blender-3d (real 3D — 
 stock footage or a library skill (`library/`).
 **Fallback for any picture:** when an image, element, shot or whole video is needed and no tool can make it (no key,
 host blocked, nothing found, an install fails, paid AI not allowed), paint it pixel by pixel with the `image-writer`
-skill (`.claude/skills/image-writer/SKILL.md`, Java + ImageWriter → PNG frames → ffmpeg → mp4) and say so in one line.
+skill (`.claude/skills/image-writer/SKILL.md`, Java + ImageWriter → PNG frames → ffmpeg → mp4; pixel-only — every
+pixel, text included, is your formula: no camera, scene, primitives or drawing calls) and say so in one line.
 **A video link from the user** ("watch this", "make one like this") → the `watch-video` skill: run its script, Read
 the contact sheets and transcript, then answer. Watched videos are reference only (Rule 3).
 
