@@ -45,8 +45,9 @@ error (a cue whose word is spoken outside its shot is refused).
   icon animation, a Remotion map). `shots <p>` prints the clip's exact length in frames and seconds and the frame
   size: render exactly that (shorter = last frame held, longer = cut) to `clips-src/<id>.mp4` (or set `"file"`), in
   the concept's palette and font, then `clips <p>`. Commit the clip's *source* (scene .py / index.html) next to it.
-- **blender** (`.claude/skills/blender-3d/SKILL.md`): when the film should be real 3D (a 3D kids' show, a toy world,
-  characters singing). A 3D film is usually 3D in every shot (one concept); `blender <p> --grid-only` → Read
+- **blender** (`.claude/skills/blender-3d/SKILL.md`): only when the user wants real 3D — they asked for it, or their
+  request / reference clearly calls for it (CLAUDE.md Hard rule 9). Hours of render: never your own style pick;
+  otherwise get depth from reelkit, canvas or a `clip`. A 3D film is usually 3D in every shot (one concept); `blender <p> --grid-only` → Read
   `frames/<id>-grid.jpg` per shot, then the long render (`blender <p>`, run_in_background, resumable).
 Aim for variety: e.g. 60 % reelkit, 2–4 canvas shots, footage/clips where they clearly win.
 

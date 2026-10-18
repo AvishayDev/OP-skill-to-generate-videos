@@ -11,7 +11,9 @@ decision is yours. Two engines are built in and always available:
 - **animate-in-code** (`.claude/skills/animate-in-code/`) — Canvas 2D films: brush, collage, pixel, riso, chalk,
   sketchbook, stickers, sand, cross-stitch, drawing over photos/video.
 - **blender-3d** (`.claude/skills/blender-3d/`) — real 3D (Blender Cycles, local): glossy toy characters with lip
-  sync, a bus, toy-town sets, 3D words. Slow (~3.5 s/frame → 2 min ≈ 3 h at 24 fps): say so before a long render.
+  sync, a bus, toy-town sets, 3D words. Slow (~3.5 s/frame → 2 min ≈ 3 h at 24 fps). **Opt-in only**: use it only
+  when the user wants real 3D — asked for it, or their request / reference clearly calls for it (CLAUDE.md Hard
+  rule 9). Never as your own style pick. When used, say the render time before the long render.
 Helpers in `.claude/skills/`: **watch-video** (the user sends a video link → frames + transcript; reference
 only), **ben-adam** (Hebrew/English line edit of the script and post text), **remotion-best-practices**
 (local Remotion skills for a `clip`), **competitive-ads-extractor** (research for ads/promos).
@@ -56,7 +58,7 @@ in the environment settings, then stop). `init <name> --lang <code> --aspect <ra
 | The shot needs… | Engine |
 |---|---|
 | headlines, cards, UI, phones, chat bubbles, counters, charts, photos with boxes, stamps, maps of text | `reelkit` (shared kit `pipeline/render/reelkit/*.tsx` + `reelkit/kit`: BarChart, TrendLine, DonutStat, CompareTable, FlowDiagram, ChatStack, ShaderLayer, 3D…) |
-| real 3D: a 3D cartoon / kids' 3D show / toy world, characters that sing (lip sync), "like the 3D nursery-rhyme channels" | `blender` (blender-3d, toykit) |
+| real 3D **that the user wants** (asked for it, or their request / reference clearly means it) — never chosen on your own | `blender` (blender-3d, toykit) |
 | a hand-made medium: brush, paper collage, pixel art, riso, chalk, pencil, stickers, sand, embroidery, ink, particles, simulations | `canvas` (animate-in-code) |
 | real-world motion: nature, city, food, sport, people | `footage` (`search-videos`) |
 | maths / physics / proofs / graphs (3Blue1Brown) | `clip` ← `library/manim` |

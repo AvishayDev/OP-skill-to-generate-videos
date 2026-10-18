@@ -1,6 +1,6 @@
 ---
 name: blender-3d
-description: Real 3D shots rendered with Blender (Cycles, CPU, headless) for the video studio - glossy toy-style characters (toddler, bunny, duckling, frog, bear) with lip sync to the voiceover, a rainbow bus, toy-town sets (road, trees, hills, sea, sunset, night), stop signs, balloons, rainbows, pop-in 3D words, sparkles and splashes. Use when a video should look like a 3D animated kids' show / nursery-rhyme channel / Pixar-style toy world, or the user asks for "real 3D", "3D render", "Blender", "תלת מימד", "אנימציה בתלת מימד". Shots are Python files using the bundled toykit library; the pipeline renders them as `"skill": "blender"` shots.
+description: Real 3D shots rendered with Blender (Cycles, CPU, headless) for the video studio - glossy toy-style characters (toddler, bunny, duckling, frog, bear) with lip sync to the voiceover, a rainbow bus, toy-town sets (road, trees, hills, sea, sunset, night), stop signs, balloons, rainbows, pop-in 3D words, sparkles and splashes. Opt-in only - renders take hours: use it only when the user wants real 3D (asks for 3D / Blender / "תלת מימד", or their request or reference clearly calls for a 3D-rendered look), never as your own style choice. Shots are Python files using the bundled toykit library; the pipeline renders them as `"skill": "blender"` shots.
 ---
 
 # Blender 3D — real 3D shots for the studio
@@ -16,6 +16,11 @@ node pipeline/cli.mjs blender <p> [--only <id>]               # the real render 
 ```
 `frames` / `produce` call it too (cached by code + timing + settings). Blender (pinned LTS, `config/video.json →
 blender.version`) installs itself on first use (`install.sh`, ~380 MB, seconds).
+
+## When to use it
+Only when the user wants real 3D: they asked for it, or what they asked for (their words, a reference video or
+image they want matched) clearly means a 3D-rendered film. Not because 3D would look nice — that is your choice,
+not theirs, and it costs hours (a long render can end the session). Unsure → another engine, or ask in one line.
 
 ## Render cost — plan for it
 4 CPUs, no GPU. Defaults (`config/video.json → blender.quality.final`): 960×540, Cycles 6 samples + OpenImageDenoise
