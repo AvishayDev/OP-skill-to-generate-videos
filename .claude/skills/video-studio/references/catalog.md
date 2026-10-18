@@ -12,6 +12,14 @@ flows are *not* used end to end — this studio keeps the voice, captions, music
 | `reelkit` | React motion graphics + the final render. Kit: Headline, WordReveal, CounterRoll, BarChart, TrendLine, DonutStat, CompareTable, FlowDiagram, ChatStack, CopyCorrection, Callout, PromptBox, TerminalLog, BrowserFrame, NamedCursor, HudOverlay, ShaderLayer (aurora, liquid metal, grain, halftone), 3D; references: styles, art-styles, motion-design, beat-sync, brand-motion, explain-graphics, launch-film, keynote-film, sound-design, hebrew-rtl. Studio kit (`pipeline/render/reelkit/`): Pop, At, BigText, Tag, SelectBox, Photo, Stamp, Bubble, Card, Window, Phone, Toggle, TypeField, CountUp, Progress, TickGrid, Doodle, Bot. |
 | `animate-in-code` | Canvas 2D hand-made films: brush strokes, zine collage, 8-bit pixel art, risograph, chalkboard, pencil sketchbook, paper stickers, sand animation, cross-stitch; doodles over a real photo or video. |
 
+## Also in `.claude/skills/` (installed, auto-loaded)
+| Skill | Use in the studio |
+|---|---|
+| `watch-video` | the user sends a video link (YouTube, Reels, TikTok, X…) or file: frames as contact sheets + transcript. For "make one like this", analyse pace, captions, palette, hook, then brief our own version — reference only, never reuse its footage or audio. |
+| `ben-adam` (MIT, בר שאלתיאל) | Hebrew/English line edit: polish `script.json` text and the post description so they don't read machine-written. Keep `*keyword*` and `[tags]` intact; Rule 5 (no long dashes) is fine for captions. |
+| `remotion-best-practices` (Remotion, v4.0.534) | Local copy of Remotion's agent skills (create, markup, captions, maps, multimedia, render, studio…). Use it for a `clip` shot built in Remotion; inside the studio skip its "open Studio / don't render" steps — render the clip silent to `clips-src/<id>.mp4`. Same content as `library/remotion`, no fetch needed. |
+| `competitive-ads-extractor` | research competitors' ads (Meta Ad Library, LinkedIn…) before an ad/promo brief: messaging, hooks, formats. Inspiration only — never copy an ad. |
+
 ## capcut-studio: `library/capcut-studio/SKILL.md` (shared with the user by its author; lives in this repo, no upstream)
 A pro editor's playbook for Reels/TikTok, written for CapCut desktop. Here it is **knowledge only**: footage mode
 (`references/footage.md`) does its CapCut steps in code. Worth reading for: reading a video by type (§1b),
