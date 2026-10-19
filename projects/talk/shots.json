@@ -1,0 +1,179 @@
+{
+ "images": [],
+ "videos": [],
+ "shots": [
+  {
+   "id": "a",
+   "segment": "s1",
+   "skill": "reelkit",
+   "component": "Sa",
+   "under": "source",
+   "cues": {
+    "c0": "החטיפים"
+   },
+   "images": [],
+   "intent": "",
+   "description": ""
+  },
+  {
+   "id": "b",
+   "segment": "s1",
+   "skill": "reelkit",
+   "component": "Sb",
+   "under": "source",
+   "cues": {
+    "c0": "בצק",
+    "c1": "פיג'"
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "zoom": 1.15,
+   "words": "קראנץ'"
+  },
+  {
+   "id": "c",
+   "segment": "s1",
+   "skill": "reelkit",
+   "component": "Sc",
+   "under": "source",
+   "cues": {
+    "c0": "עכשיו"
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "zoom": 1.3,
+   "words": "לעיתים,"
+  },
+  {
+   "id": "d",
+   "segment": "s1",
+   "skill": "reelkit",
+   "component": "Sd",
+   "under": "source",
+   "cues": {
+    "c0": "הסופגניות",
+    "c1": "ריבה,",
+    "c2": "ובלי",
+    "c3": "ב-10"
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "words": "עוד"
+  },
+  {
+   "id": "e",
+   "segment": "s1",
+   "skill": "reelkit",
+   "component": "Se",
+   "under": "source",
+   "cues": {
+    "c0": "סחורה,"
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "zoom": 1.15,
+   "words": "בואו"
+  },
+  {
+   "id": "f",
+   "segment": "s2",
+   "skill": "reelkit",
+   "component": "Sf",
+   "under": "source",
+   "cues": {
+    "c0": "גדול,",
+    "c1": "קטן,",
+    "c2": "ב-100,"
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "words": "שתי"
+  },
+  {
+   "id": "g",
+   "segment": "s2",
+   "skill": "reelkit",
+   "component": "Sg",
+   "under": "source",
+   "cues": {
+    "c0": 0.4,
+    "c1": "רוצים."
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "zoom": 1.3,
+   "words": "שתיים"
+  },
+  {
+   "id": "h",
+   "segment": "s2",
+   "skill": "reelkit",
+   "component": "Sh",
+   "under": "source",
+   "cues": {
+    "c0": "היוקרתי,",
+    "c1": "חלקים,",
+    "c2": "כסף,",
+    "c3": "שחור,",
+    "c4": "זהב,"
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "words": "סט"
+  },
+  {
+   "id": "i",
+   "segment": "s2",
+   "skill": "reelkit",
+   "component": "Si",
+   "under": "source",
+   "cues": {
+    "c0": "סטים",
+    "c1": "שקלים",
+    "c2": "לסט,"
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "zoom": 1.15,
+   "words": "שני"
+  },
+  {
+   "id": "j",
+   "segment": "s2",
+   "skill": "reelkit",
+   "component": "Sj",
+   "under": "source",
+   "cues": {
+    "c0": "זול"
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "zoom": 1.3,
+   "words": "הכי"
+  },
+  {
+   "id": "k",
+   "segment": "s3",
+   "skill": "reelkit",
+   "component": "Sk",
+   "under": "source",
+   "cues": {
+    "c0": "אוהבים",
+    "c1": "אתכם"
+   },
+   "images": [],
+   "intent": "",
+   "description": "",
+   "words": "די"
+  }
+ ]
+}

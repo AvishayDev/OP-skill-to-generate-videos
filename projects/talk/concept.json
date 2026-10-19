@@ -1,0 +1,29 @@
+{
+ "name": "Sale Pop",
+ "why": "Bold price callouts over a real shop walk-through",
+ "look": "yellow tags, red price chips, shaky stamps over footage",
+ "palette": {
+  "bg": "#F2F0E9",
+  "ink": "#111111",
+  "accent": "#FFD23F",
+  "accentInk": "#111111",
+  "muted": "#8A877C",
+  "paper": "#FFFFFF"
+ },
+ "font": "heebo",
+ "imageTreatment": "none",
+ "ground": {
+  "grain": 0.06,
+  "pattern": "none"
+ },
+ "motif": {
+  "type": "none"
+ },
+ "elements": [],
+ "motion": "bouncy pops on spoken words",
+ "captions": {
+  "size": 58,
+  "bottom": 0.17,
+  "plate": "rgba(0,0,0,.55)"
+ }
+}

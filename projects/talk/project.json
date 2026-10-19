@@ -1,0 +1,19 @@
+{
+ "title": "מבצעים",
+ "language": "he",
+ "aspect": "9:16",
+ "durationSeconds": 48,
+ "fps": 30,
+ "voice": "source",
+ "source": {
+  "file": "source/raw.mp4"
+ },
+ "video": {
+  "music": {
+   "volume": 0.1
+  },
+  "reelkit": {
+   "exportPreset": "phone-720"
+  }
+ }
+}
