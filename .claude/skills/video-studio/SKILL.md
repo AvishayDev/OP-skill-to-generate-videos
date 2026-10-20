@@ -22,6 +22,9 @@ decision is yours. Two engines are built in and always available:
 Helpers in `.claude/skills/`: **watch-video** (the user sends a video link → frames + transcript; reference
 only), **ben-adam** (Hebrew/English line edit of the script and post text), **remotion-best-practices**
 (local Remotion skills for a `clip`), **competitive-ads-extractor** (research for ads/promos).
+Two helpers are used **on your own, without the user naming them** (they also work as `/virality` and `/edit`):
+**virality** at every SCRIPT stage of a narrated film (hook, beats, timing; `prompts/script.md`), and **edit**
+whenever the user's own video needs editing (footage mode: cuts, captions, loudness; `references/footage.md`).
 Everything else is a **library skill** (`library/`, see `references/catalog.md`) whose output enters the film as a
 `clip` shot, or whose knowledge you borrow for a reelkit/canvas shot.
 

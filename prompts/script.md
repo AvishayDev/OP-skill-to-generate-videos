@@ -3,6 +3,17 @@
 Write the words that will be spoken, in natural, native `project.language` — written by a native speaker for
 the ear, never translated from English in your head. Then run `voice <p>` at once: it measures the real length.
 
+## Use the virality skill (always, unasked)
+Every narrated film needs a script, so apply `.claude/skills/virality/SKILL.md` here even when the user only asked
+for "a video about X" (e.g. "a video explaining Google" → a script explaining Google). In the studio:
+- Skip its questions and the "Shoot it, or change it?" stop; the brief and our modes decide.
+- Write 3–5 hooks on different formulas (`tools/hooks.json`), score them with `tools/hookscore.py`, open with the
+  best. Hook = a concrete payoff or number in the first ~8 words when the topic has one.
+- Use its beat order (HOOK → PROOF/STEP → REHOOK near the middle → PAYOFF → CTA) as the segment plan.
+- Time lines with `tools/speech.py --line "…"` while drafting; `voice <p>` still measures the real length.
+- English scripts: run `tools/humanize.py --report` on the text and fix what it flags (Hebrew: `ben-adam`).
+- Facts still come only from research.md (Rule 2); never invent a number to make a hook land.
+
 ## Length budget
 `words ≈ durationSeconds × wordsPerSecond` (config/languages.json; ~2.5 if missing) minus ~0.5 s per hard stop or
 pause tag. 30 s ≈ 70 words, 60 s ≈ 145, 90 s ≈ 220, 3 min ≈ 430. For Japanese / Chinese / Thai budget characters

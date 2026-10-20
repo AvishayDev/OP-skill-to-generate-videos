@@ -27,6 +27,16 @@ story), `cutPauses: false` (keep the timing as shot, e.g. a scripted piece or mu
 raise to -30 in a noisy room if pauses survive), `color` ({ contrast 1.08, saturation 1.05, brightness 0.01,
 gamma, temperature 5600 for a too-warm indoor shot }), `voiceClean` (false for a pro mic; or your own ffmpeg chain).
 
+## The edit skill (always, unasked)
+Any request to edit the user's own video uses `.claude/skills/edit/SKILL.md` as well, without the user naming it.
+Its tools are in `.claude/skills/edit/tools/`:
+- `probe.py <upload> --loudness` before `source`: rotation, VFR, HDR, audio layout. No audio stream → say so.
+- When `source`'s pause cut leaves fillers or retakes ("um", a restarted sentence), run `deadspace.py <upload>
+  --transcript … --dry-run`, read its EDL, and copy the cuts you agree with into `source.remove`.
+- `stopmotion.py` for a stop-motion `clip` shot (frames or `--from-video`).
+- Its audio rule for the voice: one fixed gain + limiter, never compress or gate it.
+Our pipeline still owns the captions, render and delivery; its "wait for an OK" step follows our modes.
+
 ## Shots over the footage
 | Shot | `shots.json` | Use |
 |---|---|---|
