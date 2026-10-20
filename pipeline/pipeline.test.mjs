@@ -7,7 +7,7 @@ import { fitBox, validateOverlays } from './assets/overlays.mjs';
 import { placeOverlays, overlayConflicts, resolveOverlayConflicts } from './video/timeline.mjs';
 import { freesoundLicense, toResult, pickBest, sfxFor, audioCreditItems } from './assets/audio.mjs';
 import { buildCredits, ccLicenseUrl } from './credits.mjs';
-import { pcmToWav, spokenText, plainText, voiceBlocks, buildRequest, findBoundaries, parseSilences, retryDelaySeconds } from './audio/tts.mjs';
+import { pcmToWav, spokenText, plainText, voiceBlocks, buildRequest, findBoundaries, parseSilences, retryDelaySeconds, voiceGroups, isDialogue } from './audio/tts.mjs';
 import { alignWords, wordTimings, segmentWords } from './audio/align.mjs';
 import { applyWords } from './audio/tts.mjs';
 import { execFileSync } from 'node:child_process';
@@ -526,4 +526,22 @@ test('image-writer is pixel-only: the kit never draws, and the guard refuses cam
   }
   writeFileSync(`${bad}/Ok.java`, '// a Sphere and a Camera in a comment\npublic class Ok { String s = "Scene"; double d = Math.hypot(1, 2); }\n');
   execFileSync(`${dir}/check.sh`, [`${bad}/Ok.java`]);
+});
+
+test('dialogue: one multi-speaker request per part, split on pauseBefore', () => {
+  const voice = { style: 'Sketch.', speakers: { Avi: { voiceName: 'Charon', style: 'sheepish' }, Beni: { voiceName: 'Puck' } } };
+  const script = { segments: [
+    { id: 'a', speaker: 'Avi', style: 'nervously', text: 'כן, *ברור*.' },
+    { id: 'b', speaker: 'Beni', text: 'יופי!' },
+    { id: 'c', speaker: 'Avi', pauseBefore: 2.5, text: 'ביי.' },
+  ] };
+  assert.equal(isDialogue(script), true);
+  assert.equal(isDialogue({ segments: [{ id: 'x', text: 'hi' }] }), false);
+  const groups = voiceGroups(script, voice);
+  assert.deepEqual(groups.map((g) => [g.first, g.segments.length]), [[0, 2], [2, 1]]);
+  const [two, one] = groups.map((g) => g.body);
+  assert.match(two.contents[0].parts[0].text, /Avi: \[nervously\] כן, ברור\.\nBeni: יופי!$/);
+  assert.deepEqual(two.generationConfig.speechConfig.multiSpeakerVoiceConfig.speakerVoiceConfigs.map((s) => s.voiceConfig.prebuiltVoiceConfig.voiceName), ['Charon', 'Puck']);
+  assert.equal(one.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Charon');
+  assert.throws(() => voiceGroups({ segments: [{ id: 'z', speaker: 'Dan', text: 'x' }] }, voice), /speaker "Dan" has no voice/);
 });

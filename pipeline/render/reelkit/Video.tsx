@@ -33,6 +33,7 @@ import { StatPop } from "./StatPop";
 import { Subtitles } from "./Subtitles";
 import { Tag } from "./Tag";
 import { TickGrid } from "./TickGrid";
+import { Toon } from "./Toon";
 import { Toggle } from "./Toggle";
 import { TypeField } from "./TypeField";
 import { VoiceLine } from "./VoiceLine";
@@ -46,7 +47,7 @@ import type { StatCount } from "./StatPop";
 // `prog(frame, at, len)` = eased 0→1 progress of a move starting on a cue; `bidi(text)` isolates Latin runs in Hebrew.
 const prog = (frame: number, at: number, len = 12, easing: (t: number) => number = ease.out) =>
   interpolate(frame, [at, at + Math.max(1, len)], [0, 1], { easing, extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-const UI = { At, BigText, Bot, Bubble, Card, CountUp, Doodle, Img, KineticLine, Phone, Photo, Pop, Progress, Push, SelectBox, Stamp, Tag, TickGrid, Toggle, TypeField, Window, chunkAt, prog, bidi };
+const UI = { At, BigText, Bot, Bubble, Card, CountUp, Doodle, Img, KineticLine, Phone, Photo, Pop, Progress, Push, SelectBox, Stamp, Tag, TickGrid, Toon, Toggle, TypeField, Window, chunkAt, prog, bidi };
 export type Ui = typeof UI;
 
 export type Palette = { bg: string; ink: string; accent: string; accentInk: string; muted: string; paper: string; [name: string]: string };

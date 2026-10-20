@@ -1,0 +1,408 @@
+{
+  "images": [],
+  "videos": [],
+  "shots": [
+    {
+      "id": "amen",
+      "segment": "amen",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "amen": {
+          "word": "אמן",
+          "sfx": "ding"
+        }
+      },
+      "intent": "Avi finishing the Amida",
+      "description": "Avi, eyes closed, hands together, sparkles on 'amen'"
+    },
+    {
+      "id": "hope",
+      "segment": "hope",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "ask": {
+          "word": "ברך",
+          "sfx": "pop"
+        }
+      },
+      "intent": "Beni checks",
+      "description": "Beni with a raised finger; bubble 'ברך עלינו?'"
+    },
+    {
+      "id": "sure",
+      "segment": "sure",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "think": {
+          "word": "ברור",
+          "sfx": "pop"
+        }
+      },
+      "intent": "Avi pretends",
+      "description": "Avi nervous, sweat drop; thought bubble 'מה זה ברך עלינו?!'"
+    },
+    {
+      "id": "why-a",
+      "segment": "why",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "cal": {
+          "word": "בחשוון",
+          "sfx": "pop"
+        },
+        "sun": {
+          "word": "ברכנו",
+          "sfx": "whoosh"
+        },
+        "x": {
+          "word": "הקיץ",
+          "sfx": "click"
+        }
+      },
+      "intent": "From 7 Cheshvan the summer text ends",
+      "description": "Beni; calendar page '7 Cheshvan'; sun tagged 'ברכנו' gets crossed out"
+    },
+    {
+      "id": "why-b",
+      "segment": "why",
+      "words": "ועכשיו מבקשים גשם",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "rain": {
+          "word": "גשם",
+          "sfx": "pop"
+        },
+        "text": {
+          "word": "ותן",
+          "sfx": "whoosh"
+        }
+      },
+      "intent": "Now we ask for rain",
+      "description": "Beni; a rain cloud; 'ותן טל ומטר לברכה' lands"
+    },
+    {
+      "id": "grumble",
+      "segment": "grumble",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "used": {
+          "word": "התרגלתי",
+          "sfx": "pop"
+        }
+      },
+      "intent": "Avi grumbles",
+      "description": "Avi arms crossed, annoyed; a wistful sun bubble 'ברכנו'"
+    },
+    {
+      "id": "everyone",
+      "segment": "everyone",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "all": {
+          "word": "שוכחים",
+          "sfx": "pop"
+        }
+      },
+      "intent": "Everyone forgets at first",
+      "description": "Beni laughing, shrug; tag 'כולם שוכחים בהתחלה'"
+    },
+    {
+      "id": "asking",
+      "segment": "asking",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "q": {
+          "word": "ששכח",
+          "sfx": "pop"
+        },
+        "me": {
+          "word": "בשבילי",
+          "sfx": "click"
+        }
+      },
+      "intent": "Asking for a friend",
+      "description": "Avi nervous, looking away; '?' then tag 'בשביל חבר...'"
+    },
+    {
+      "id": "rules-a",
+      "segment": "rules",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "calm": {
+          "word": "בקטנה",
+          "sfx": "pop"
+        }
+      },
+      "intent": "Relax",
+      "description": "Beni calm, palms down; tag 'זה ממש בקטנה'"
+    },
+    {
+      "id": "rules-b",
+      "segment": "rules",
+      "words": "נזכרת לפני שסיימת",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "s1": {
+          "word": "נזכרת",
+          "sfx": "pop"
+        },
+        "back1": {
+          "word": "חוזר",
+          "sfx": "whoosh"
+        }
+      },
+      "intent": "Before the end of the blessing: go back",
+      "description": "Amida map; pointer at 'ברך עלינו'; return arrow"
+    },
+    {
+      "id": "rules-c",
+      "segment": "rules",
+      "words": "כבר אמרת מברך השנים",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "pass": {
+          "word": "ממשיך",
+          "sfx": "whoosh"
+        },
+        "add": {
+          "word": "מוסיף",
+          "sfx": "ding"
+        }
+      },
+      "intent": "After the blessing: add it in Shema Koleinu",
+      "description": "pointer moves to 'שמע קולנו'; '+ ותן טל ומטר לברכה' lands there"
+    },
+    {
+      "id": "rules-d",
+      "segment": "rules",
+      "words": "שכחת גם שם",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "rtz": {
+          "word": "רצה",
+          "sfx": "pop"
+        },
+        "back2": {
+          "word": "רצה",
+          "sfx": "whoosh",
+          "delay": 0.55
+        },
+        "end": {
+          "word": "העמידה",
+          "sfx": "pop"
+        },
+        "top": {
+          "word": "מההתחלה",
+          "sfx": "whoosh"
+        }
+      },
+      "intent": "Started Retzeh: back; finished: from the top",
+      "description": "pointer at 'רצה' → arrow back up; pointer at the end → arrow to the very top"
+    },
+    {
+      "id": "lost",
+      "segment": "lost",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "dizzy": {
+          "word": "סיבכת",
+          "sfx": "boing"
+        }
+      },
+      "intent": "Avi overwhelmed",
+      "description": "Avi dizzy, scribble cloud over his head"
+    },
+    {
+      "id": "simple-a",
+      "segment": "simple",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "easy": {
+          "word": "פשוט",
+          "sfx": "pop"
+        }
+      },
+      "intent": "It's simple",
+      "description": "Beni waving, tag 'ממש פשוט!'"
+    },
+    {
+      "id": "simple-b",
+      "segment": "simple",
+      "words": "ותן טל ומטר לברכה זה כמו",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "key": {
+          "word": "סופר",
+          "sfx": "ding"
+        }
+      },
+      "intent": "The super key",
+      "description": "a big golden key 'SUPER KEY' with 'ותן טל ומטר לברכה'"
+    },
+    {
+      "id": "simple-c",
+      "segment": "simple",
+      "words": "שכחת בברך עלינו",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "miss": {
+          "word": "שכחת",
+          "sfx": "click"
+        },
+        "insert": {
+          "word": "בשמע",
+          "sfx": "click"
+        },
+        "ok": {
+          "word": "כלום",
+          "sfx": "ding"
+        }
+      },
+      "intent": "Forgot → use it in Shema Koleinu",
+      "description": "'ברך עלינו' row with ✗; key flies into 'שמע קולנו' lock; check"
+    },
+    {
+      "id": "relief",
+      "segment": "relief",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "ok": {
+          "word": "סגרנו",
+          "sfx": "stamp"
+        }
+      },
+      "intent": "Avi relieved",
+      "description": "Avi relieved; stamp 'סגרנו!'"
+    },
+    {
+      "id": "tease",
+      "segment": "tease",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "n30": {
+          "word": "בשלושים",
+          "sfx": "pop"
+        }
+      },
+      "intent": "The 30-day teaser",
+      "description": "Beni smug; big '30 יום' badge with '?'"
+    },
+    {
+      "id": "what",
+      "segment": "what",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "q": {
+          "word": "מה",
+          "sfx": "boing"
+        }
+      },
+      "intent": "Avi alarmed",
+      "description": "Avi shocked; huge '?!'"
+    },
+    {
+      "id": "later",
+      "segment": "later",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "stamp": {
+          "word": "אחר",
+          "sfx": "stamp"
+        }
+      },
+      "intent": "Dodge",
+      "description": "Beni waving it off; stamp 'לסרטון אחר'"
+    },
+    {
+      "id": "come-on",
+      "segment": "come-on",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "mad": {
+          "word": "באמת",
+          "sfx": "pop"
+        }
+      },
+      "intent": "Avi frustrated",
+      "description": "Avi shrugging, annoyed; anger marks"
+    },
+    {
+      "id": "another",
+      "segment": "another",
+      "skill": "reelkit",
+      "component": "Scene",
+      "cues": {
+        "stamp": {
+          "word": "סרטון",
+          "sfx": "stamp"
+        },
+        "crickets": {
+          "word": "סרטון",
+          "sfx": "crickets",
+          "delay": 1.2
+        },
+        "drops": {
+          "word": "סרטון",
+          "sfx": "rain",
+          "delay": 2.6
+        },
+        "thunder": {
+          "word": "סרטון",
+          "sfx": "thunder",
+          "delay": 2.3
+        }
+      },
+      "intent": "Running gag, then awkward silence",
+      "description": "Beni stamp 'סרטון אחר!'; cut to both standing silent, crickets chirping; first raindrops"
+    },
+    {
+      "id": "bye",
+      "segment": "bye",
+      "skill": "reelkit",
+      "component": "Scene",
+      "intent": "Bye in the rain",
+      "description": "two-shot in the rain, Avi looks up and says bye",
+      "cues": {
+        "rain2": {
+          "word": "טוב",
+          "sfx": "rain"
+        }
+      }
+    },
+    {
+      "id": "bye2",
+      "segment": "bye2",
+      "skill": "reelkit",
+      "component": "Scene",
+      "intent": "Bye",
+      "description": "two-shot in the rain, Beni waves",
+      "cues": {
+        "rain3": {
+          "word": "אחי",
+          "sfx": "rain"
+        }
+      }
+    }
+  ]
+}

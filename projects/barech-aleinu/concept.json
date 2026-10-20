@@ -1,0 +1,14 @@
+{
+  "name": "Sitcom Toons",
+  "why": "The user's series is a two-character comic dialogue with flat cartoon friends cutting back and forth — the film keeps that grammar with our own hand-coded characters.",
+  "look": "Two flat vector cartoon friends drawn in code — Beni (glasses, kippah, white shirt) on a teal ground, Avi (black tee) on warm sand; hard cuts on every line; props (calendar, cloud, key, crickets) pop beside them on their words; a final two-shot in the rain.",
+  "palette": { "bg": "#EADCC6", "ink": "#1D1B1A", "accent": "#2E86C1", "accentInk": "#FFFFFF", "muted": "#8A7F70", "paper": "#FFFFFF", "teal": "#3F7C8A", "sand": "#EADCC6", "gold": "#F2B33D", "red": "#D9483B" },
+  "font": "rubik",
+  "bodyFont": "heebo",
+  "imageTreatment": "none",
+  "ground": { "grain": 0.03, "pattern": "none" },
+  "motif": { "type": "none" },
+  "captions": { "size": 62, "bottom": 0.15, "plate": "rgba(255,255,255,0.95)" },
+  "elements": ["the two cartoon friends (mood + arms per line, mouth on the words)", "thought / speech bubbles", "props: calendar page, sun, rain cloud, golden key, crickets", "an Amida map with a pointer and return arrows", "stamps for the punchlines"],
+  "motion": "Hard cut on every line; props spring in on their word; the speaker breathes and talks; rain falls at the end."
+}

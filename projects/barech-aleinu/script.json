@@ -1,0 +1,139 @@
+{
+  "title": "ברך עלינו",
+  "segments": [
+    {
+      "id": "amen",
+      "speaker": "Avi",
+      "style": "piously, clearly, finishing a prayer",
+      "text": "עושה שלום עלינו ועל כל ישראל, ואמרו *אמן*.",
+      "sources": []
+    },
+    {
+      "id": "hope",
+      "speaker": "Beni",
+      "style": "cheerfully",
+      "text": "יפה! אני מקווה שאמרת *ברך עלינו*!",
+      "sources": []
+    },
+    {
+      "id": "sure",
+      "speaker": "Avi",
+      "style": "nervously, pretending",
+      "text": "[sighs] כן, ברור, מה זאת אומרת.",
+      "sources": []
+    },
+    {
+      "id": "why",
+      "speaker": "Beni",
+      "style": "delighted",
+      "text": "אהה, יופי! מעולה! כי מ*ז׳ בחשוון* סיימנו עם ברכנו של הקיץ, ועכשיו מבקשים גשם: *ותן טל ומטר לברכה*!",
+      "sources": [
+        "https://he.wikisource.org/wiki/שולחן_ערוך_אורח_חיים_קיז"
+      ]
+    },
+    {
+      "id": "grumble",
+      "speaker": "Avi",
+      "style": "grumbling",
+      "text": "וואי, כל פעם משנים משהו. רק *התרגלתי* לברכנו.",
+      "sources": []
+    },
+    {
+      "id": "everyone",
+      "speaker": "Beni",
+      "style": "amused",
+      "text": "[chuckles] בגלל זה כולם *שוכחים* בהתחלה!",
+      "sources": []
+    },
+    {
+      "id": "asking",
+      "speaker": "Avi",
+      "style": "worried, trying to sound casual",
+      "text": "רגע. ככה סתם אני שואל. מה קורה למי *ששכח*? לא בשבילי, אה.",
+      "sources": []
+    },
+    {
+      "id": "rules",
+      "speaker": "Beni",
+      "style": "reassuring, then rattling off fast",
+      "text": "רגוע, רגוע, זה ממש בקטנה! נזכרת לפני שסיימת את הברכה? חוזר ל*ברך עלינו*. כבר אמרת מברך השנים? ממשיך, ובברכת *שמע קולנו*, לפני כי אתה שומע, מוסיף ותן טל ומטר לברכה. שכחת גם שם, והתחלת *רצה*? חוזר לברך עלינו. כבר סיימת את כל העמידה? מתחיל הכל *מההתחלה*!",
+      "sources": [
+        "https://he.wikisource.org/wiki/שולחן_ערוך_אורח_חיים_קיז",
+        "https://halachayomit.co.il/he/default.aspx?HalachaID=3767"
+      ]
+    },
+    {
+      "id": "lost",
+      "speaker": "Avi",
+      "style": "overwhelmed, defeated",
+      "text": "[sighs] *סיבכת* אותי.",
+      "sources": []
+    },
+    {
+      "id": "simple",
+      "speaker": "Beni",
+      "style": "playful, very upbeat",
+      "text": "לעע! זה ממש פשוט! ותן טל ומטר לברכה זה כמו *סופר קי*. שכחת בברך עלינו? אומר אותו ב*שמע קולנו*, וממשיך כאילו כלום!",
+      "sources": [
+        "https://www.sulamot.org/%D7%A9%D7%9B%D7%97-%D7%95%D7%AA%D7%9F-%D7%98%D7%9C-%D7%95%D7%9E%D7%98%D7%A8/"
+      ]
+    },
+    {
+      "id": "relief",
+      "speaker": "Avi",
+      "style": "relieved",
+      "text": "וואי. *סופר קי*. ברוך השם. סגרנו.",
+      "sources": []
+    },
+    {
+      "id": "tease",
+      "speaker": "Beni",
+      "style": "casually, as if just remembering",
+      "text": "כן! ויש גם את הדין של מי שלא בטוח מה אמר ב*שלושים* הימים הראשונים.",
+      "sources": []
+    },
+    {
+      "id": "what",
+      "speaker": "Avi",
+      "style": "alarmed",
+      "text": "רגע, *מה*?",
+      "sources": []
+    },
+    {
+      "id": "later",
+      "speaker": "Beni",
+      "style": "cheeky, dodging",
+      "text": "לא, לא. זה ל*סרטון אחר*.",
+      "sources": []
+    },
+    {
+      "id": "come-on",
+      "speaker": "Avi",
+      "style": "frustrated",
+      "text": "נו באמת!",
+      "sources": []
+    },
+    {
+      "id": "another",
+      "speaker": "Beni",
+      "style": "firm, playful",
+      "text": "*סרטון אחר*!",
+      "sources": []
+    },
+    {
+      "id": "bye",
+      "speaker": "Avi",
+      "style": "awkward, after a long silence",
+      "pauseBefore": 2.6,
+      "text": "טוב, יאללה *ביי*.",
+      "sources": []
+    },
+    {
+      "id": "bye2",
+      "speaker": "Beni",
+      "style": "warm, quick",
+      "text": "ביי אחי, *ביי*.",
+      "sources": []
+    }
+  ]
+}

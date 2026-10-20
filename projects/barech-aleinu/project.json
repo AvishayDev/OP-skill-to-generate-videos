@@ -1,0 +1,21 @@
+{
+  "title": "ברך עלינו",
+  "language": "he",
+  "aspect": "9:16",
+  "durationSeconds": 85,
+  "fps": 30,
+  "voice": {
+    "voiceName": "Puck",
+    "style": "A comedy sketch in native, casual Israeli Hebrew between two friends. Natural, quick, expressive street Hebrew, never a news anchor.",
+    "speakers": {
+      "Avi": {
+        "voiceName": "Charon",
+        "style": "a sheepish guy in his thirties who pretends he knows everything about Judaism, sighs a lot"
+      },
+      "Beni": {
+        "voiceName": "Puck",
+        "style": "a cheerful, enthusiastic, smiling friend who loves explaining halacha"
+      }
+    }
+  }
+}

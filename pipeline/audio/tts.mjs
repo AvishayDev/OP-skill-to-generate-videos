@@ -93,12 +93,68 @@ export function buildRequest(script, voice) {
   };
 }
 
+// A dialogue: segments name their `speaker`, and `voice.speakers` maps each speaker to a voice
+// ({ "Avi": { "voiceName": "Charon", "style": "…" } }). The whole dialogue goes in one multi-speaker
+// request (generateContent, `voice.dialogueModel`), split only where a segment asks for a `pauseBefore`
+// (a beat, crickets…) — that silence is added between the parts.
+export const isDialogue = (script) => script.segments.some((s) => s.speaker);
+
+export function voiceGroups(script, voice) {
+  const groups = [];
+  for (const [i, seg] of script.segments.entries()) {
+    if (!groups.length || seg.pauseBefore) groups.push({ first: i, segments: [] });
+    groups.at(-1).segments.push(seg);
+  }
+  return groups.map((g) => ({ ...g, body: dialogueRequest(g.segments, voice) }));
+}
+
+export function dialogueRequest(segments, voice) {
+  const speakers = voice.speakers ?? {};
+  const names = [...new Set(segments.map((s) => s.speaker))];
+  for (const n of names) if (!speakers[n]?.voiceName) throw new Error(`speaker "${n}" has no voice — add project.json → voice.speakers.${n}.voiceName`);
+  const notes = names.map((n) => `${n}: ${speakers[n].style ?? ''}`).join('\n');
+  // Square-bracket tags stay in the text: the dialogue models read them as delivery directions.
+  const lines = segments.map((s) => `${s.speaker}: ${s.style ? `[${s.style}] ` : ''}${s.text.replace(/\*/g, '')}`).join('\n');
+  const speakerVoiceConfigs = names.map((n) => ({ speaker: n, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers[n].voiceName } } }));
+  const speechConfig = names.length > 1
+    ? { multiSpeakerVoiceConfig: { speakerVoiceConfigs } }
+    : { voiceConfig: speakerVoiceConfigs[0].voiceConfig };
+  return {
+    model: voice.dialogueModel ?? 'gemini-3.1-flash-tts-preview',
+    contents: [{ parts: [{ text: `${voice.style ?? ''}\n${notes}\n\nTTS the following conversation between ${names.join(' and ')}:\n${lines}` }] }],
+    generationConfig: { responseModalities: ['AUDIO'], speechConfig },
+  };
+}
+
+async function synthesizeDialogue({ model, ...body }, apiKey) {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    if (res.ok) {
+      const data = JSON.parse(text).candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData?.data;
+      if (!data) throw new Error(`Gemini TTS returned no audio: ${text.slice(0, 500)}`);
+      return Buffer.from(data, 'base64'); // raw 24 kHz mono 16-bit PCM
+    }
+    const wait = retryDelaySeconds(res.status, text);
+    if (wait === null || attempt > 3) throw new Error(`Gemini TTS ${res.status}: ${text}`);
+    console.log(`  Gemini TTS ${res.status} — retrying in ${wait}s (attempt ${attempt}/3)…`);
+    await sleep(wait * 1000);
+  }
+}
+
+// The silence before a dialogue part: `pauseBefore` on its first segment (a beat, crickets…).
+const gapSeconds = (g) => g.segments[0].pauseBefore ?? 0;
+
 // Free-tier Gemini TTS allows only a few requests per minute. Returns seconds to
 // wait before retrying, or null if retrying won't help (daily quota, bad request).
 export function retryDelaySeconds(status, bodyText) {
   if (status >= 500) return 10;
   if (status !== 429) return null;
-  if (/PerDay/i.test(bodyText)) return null;
+  if (/PerDay|per day/i.test(bodyText)) return null;
   const m = bodyText.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/) ?? bodyText.match(/retry in (\d+(?:\.\d+)?)s/i);
   return m ? Math.ceil(Number(m[1])) + 2 : 30;
 }
@@ -207,7 +263,25 @@ export async function generateVoice(ep, { force = false } = {}) {
   const previous = readJsonIfExists(ep.timing, {});
   let fresh = false;
   let requestHash;
-  if (voice.source) {
+  const dialogue = !voice.source && isDialogue(script);
+  const groups = dialogue ? voiceGroups(script, voice) : [];
+  if (dialogue) {
+    requestHash = hash(groups.map((g) => [g.body, gapSeconds(g)]));
+    if (force || !existsSync(wav) || previous.requestHash !== requestHash) {
+      const { GEMINI_API_KEY } = requireEnv('GEMINI_API_KEY');
+      const gap = (g) => Buffer.alloc(Math.round(gapSeconds(g) * 24000) * 2);
+      const parts = [];
+      for (const [i, g] of groups.entries()) {
+        console.log(`TTS: dialogue part ${i + 1}/${groups.length} — ${g.segments.length} lines in one request (${g.body.model})…`);
+        parts.push(await synthesizeDialogue(g.body, GEMINI_API_KEY));
+      }
+      writeFileSync(wav, pcmToWav(Buffer.concat(parts.flatMap((p, i) => (i ? [gap(groups[i]), p] : [p])))));
+      writeJson(join(ep.audioDir, 'voice-parts.json'), parts.map((p) => p.length / 48000));
+      fresh = true;
+    } else {
+      console.log('TTS: script unchanged — reusing audio/voice.wav (use --force to regenerate)');
+    }
+  } else if (voice.source) {
     // Footage mode: the user's own voice, already cut and cleaned by `source`; only the words are re-timed.
     if (!existsSync(wav)) throw new Error('No source voice — run "source <p> <file>" with the uploaded video first');
     const { size, mtimeMs } = statSync(wav);
@@ -230,6 +304,12 @@ export async function generateVoice(ep, { force = false } = {}) {
   const weights = script.segments.map((s) => plainText(s.text).length + 5);
   const silences = detectSilences(wav, voice);
   const starts = findBoundaries(silences, total, weights);
+  if (dialogue) {
+    // Each speaker's part starts exactly where it was joined in.
+    const lengths = readJson(join(ep.audioDir, 'voice-parts.json'));
+    let t = 0;
+    groups.forEach((g, i) => { if (i) { t += gapSeconds(g); starts[g.first] = round(t); } t += lengths[i]; });
+  }
 
   const timing = {
     voiceFile,

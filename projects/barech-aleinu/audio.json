@@ -1,0 +1,186 @@
+{
+  "music": {
+    "query": "playful quirky",
+    "source": {
+      "type": "freesound",
+      "id": 124406,
+      "url": "https://cdn.freesound.org/previews/124/124406_35187-hq.mp3"
+    },
+    "name": "Spring theory.wav",
+    "duration": 54.87,
+    "license": "CC BY 3.0",
+    "credit": "\"Spring theory.wav\" by jobro / Freesound",
+    "page": "https://freesound.org/people/jobro/sounds/124406/"
+  },
+  "sfx": {
+    "crickets": {
+      "query": "crickets night",
+      "source": {
+        "type": "freesound",
+        "id": 822935,
+        "url": "https://cdn.freesound.org/previews/822/822935_14007850-hq.mp3"
+      },
+      "name": "cricket chirping (slow)",
+      "duration": 2.83,
+      "license": "CC0",
+      "credit": "\"cricket chirping (slow)\" by _sinny_ / Freesound",
+      "page": "https://freesound.org/people/_sinny_/sounds/822935/"
+    },
+    "rain": {
+      "query": "rain ambience",
+      "source": {
+        "type": "freesound",
+        "id": 850251,
+        "url": "https://cdn.freesound.org/previews/850/850251_18078870-hq.mp3"
+      },
+      "name": "Rain Loop 1",
+      "duration": 3.13,
+      "license": "CC BY 4.0",
+      "credit": "\"Rain Loop 1\" by Krustbolt / Freesound",
+      "page": "https://freesound.org/people/Krustbolt/sounds/850251/"
+    },
+    "thunder": {
+      "query": "thunder",
+      "source": {
+        "type": "freesound",
+        "id": 693874,
+        "url": "https://cdn.freesound.org/previews/693/693874_14915641-hq.mp3"
+      },
+      "name": "thunder1.wav",
+      "duration": 2.33,
+      "license": "CC0",
+      "credit": "\"thunder1.wav\" by BeroundSound / Freesound",
+      "page": "https://freesound.org/people/BeroundSound/sounds/693874/"
+    },
+    "boing": {
+      "query": "cartoon boing",
+      "source": {
+        "type": "freesound",
+        "id": 731262,
+        "url": "https://cdn.freesound.org/previews/731/731262_15869491-hq.mp3"
+      },
+      "name": "cartoon-sound-single-boing",
+      "duration": 2.1,
+      "license": "CC0",
+      "credit": "\"cartoon-sound-single-boing\" by sdroliasnick / Freesound",
+      "page": "https://freesound.org/people/sdroliasnick/sounds/731262/"
+    },
+    "ding": {
+      "query": "ding bell short",
+      "source": {
+        "type": "freesound",
+        "id": 333693,
+        "url": "https://cdn.freesound.org/previews/333/333693_1187042-hq.mp3"
+      },
+      "name": "Thin bell ding 4",
+      "duration": 2.32,
+      "license": "CC0",
+      "credit": "\"Thin bell ding 4\" by Khrinx / Freesound",
+      "page": "https://freesound.org/people/Khrinx/sounds/333693/"
+    },
+    "pop": {
+      "query": "pop ui short",
+      "source": {
+        "type": "freesound",
+        "id": 220190,
+        "url": "https://cdn.freesound.org/previews/220/220190_4100837-hq.mp3"
+      },
+      "name": "Blip Pop",
+      "duration": 1,
+      "license": "CC0",
+      "credit": "\"Blip Pop\" by GameAudio / Freesound",
+      "page": "https://freesound.org/people/GameAudio/sounds/220190/"
+    },
+    "click": {
+      "query": "mouse click",
+      "source": {
+        "type": "freesound",
+        "id": 678248,
+        "url": "https://cdn.freesound.org/previews/678/678248_7806746-hq.mp3"
+      },
+      "name": "Mouse Click Sound.mp3",
+      "duration": 1.24,
+      "license": "CC0",
+      "credit": "\"Mouse Click Sound.mp3\" by Pixeliota / Freesound",
+      "page": "https://freesound.org/people/Pixeliota/sounds/678248/"
+    },
+    "whoosh": {
+      "query": "whoosh short",
+      "source": {
+        "type": "freesound",
+        "id": 460473,
+        "url": "https://cdn.freesound.org/previews/460/460473_9658839-hq.mp3"
+      },
+      "name": "VS_Short Whoosh 8.mp3",
+      "duration": 1.22,
+      "license": "CC BY 4.0",
+      "credit": "\"VS_Short Whoosh 8.mp3\" by Vilkas_Sound / Freesound",
+      "page": "https://freesound.org/people/Vilkas_Sound/sounds/460473/"
+    },
+    "stamp": {
+      "query": "rubber stamp",
+      "source": {
+        "type": "freesound",
+        "id": 470710,
+        "url": "https://cdn.freesound.org/previews/470/470710_9906084-hq.mp3"
+      },
+      "name": "traditional stamp.wav",
+      "duration": 1.59,
+      "license": "CC0",
+      "credit": "\"traditional stamp.wav\" by I.fekry / Freesound",
+      "page": "https://freesound.org/people/I.fekry/sounds/470710/"
+    },
+    "logo": {
+      "query": "pop ui notification",
+      "source": {
+        "type": "freesound",
+        "id": 810191,
+        "url": "https://cdn.freesound.org/previews/810/810191_17437502-hq.mp3"
+      },
+      "name": "notification chime",
+      "duration": 2.08,
+      "license": "CC BY 4.0",
+      "credit": "\"notification chime\" by mokasza / Freesound",
+      "page": "https://freesound.org/people/mokasza/sounds/810191/"
+    },
+    "image": {
+      "query": "whoosh swoosh short",
+      "source": {
+        "type": "freesound",
+        "id": 449992,
+        "url": "https://cdn.freesound.org/previews/449/449992_3217484-hq.mp3"
+      },
+      "name": "whoosh_short_low.wav",
+      "duration": 2.68,
+      "license": "CC0",
+      "credit": "\"whoosh_short_low.wav\" by DJT4NN3R / Freesound",
+      "page": "https://freesound.org/people/DJT4NN3R/sounds/449992/"
+    },
+    "stat": {
+      "query": "counter ticks",
+      "source": {
+        "type": "freesound",
+        "id": 349655,
+        "url": "https://cdn.freesound.org/previews/349/349655_464940-hq.mp3"
+      },
+      "name": "c4_beep1.ogg",
+      "duration": 0.75,
+      "license": "CC0",
+      "credit": "\"c4_beep1.ogg\" by insanity54 / Freesound",
+      "page": "https://freesound.org/people/insanity54/sounds/349655/"
+    },
+    "title": {
+      "query": "cinematic whoosh short",
+      "source": {
+        "type": "freesound",
+        "id": 179779,
+        "url": "https://cdn.freesound.org/previews/179/179779_985466-hq.mp3"
+      },
+      "name": "wipe2.wav",
+      "duration": 1,
+      "license": "CC0",
+      "credit": "\"wipe2.wav\" by Sclolex / Freesound",
+      "page": "https://freesound.org/people/Sclolex/sounds/179779/"
+    }
+  }
+}

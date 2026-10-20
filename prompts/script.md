@@ -55,6 +55,15 @@ no separate tiny hook/outro segments).
 - **No narrator** (`project.json → "voice": "none"`): every segment gets `"seconds"` and usually empty `text`
   (or the on-screen words of a lyric / quote film, used for the plan only).
 
+## Dialogue (two or more characters)
+Give every segment a `speaker` (one line = one segment) and map the speakers to voices in `project.json →
+voice.speakers`: `{ "Avi": { "voiceName": "Charon", "style": "sheepish, sighs a lot" }, "Beni": { "voiceName":
+"Puck", "style": "cheerful explainer" } }`. The whole dialogue is voiced in ONE multi-speaker request
+(`voice.dialogueModel`, default `gemini-3.1-flash-tts-preview`) — the free tier allows ~10 TTS requests a day, so
+never voice line by line. A segment's `style` becomes a short `[tag]` before its line (keep it to a few words; a
+too-quiet direction like "murmuring" can drop the line). `"pauseBefore": 2.5` on a segment starts a new request
+after that much silence (a beat, crickets). Shots show the speaker; `words` tell a shot when its speaker talks.
+
 ## Self-check
 - Hook in the first sentence; CTA (or a payoff) in the last.
 - Word count vs. budget; every fact traceable to a URL in `sources`.
