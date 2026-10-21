@@ -6,10 +6,12 @@ const path = require('path');
 (async () => {
   const out = process.argv[2] ?? 'handshake.mp4';
   const stillsArg = process.argv.indexOf('--frames');
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: ['--allow-file-access-from-files'] });
   const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
   await page.goto('file://' + path.join(__dirname, 'handshake.html'));
   await page.evaluate(() => window.ready);
+  // --debug: ghost the icon over the hands · --rig: hands only (no tile, no icon)
+  await page.evaluate(([d, r]) => { window.DEBUG_OVERLAY = d; window.DEBUG_RIG = r; }, [process.argv.includes('--debug'), process.argv.includes('--rig')]);
   const grab = (t) => page.evaluate((t) => { window.frame(t); return document.getElementById('c').toDataURL('image/png').split(',')[1]; }, t);
 
   if (stillsArg > 0) {
