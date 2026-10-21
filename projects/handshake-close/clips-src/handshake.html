@@ -1,0 +1,181 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: Heebo; font-weight: 800; src: url('file:///opt/node22/lib/node_modules/reelkit-cli/node_modules/@fontsource/heebo/files/heebo-hebrew-800-normal.woff2'); }
+  html, body { margin: 0; background: #000; }
+  canvas { display: block; }
+</style>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// Handshake: two hands reach in on an arc, slow down, slide palm to palm, the fingers curl around
+// one after another, the thumbs wrap over, a squeeze and two damped pumps, then the badge settles.
+const W = 1080, H = 1920, DURATION = 3.2;
+const BG_TOP = '#59acfb', BG_BOT = '#4195f4', LINE = '#2f6fd6';
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const layer = document.createElement('canvas'); layer.width = W; layer.height = H;
+const lx = layer.getContext('2d');
+
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const mix = (a, b, k) => a + (b - a) * k;
+const span = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+const easeInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const easeOutBack = (k, s = 1.4) => 1 + (s + 1) * Math.pow(k - 1, 3) + s * Math.pow(k - 1, 2);
+
+// One hand in local space: wrist at (0,0), pointing +x, y down (curling = positive angles).
+const FINGERS = [ // base point, segment lengths, width, open fan angle, curl start delay
+  { x: 156, y: 58, seg: [54, 36, 28], w: 30, fan: 0.14, delay: 0.09 },  // pinky
+  { x: 168, y: 24, seg: [70, 46, 34], w: 34, fan: 0.06, delay: 0.06 },  // ring
+  { x: 172, y: -10, seg: [76, 50, 36], w: 35, fan: 0.0, delay: 0.03 },  // middle
+  { x: 166, y: -44, seg: [70, 46, 34], w: 34, fan: -0.05, delay: 0.0 }, // index
+];
+
+function chain(x, y, segs, angles) {
+  const pts = [[x, y]]; let a = 0;
+  segs.forEach((len, i) => { a += angles[i]; x += Math.cos(a) * len; y += Math.sin(a) * len; pts.push([x, y]); });
+  return pts;
+}
+function strokeChain(g, pts, width, color, from = 0) {
+  // `from` skips the first px of the chain (so a finger's outline starts past the knuckle)
+  let p = pts.slice(); let skip = from;
+  while (skip > 0 && p.length > 2) {
+    const [a, b] = p; const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (skip < d) { p[0] = [a[0] + (b[0] - a[0]) * skip / d, a[1] + (b[1] - a[1]) * skip / d]; break; }
+    skip -= d; p.shift();
+  }
+  g.beginPath(); g.moveTo(p[0][0], p[0][1]);
+  for (let i = 1; i < p.length - 1; i++) { const m = [(p[i][0] + p[i + 1][0]) / 2, (p[i][1] + p[i + 1][1]) / 2]; g.quadraticCurveTo(p[i][0], p[i][1], m[0], m[1]); }
+  g.lineTo(p[p.length - 1][0], p[p.length - 1][1]);
+  g.lineWidth = width; g.strokeStyle = color; g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke();
+}
+function palmPath(g) {
+  g.beginPath();
+  g.moveTo(-40, -84);
+  g.quadraticCurveTo(70, -92, 160, -64);
+  g.quadraticCurveTo(192, -50, 192, -6);
+  g.quadraticCurveTo(192, 56, 170, 78);
+  g.quadraticCurveTo(70, 120, -40, 96);
+  g.closePath();
+}
+function skin(g) {
+  const gr = g.createLinearGradient(0, -90, 0, 110);
+  gr.addColorStop(0, '#ffffff'); gr.addColorStop(1, '#d6e8ff');
+  return gr;
+}
+function cuff(g) {
+  g.save(); g.translate(-78, 2); g.rotate(-0.2);
+  g.beginPath(); g.roundRect(-46, -112, 92, 224, 14);
+  const gr = g.createLinearGradient(-46, 0, 46, 0); gr.addColorStop(0, '#ffffff'); gr.addColorStop(1, '#dcebff');
+  g.fillStyle = gr; g.fill(); g.lineWidth = 7; g.strokeStyle = LINE; g.stroke();
+  g.restore();
+}
+// curl: 0 open … 1 wrapped; per-finger curl gets its own stagger.
+function handBody(g, curl, drawFingers = true) {
+  const S = skin(g);
+  const fingerPts = FINGERS.map((f) => {
+    const c = easeInOut(clamp(curl * 1.12 - f.delay));
+    return chain(f.x, f.y, f.seg, [f.fan + mix(0.04, 0.5, c), mix(0.06, 0.62, c), mix(0.05, 0.55, c)]);
+  });
+  // silhouette outline (palm + fingers), then fills
+  palmPath(g); g.lineWidth = 8; g.strokeStyle = LINE; g.lineJoin = 'round'; g.stroke();
+  if (drawFingers) fingerPts.forEach((p, i) => strokeChain(g, p, FINGERS[i].w + 8, LINE));
+  palmPath(g); g.fillStyle = S; g.fill();
+  if (drawFingers) fingerPts.forEach((p, i) => {
+    strokeChain(g, p, FINGERS[i].w + 8, LINE, 26); // separation from the finger below
+    strokeChain(g, p, FINGERS[i].w, S);
+  });
+}
+function thumb(g, k) {
+  const S = skin(g);
+  const pts = chain(40, -66, [70, 56], [mix(-0.62, 0.02, k), mix(-0.12, 0.4, k)]);
+  strokeChain(g, pts, 52, LINE);
+  strokeChain(g, pts, 44, S);
+  // blend the thumb root into the palm
+  g.beginPath(); g.ellipse(46, -62, 34, 20, 0, 0, Math.PI * 2); g.fillStyle = S; g.fill();
+}
+
+function frame(t) {
+  // background
+  const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, BG_TOP); bg.addColorStop(1, BG_BOT);
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const vg = ctx.createRadialGradient(W / 2, H * 0.45, 200, W / 2, H * 0.5, 1200);
+  vg.addColorStop(0, 'rgba(255,255,255,0.06)'); vg.addColorStop(1, 'rgba(10,40,120,0.12)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+
+  // ---- timing ----
+  const reachL = easeOut(span(t, 0.08, 0.86));           // left hand leads
+  const reachR = easeOut(span(t, 0.14, 0.9));            // right answers a beat later
+  const slide = easeInOut(span(t, 0.8, 1.08));           // palms slide together, webbing to webbing
+  const grip = span(t, 0.92, 1.34);                      // fingers curl (staggered inside handBody)
+  const thumbs = easeInOut(span(t, 0.98, 1.3));
+  const squeeze = Math.sin(Math.PI * span(t, 1.26, 1.44)); // short press when the grip closes
+  const pumpT = t - 1.4;
+  const pump = pumpT > 0 ? Math.sin(2 * Math.PI * 2.1 * pumpT) * Math.exp(-pumpT * 2.6) : 0;
+  const settle = easeInOut(span(t, 2.02, 2.42));
+
+  // group transform: big while shaking, then settles into the badge position
+  const gx = W / 2, gy = mix(930, 1010, settle) + pump * 34;
+  const gs = mix(1.15, 0.74, settle);
+
+  // hands: arc in from below-outside, palms rotate upright as they come
+  const contactX = 168;                               // wrist offset from centre at first contact
+  const gripX = 186;                                  // after sliding in
+  const lxw = mix(-720, -contactX - 70, reachL) + (contactX + 70 - gripX) * slide;
+  const rxw = mix(720, contactX + 70, reachR) - (contactX + 70 - gripX) * slide;
+  const lyw = mix(300, 0, easeOut(span(t, 0.08, 0.7))) - 40 * Math.sin(Math.PI * reachL) * (1 - reachL);
+  const ryw = mix(320, 0, easeOut(span(t, 0.14, 0.76))) - 40 * Math.sin(Math.PI * reachR) * (1 - reachR);
+  const lrot = mix(-0.5, 0.12, reachL) + mix(0, 0.06, slide) + pump * 0.05;
+  const rrot = mix(-0.5, 0.12, reachR) + mix(0, 0.06, slide) + pump * 0.05;
+
+  lx.clearRect(0, 0, W, H);
+  lx.save(); lx.translate(gx, gy); lx.scale(gs, gs * (1 - 0.03 * squeeze));
+
+  // front thumb sits behind the back hand once they meet
+  lx.save(); lx.translate(rxw, ryw + 6); lx.scale(-1, 1); lx.rotate(rrot);
+  thumb(lx, thumbs * 0.8);
+  lx.restore();
+  // back hand (from the left) — its fingers wrap on the far side, mostly hidden
+  lx.save(); lx.translate(lxw, lyw - 6); lx.rotate(lrot);
+  cuff(lx); handBody(lx, grip);
+  lx.restore();
+  // front hand (from the right), mirrored — its fingers wrap over the back hand
+  lx.save(); lx.translate(rxw, ryw + 6); lx.scale(-1, 1); lx.rotate(rrot);
+  cuff(lx); handBody(lx, grip);
+  lx.restore();
+  // the left thumb closes over the top of the right hand
+  lx.save(); lx.translate(lxw, lyw - 6); lx.rotate(lrot);
+  thumb(lx, thumbs);
+  lx.restore();
+  lx.restore();
+
+  // ring pulse + burst lines on the squeeze
+  const ring = span(t, 1.28, 1.85);
+  if (ring > 0 && ring < 1) {
+    ctx.beginPath(); ctx.arc(gx, gy + 10, mix(170, 360, easeOut(ring)) * gs, 0, Math.PI * 2);
+    ctx.lineWidth = 6; ctx.strokeStyle = `rgba(255,255,255,${0.35 * (1 - ring)})`; ctx.stroke();
+  }
+  ctx.save(); ctx.shadowColor = 'rgba(16,58,150,0.28)'; ctx.shadowBlur = 34; ctx.shadowOffsetY = 16;
+  ctx.drawImage(layer, 0, 0); ctx.restore();
+
+  [-122, -101, -79, -58].forEach((deg, i) => {
+    const k = span(t, 1.32 + i * 0.05, 1.62 + i * 0.05);
+    if (k <= 0) return;
+    const a = deg * Math.PI / 180, r0 = 205 * gs, len = 62 * gs * easeOutBack(k);
+    const cx = gx, cy = gy - 20 * gs;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+    ctx.lineTo(cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len));
+    ctx.lineWidth = 24 * gs; ctx.lineCap = 'round'; ctx.strokeStyle = `rgba(255,255,255,${Math.min(1, k * 2)})`; ctx.stroke();
+  });
+
+  // caption
+  const tk = easeOut(span(t, 2.2, 2.55));
+  if (tk > 0) {
+    ctx.save(); ctx.globalAlpha = tk; ctx.font = '800 92px Heebo'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(16,58,150,0.35)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
+    ctx.fillText('קבענו את זה!', W / 2, 1330 + 30 * (1 - tk)); ctx.restore();
+  }
+}
+window.DURATION = DURATION; window.frame = frame;
+window.ready = document.fonts.load("800 92px Heebo", 'קבענו').then(() => true);
+</script>
