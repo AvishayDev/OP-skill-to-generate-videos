@@ -19,7 +19,10 @@
       "Bash(ffprobe:*)",
       "Bash(reelkit:*)",
       "Bash(python3 .claude/skills/watch-video/scripts/watch.py:*)",
-      "Bash(.claude/skills/image-writer/paint.sh:*)"
+      "Bash(.claude/skills/image-writer/paint.sh:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   },
   "env": {
