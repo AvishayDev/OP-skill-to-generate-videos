@@ -31,3 +31,9 @@ if [ "$(reelkit --version 2>/dev/null)" != "$REELKIT_VERSION" ]; then
   REELKIT_NO_AUTO_INSTALL=1 npm install -g --silent "reelkit-cli@$REELKIT_VERSION" >/dev/null 2>&1 \
     || echo "warning: reelkit-cli install failed — the pipeline installs it on demand" >&2
 fi
+
+# ai-video-editor skill: its fonts, synthesised SFX, flares and gsap are generated, not committed.
+if [ ! -d "$CLAUDE_PROJECT_DIR/.claude/skills/ai-video-editor/assets/fonts" ]; then
+  python3 "$CLAUDE_PROJECT_DIR/.claude/skills/ai-video-editor/scripts/setup_assets.py" >/dev/null 2>&1 \
+    || echo "warning: ai-video-editor setup_assets.py failed — rerun it before using the skill" >&2
+fi
