@@ -53,3 +53,6 @@ projects/**/*.otf
 library/*/
 # …except packs that live only here (no upstream repo to fetch from)
 !library/capcut-studio/
+
+# Personal Claude Code permissions (never published)
+.claude/settings.local.json
