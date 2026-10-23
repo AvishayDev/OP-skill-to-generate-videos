@@ -1,0 +1,9 @@
+{
+  "title": "איך מנוע רכב עובד",
+  "segments": [
+    { "id": "hook", "text": "[curious] איך מנוע של רכב באמת עובד? כל הסיפור הוא *ארבעה* צעדים, שוב ושוב.", "sources": ["https://en.wikipedia.org/wiki/Four-stroke_engine"] },
+    { "id": "squeeze", "text": "קודם, הבוכנה יורדת ו*שואבת* אוויר ודלק. אחר כך היא עולה ודוחסת אותם.", "sources": ["https://en.wikipedia.org/wiki/Four-stroke_engine", "https://www.energy.gov/eere/vehicles/articles/internal-combustion-engine-basics"] },
+    { "id": "bang", "text": "[excited] ואז, ניצוץ! הפיצוץ דוחף את הבוכנה למטה, וזה ה*כוח* שמסובב את הגלגלים.", "sources": ["https://en.wikipedia.org/wiki/Four-stroke_engine", "https://www.energy.gov/eere/vehicles/articles/internal-combustion-engine-basics"] },
+    { "id": "exhaust", "text": "לבסוף, הגזים נפלטים החוצה, והכול מתחיל מחדש. [playfully] ספרו לי בתגובות איזה רכב יש לכם.", "sources": ["https://en.wikipedia.org/wiki/Four-stroke_engine"] }
+  ]
+}

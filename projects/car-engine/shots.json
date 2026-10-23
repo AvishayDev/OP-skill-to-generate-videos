@@ -1,0 +1,82 @@
+{
+ "images": [],
+ "videos": [],
+ "shots": [
+  {
+   "id": "hook",
+   "segment": "hook",
+   "skill": "canvas",
+   "file": "shots/engine.js",
+   "cues": {
+    "four": {
+     "word": "ארבעה",
+     "sfx": "pop"
+    }
+   },
+   "images": [],
+   "intent": "Engine cutaway cycles through all four strokes; four step pips pop in on 'four'",
+   "description": "Engine cutaway cycles through all four strokes; four step pips pop in on 'four'"
+  },
+  {
+   "id": "squeeze",
+   "segment": "squeeze",
+   "skill": "canvas",
+   "file": "shots/engine.js",
+   "cues": {
+    "suck": {
+     "word": "ושואבת",
+     "sfx": "pop"
+    },
+    "up": {
+     "word": "עולה"
+    },
+    "press": {
+     "word": "ודוחסת"
+    }
+   },
+   "images": [],
+   "intent": "Piston down draws the air-fuel cloud in, then up compresses it",
+   "description": "Piston down draws the air-fuel cloud in, then up compresses it"
+  },
+  {
+   "id": "bang",
+   "segment": "bang",
+   "skill": "canvas",
+   "file": "shots/engine.js",
+   "cues": {
+    "spark": {
+     "word": "ניצוץ",
+     "sfx": "boom"
+    },
+    "push": {
+     "word": "דוחף"
+    },
+    "wheels": {
+     "word": "הגלגלים",
+     "sfx": "pop"
+    }
+   },
+   "images": [],
+   "intent": "Spark flash, the piston is pushed down and the crank turns the wheel",
+   "description": "Spark flash, the piston is pushed down and the crank turns the wheel"
+  },
+  {
+   "id": "exhaust",
+   "segment": "exhaust",
+   "skill": "canvas",
+   "file": "shots/engine.js",
+   "cues": {
+    "out": {
+     "word": "נפלטים",
+     "sfx": "whoosh"
+    },
+    "again": {
+     "word": "מחדש"
+    }
+   },
+   "images": [],
+   "intent": "Burnt gas leaves, the cycle restarts",
+   "description": "Burnt gas leaves, the cycle restarts"
+  }
+ ]
+}

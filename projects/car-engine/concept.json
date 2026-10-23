@@ -1,0 +1,15 @@
+{
+  "name": "Blueprint Cutaway",
+  "why": "A cylinder cross-section drawn as an engineer's blueprint shows all four strokes in one picture that keeps moving.",
+  "look": "Deep navy drafting sheet with a faint grid, white line art, a cool-blue air-fuel cloud turning orange-hot; one orange accent for whatever the voice names. Rubik type.",
+  "palette": { "bg": "#0B1E3A", "ink": "#EAF2FF", "accent": "#FF7A1A", "accentInk": "#0B1E3A", "muted": "#6F89B3", "paper": "#16345F", "blue": "#5FB8FF" },
+  "font": "rubik",
+  "bodyFont": "rubik",
+  "canvasFont": "Heebo",
+  "imageTreatment": "none",
+  "ground": { "grain": 0.04, "pattern": "grid", "patternColor": "rgba(160,200,255,0.07)" },
+  "motif": { "type": "voiceline", "y": 0.69, "amp": 50, "color": "accent", "outline": "bg" },
+  "captions": { "size": 64, "bottom": 0.17 },
+  "elements": ["one engine cylinder cutaway", "four step pips", "stage title", "air-fuel particles", "spark bolt", "wheel on a drive shaft"],
+  "motion": "Mechanical: the piston and crank turn continuously; labels snap in on their word; hard cuts between shots."
+}
