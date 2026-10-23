@@ -1,0 +1,3 @@
+🎬 קרדיטים / Credits
+• synthesised in code — synthesised locally (ai-video-editor setup_assets.py)
+Music & sound effects: Freesound — Johnnie_Holiday
