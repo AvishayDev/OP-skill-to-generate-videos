@@ -19,6 +19,13 @@ pixel, text included, is your formula: no camera, scene, primitives or drawing c
 **A video link from the user** ("watch this", "make one like this") → the `watch-video` skill: run its script, Read
 the contact sheets and transcript, then answer. Watched videos are reference only (Rule 3).
 
+## Extra video tooling (install when useful)
+Whenever a video is requested or edited and you judge that the fonts/assets from
+`python3 .claude/skills/ai-video-editor/scripts/setup_assets.py` (Rubik/Inter fonts, synthesised SFX, flares, gsap)
+or the skills from `npx -y hyperframes skills` (hyperframes, media-use, figma, remotion-to-hyperframes, slideshow…)
+would help, install them yourself, without asking. Both are free/local; read any newly installed skill before use
+(Hard rule 8). The `ai-video-editor` skill (cutting, layout, captions, sound and mastering rules for any video via HyperFrames) is a toolkit `video-studio` can borrow from for any shot or film, in any aspect.
+
 ## Two modes
 - **One-shot (default).** "make a video about…", "צור סרטון על…", `/make-video`: run the whole pipeline without
   stopping and finish with the mp4 in the chat. The request *is* the approval: `approve <p> auto "<their words>"`.
