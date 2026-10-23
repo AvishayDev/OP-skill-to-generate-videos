@@ -14,10 +14,9 @@ Renders with **[HyperFrames](https://www.npmjs.com/package/hyperframes)** — an
 HTML/CSS/GSAP video composition renderer. The composition is an `index.html`; every clip
 is an element with `data-start` / `data-duration`; animation is one paused GSAP timeline.
 
-**Scope:** 9:16 short-form compositions. Not for long-form or horizontal edits, podcast /
-YouTube episode cuts, or plain trimming of a single clip. If you also run a long-form
-editing skill, the split is: vertical short-form composition → this one; everything else →
-that one.
+**Scope:** any video — talking heads, explainers, animations, promos, slideshows, lyric videos,
+short or long, any aspect ratio. The 9:16 reel is the worked example; see "Using it for any
+video" in `SKILL.md`.
 
 ---
 

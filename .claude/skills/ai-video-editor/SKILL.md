@@ -1,18 +1,19 @@
 ---
 name: ai-video-editor
-description: Build a finished 9:16 short-form reel (Instagram Reels, TikTok, YouTube Shorts) from a talking-head take plus B-roll, composed and rendered with HyperFrames — onset-precise cutting, AI matting, split-screen layout, burned-in single-line caption plates, sound design, motion graphics, 32 Mbps master. Use when the deliverable is a vertical short-form video COMPOSITION. Not for long-form or horizontal video, podcast/YouTube episode edits, or plain timeline trimming of a single clip.
+description: Quality toolkit for ANY video built with HyperFrames — talking-head reels, explainers, animations, promos, slideshows, screen demos, lyric or music videos, long-form or short-form, any aspect ratio (9:16, 16:9, 1:1, 4:5). Onset-precise cutting, AI matting, safe-zone layout, burned-in caption plates, sound design, motion graphics, high-bitrate SDR master, plus bundled fonts, synthesised SFX, lens flares and gsap. Use whenever a video is being composed, cut, captioned, scored or mastered; pick the phases that fit the video (see 'Using it for any video').
 ---
 
-# AI Video Editor — vertical reel pipeline
+# AI Video Editor — video pipeline for any video
 
-Turn a raw talking-head recording plus B-roll into a finished 1080x1920 reel: cut to the
-speech, lay out the frame, caption every word, score it, and master it.
+Turn any footage, animation or generated picture sequence into a finished video: cut it to the audio,
+lay out the frame, caption it, score it, and master it. The default worked example is a 1080x1920 talking-head
+reel, but every phase works for any video (see "Using it for any video").
 
 Built for **HyperFrames** (an HTML/CSS/GSAP video composition renderer) driven from
 **Claude Code**. The composition is an `index.html`; every clip is an element with
 `data-start` / `data-duration`; animation is a single paused GSAP timeline.
 
-**Scope:** raw footage → finished master.
+**Scope:** raw material → finished master, for any kind of video.
 **Not in scope:** scripting, ideation, publishing.
 
 ---
@@ -42,13 +43,27 @@ which wins **per item**, not globally.
 
 ---
 
-## Scope — when NOT to use this skill
+## Using it for any video
 
-This builds a **9:16 short-form composition**. If the request is a long-form or horizontal
-edit, a podcast/YouTube episode, or "just trim this clip", it is the wrong tool — say so and
-hand off rather than forcing a reel pipeline onto it. If another editing skill is installed
-and both look plausible, the split is: **vertical short-form composition → here; everything
-else → there.**
+The rules were learned on vertical talking-head reels, but nothing in the toolchain is tied to a face.
+Pick the phases and numbers that fit the video:
+
+| Video | A-roll (the base track) | Skip / adapt |
+|---|---|---|
+| Talking head, vlog, interview | The speaker's recording | Full pipeline |
+| Explainer, animation, motion graphics | The narrator's voice-over, or the rendered animation itself | Skip matting and split-screen; phase 1 only trims dead air from the voice |
+| Promo, ad, product demo, screen capture | The capture or the music track | Phase 1 = trim to the beat; captions optional |
+| Lyric / music video | The song | Beat map from `scripts/beats.py` + `beat` analysis; captions are the lyrics |
+| Slideshow, photo story | A silent timeline or the narration | No cutting; graphics + sound + master |
+| Long-form or horizontal (16:9, 1:1, 4:5) | Any | Change the canvas size in `config.json` and `build_index.py`; scale the safe zones in `references/layout.md` proportionally (the 9:16 numbers are for Reels/Shorts only) |
+
+What always applies, whatever the video: measure instead of eyeballing, frame-exact segments, verbatim captions
+when captions exist, music/SFX levelled against the voice, SDR bt709 master, sample the encoded file, and the
+checklist. The font, SFX, flare and gsap assets from `setup_assets.py` are usable in any composition, including
+ones not built with this pipeline's scripts.
+
+If another editing skill is installed and fits better (for example a studio that already scripts, voices and
+renders the film), take its structure and borrow only the phases and assets from here that it lacks.
 
 ---
 

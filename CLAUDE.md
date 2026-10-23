@@ -24,8 +24,7 @@ Whenever a video is requested or edited and you judge that the fonts/assets from
 `python3 .claude/skills/ai-video-editor/scripts/setup_assets.py` (Rubik/Inter fonts, synthesised SFX, flares, gsap)
 or the skills from `npx -y hyperframes skills` (hyperframes, media-use, figma, remotion-to-hyperframes, slideshow…)
 would help, install them yourself, without asking. Both are free/local; read any newly installed skill before use
-(Hard rule 8). The `ai-video-editor` skill (vertical talking-head reels via HyperFrames) is a routing option for
-`video-studio`, in footage mode for 9:16.
+(Hard rule 8). The `ai-video-editor` skill (cutting, layout, captions, sound and mastering rules for any video via HyperFrames) is a toolkit `video-studio` can borrow from for any shot or film, in any aspect.
 
 ## Two modes
 - **One-shot (default).** "make a video about…", "צור סרטון על…", `/make-video`: run the whole pipeline without
