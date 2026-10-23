@@ -109,7 +109,7 @@ shotFilm({
 
     // Words that land on their cue (screen space, beside the engine).
     if (SHOT.id === 'squeeze') {
-      const k = p(t, 'suck', 0.35); if (k > 0) text(c, 'אוויר + דלק', 125, 600, { size: 54, weight: 800, color: PAL.blue, alpha: k });
+      const k = p(t, 'suck', 0.35); if (k > 0) text(c, 'אוויר + דלק', 150, 600, { size: 44, weight: 800, color: PAL.blue, alpha: k });
     }
     if (SHOT.id === 'exhaust') {
       const k = p(t, 'out', 0.35) * (1 - p(t, 'again', 0.3)); if (k > 0) text(c, 'גזי פליטה', 930, 600, { size: 54, weight: 800, color: '#9AA7BA', alpha: k });
